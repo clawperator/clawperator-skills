@@ -1,0 +1,12 @@
+{
+  "id": "com.coles.search-products",
+  "applicationId": "com.coles.android.shopmate",
+  "intent": "search-products",
+  "summary": "Search Coles products and extract current price plus original price for sale items.",
+  "path": "skills/com.coles.search-products",
+  "skillFile": "skills/com.coles.search-products/SKILL.md",
+  "scripts": [
+    "skills/com.coles.search-products/scripts/search_coles_products.sh"
+  ],
+  "artifacts": []
+}

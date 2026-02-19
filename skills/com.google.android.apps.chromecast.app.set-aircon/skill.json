@@ -1,0 +1,12 @@
+{
+  "id": "com.google.android.apps.chromecast.app.set-aircon",
+  "applicationId": "com.google.android.apps.chromecast.app",
+  "intent": "set-aircon",
+  "summary": "Precheck current Google Home air conditioner ON/OFF state and verify after external state-change actions.",
+  "path": "skills/com.google.android.apps.chromecast.app.set-aircon",
+  "skillFile": "skills/com.google.android.apps.chromecast.app.set-aircon/SKILL.md",
+  "scripts": [
+    "skills/com.google.android.apps.chromecast.app.set-aircon/scripts/set_aircon.sh"
+  ],
+  "artifacts": []
+}

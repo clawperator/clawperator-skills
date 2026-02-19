@@ -1,0 +1,12 @@
+{
+  "id": "com.woolworths.search-products",
+  "applicationId": "com.woolworths",
+  "intent": "search-products",
+  "summary": "Search Woolworths products and extract current price plus original price for sale items.",
+  "path": "skills/com.woolworths.search-products",
+  "skillFile": "skills/com.woolworths.search-products/SKILL.md",
+  "scripts": [
+    "skills/com.woolworths.search-products/scripts/search_woolworths_products.sh"
+  ],
+  "artifacts": []
+}

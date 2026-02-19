@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clawperator.dev/schemas/skills-registry.schema.json",
+  "title": "Skills Registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "skills"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "type": "string",
+      "pattern": "^1\\.0$"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "skills": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "applicationId",
+          "intent",
+          "summary",
+          "path",
+          "skillFile",
+          "scripts",
+          "artifacts"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9._-]+$"
+          },
+          "applicationId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9._]+$"
+          },
+          "intent": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^skills/[a-zA-Z0-9._-]+$"
+          },
+          "skillFile": {
+            "type": "string",
+            "pattern": "^skills/[a-zA-Z0-9._-]+/SKILL\\.md$"
+          },
+          "scripts": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^skills/[a-zA-Z0-9._-]+/scripts/[a-zA-Z0-9._-]+\\.sh$"
+            }
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^skills/[a-zA-Z0-9._-]+/artifacts/[a-zA-Z0-9._-]+\\.(recipe\\.json|md|json)$"
+            }
+          }
+        }
+      }
+    }
+  }
+}

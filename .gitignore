@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+
+# Editor/IDE
+.idea/
+.vscode/
+
+# Local temp output
+*.log
+.tmp/
+
+# Generated skill indexes: keep only canonical summary artifacts
+skills/generated/*
+!skills/generated/manifest.json
+!skills/generated/skills-index.jsonl
+!skills/generated/skills-index.min.json
+
+# Never commit local secrets or user-specific data
+.env
+.env.*

@@ -1,0 +1,14 @@
+{
+  "id": "com.globird.energy.get-usage",
+  "applicationId": "com.globird.energy",
+  "intent": "get-usage",
+  "summary": "Read GloBird usage values including cost, usage, and yesterday summary.",
+  "path": "skills/com.globird.energy.get-usage",
+  "skillFile": "skills/com.globird.energy.get-usage/SKILL.md",
+  "scripts": [
+    "skills/com.globird.energy.get-usage/scripts/get_globird_usage.sh"
+  ],
+  "artifacts": [
+    "skills/com.globird.energy.get-usage/artifacts/usage.recipe.json"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "com.theswitchbot.switchbot.get-bedroom-temperature",
+  "applicationId": "com.theswitchbot.switchbot",
+  "intent": "get-bedroom-temperature",
+  "summary": "Read bedroom temperature from the SwitchBot app.",
+  "path": "skills/com.theswitchbot.switchbot.get-bedroom-temperature",
+  "skillFile": "skills/com.theswitchbot.switchbot.get-bedroom-temperature/SKILL.md",
+  "scripts": [
+    "skills/com.theswitchbot.switchbot.get-bedroom-temperature/scripts/get_bedroom_temperature.sh"
+  ],
+  "artifacts": [
+    "skills/com.theswitchbot.switchbot.get-bedroom-temperature/artifacts/bedroom-temperature.recipe.json"
+  ]
+}

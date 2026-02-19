@@ -1,0 +1,14 @@
+{
+  "id": "com.solaxcloud.starter.get-battery",
+  "applicationId": "com.solaxcloud.starter",
+  "intent": "get-battery",
+  "summary": "Read current SolaX Cloud battery percentage.",
+  "path": "skills/com.solaxcloud.starter.get-battery",
+  "skillFile": "skills/com.solaxcloud.starter.get-battery/SKILL.md",
+  "scripts": [
+    "skills/com.solaxcloud.starter.get-battery/scripts/get_solax_battery.sh"
+  ],
+  "artifacts": [
+    "skills/com.solaxcloud.starter.get-battery/artifacts/battery.recipe.json"
+  ]
+}

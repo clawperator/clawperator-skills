@@ -1,0 +1,46 @@
+{
+  "commandId": "{{COMMAND_ID}}",
+  "taskId": "{{TASK_ID}}",
+  "source": "debug",
+  "timeoutMs": 60000,
+  "actions": [
+    {
+      "id": "close",
+      "type": "close_app",
+      "params": {
+        "applicationId": "com.theswitchbot.switchbot"
+      }
+    },
+    {
+      "id": "open",
+      "type": "open_app",
+      "params": {
+        "applicationId": "com.theswitchbot.switchbot"
+      }
+    },
+    {
+      "id": "wait",
+      "type": "sleep",
+      "params": {
+        "durationMs": 3500
+      }
+    },
+    {
+      "id": "snap",
+      "type": "snapshot_ui",
+      "params": {
+        "format": "ascii"
+      }
+    },
+    {
+      "id": "read",
+      "type": "read_text",
+      "params": {
+        "matcher": {
+          "resourceId": "com.theswitchbot.switchbot:id/tvTemp"
+        },
+        "validator": "temperature"
+      }
+    }
+  ]
+}

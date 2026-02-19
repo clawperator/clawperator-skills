@@ -1,0 +1,14 @@
+{
+  "commandId": "{{COMMAND_ID}}",
+  "taskId": "{{TASK_ID}}",
+  "source": "debug",
+  "timeoutMs": 120000,
+  "actions": [
+    { "id": "close", "type": "close_app", "params": { "applicationId": "com.globird.energy" } },
+    { "id": "open", "type": "open_app", "params": { "applicationId": "com.globird.energy" } },
+    { "id": "wait", "type": "sleep", "params": { "durationMs": 7000 } },
+    { "id": "open-energy-tab", "type": "click", "params": { "matcher": { "textEquals": "Energy" } } },
+    { "id": "wait-energy", "type": "sleep", "params": { "durationMs": 3000 } },
+    { "id": "snap", "type": "snapshot_ui", "params": { "format": "ascii" } }
+  ]
+}
