@@ -32,7 +32,7 @@ if (!ok) {
   process.exit(2);
 }
 
-const stepResults = (result.envelope && result.envelope.stepResults) || [];
+const stepResults = (result && result.envelope && result.envelope.stepResults) || [];
 const snapStep = stepResults.find(s => s.id === "read_temp");
 const temp = snapStep && snapStep.data ? snapStep.data.text : null;
 

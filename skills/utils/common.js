@@ -1,5 +1,5 @@
 const { execFileSync } = require('child_process');
-const { writeFileSync, existsSync } = require('fs');
+const { writeFileSync, existsSync, unlinkSync } = require('fs');
 const { join, resolve } = require('path');
 const { tmpdir } = require('os');
 
@@ -28,17 +28,22 @@ function runClawperator(execution, deviceId, receiverPkg, clawBinOverride) {
 
   try {
     const output = execFileSync(cmd, args, { encoding: 'utf-8' });
+    // unlinkSync(tmpFile); // Uncomment to enable cleanup
     const result = JSON.parse(output);
     return { ok: true, result, raw: output };
   } catch (e) {
-    return { ok: false, error: e.message };
+    let msg = e.message;
+    if (e.stderr) msg += '\nSTDERR: ' + Buffer.from(e.stderr).toString();
+    if (e.stdout) msg += '\nSTDOUT: ' + Buffer.from(e.stdout).toString();
+    return { ok: false, error: msg };
   }
 }
 
 function findAttribute(line, attrName) {
   const regex = new RegExp(attrName + '="([^"]*)"');
   const match = line.match(regex);
-  return match ? match[1] : null;
+  if (!match) return null;
+  return match[1] === '' ? null : match[1];
 }
 
 module.exports = { runClawperator, findAttribute };

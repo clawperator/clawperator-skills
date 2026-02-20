@@ -33,7 +33,7 @@ if (!ok) {
   process.exit(2);
 }
 
-const stepResults = (result.envelope && result.envelope.stepResults) || [];
+const stepResults = (result && result.envelope && result.envelope.stepResults) || [];
 const valStep = stepResults.find(s => s.id === "read-battery-value");
 const unitStep = stepResults.find(s => s.id === "read-battery-unit");
 const val = valStep && valStep.data ? valStep.data.text : null;

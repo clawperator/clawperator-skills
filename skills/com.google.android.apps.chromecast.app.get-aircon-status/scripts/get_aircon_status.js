@@ -60,7 +60,7 @@ if (!ok) {
   process.exit(2);
 }
 
-const stepResults = (result.envelope && result.envelope.stepResults) || [];
+const stepResults = (result && result.envelope && result.envelope.stepResults) || [];
 const powerStep = stepResults.find(s => s.id === "read-power");
 const modeStep = stepResults.find(s => s.id === "read-mode");
 const tempStep = stepResults.find(s => s.id === "read-indoor-temp");
