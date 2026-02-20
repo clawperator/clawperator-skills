@@ -1,4 +1,4 @@
 #!/bin/bash
 set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-npx -y tsx "$DIR/get_solax_battery.ts" "$@"
+node "$DIR/get_solax_battery.js" "$@"

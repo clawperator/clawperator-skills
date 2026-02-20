@@ -1,17 +1,15 @@
-import { execFileSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
-import { join, dirname } from "node:path";
-import { tmpdir } from "node:os";
-import { fileURLToPath } from "node:url";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+#!/usr/bin/env node
+const { execFileSync } = require("child_process");
+const { writeFileSync } = require("fs");
+const { join } = require("path");
+const { tmpdir } = require("os");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const receiverPkg = process.argv[3] || process.env.RECEIVER_PKG || "com.clawperator.operator.dev";
 let clawBin = process.env.CLAW_BIN || "clawperator";
 
 if (!deviceId) {
-  console.error("Usage: npx tsx get_globird_usage.ts <device_id> [receiver_package]");
+  console.error("Usage: node get_globird_usage.js <device_id> [receiver_package]");
   process.exit(1);
 }
 
@@ -52,7 +50,7 @@ try {
   const output = execFileSync(cmd, args, { encoding: "utf-8" });
   const result = JSON.parse(output);
 
-  const snapStep = result.envelope.stepResults.find((s: any) => s.id === "snap");
+  const snapStep = result.envelope.stepResults.find(s => s.id === "snap");
   const snapText = snapStep && snapStep.data ? snapStep.data.text : null;
 
   if (snapText) {
@@ -77,7 +75,7 @@ try {
     console.error(`Raw result: ${output}`);
     process.exit(2);
   }
-} catch (e: any) {
+} catch (e) {
   console.error("⚠️ Skill execution failed");
   if (e.stdout) console.error(e.stdout);
   if (e.stderr) console.error(e.stderr);
