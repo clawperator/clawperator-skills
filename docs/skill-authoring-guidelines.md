@@ -55,7 +55,7 @@ Many apps use fake UI elements on the home screen that act as triggers for the r
 
 *   **Safe Payloads:** Use Node.js to build Execution objects as native literals and JSON.stringify() them to avoid shell escaping issues.
 *   **Robust Parsing:** Never assume XML attribute order in UI snapshots. Use attribute-independent regex: 
-    `const match = line.match(/resource-id="[^"]*target_id"[^>]*text="([^"]*)"/);`
+    `const match = line.match(/^(?=[^>]*\bresource-id="[^"]*target_id")(?=[^>]*\btext="([^"]*)")[^>]*>/);`
 *   **Error Handling:** Check `execFileSync` errors for `e.stdout` and `e.stderr` (converted from Buffers to strings) to provide meaningful failure messages.
 
 ---
