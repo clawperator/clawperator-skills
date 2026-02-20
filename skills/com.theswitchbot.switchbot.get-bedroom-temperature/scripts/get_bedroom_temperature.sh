@@ -1,50 +1,32 @@
 #!/bin/bash
 set -euo pipefail
 
-PKG="${1:-app.actiontask.operator.development}"
-ADB_BIN="${ADB_BIN:-adb}"
-TASK_ID="bedroom-temp-$(date +%s)-$RANDOM"
-CMD_ID="cmd-${TASK_ID}"
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-TEMPLATE_PATH="$ROOT/skills/com.theswitchbot.switchbot.get-bedroom-temperature/artifacts/bedroom-temperature.recipe.json"
-LOGS=""
+# Usage: ./get_bedroom_temperature.sh <device_id> [receiver_package]
 
-wait_for_command_completion() {
-  local timeout_sec="${1:-90}"
-  local elapsed=0
-  local polled_logs=""
-  while (( elapsed < timeout_sec )); do
-    polled_logs="$($ADB_BIN logcat -d | grep "$CMD_ID" || true)"
-    if echo "$polled_logs" | grep -q "command_success commandId=$CMD_ID"; then
-      return 0
-    fi
-    if echo "$polled_logs" | grep -q "command_failure commandId=$CMD_ID"; then
-      return 1
-    fi
-    sleep 2
-    elapsed=$((elapsed + 2))
-  done
-  return 1
-}
+DEVICE_ID="${1:-}"
+RECEIVER_PKG="${2:-com.clawperator.operator.dev}"
 
-PAYLOAD=$(cat "$TEMPLATE_PATH" | sed "s/{{COMMAND_ID}}/${CMD_ID}/g" | sed "s/{{TASK_ID}}/${TASK_ID}/g")
-ESCAPED_PAYLOAD=$(printf '%s' "$PAYLOAD" | tr -d '\n' | sed 's/"/\\"/g')
-
-$ADB_BIN logcat -c
-$ADB_BIN shell "am broadcast -a app.actiontask.operator.ACTION_AGENT_COMMAND -p '$PKG' --es payload \"$ESCAPED_PAYLOAD\" --receiver-foreground" >/dev/null
-if ! wait_for_command_completion 90; then
-  echo "⚠️ Bedroom temperature command failed or timed out"
-  exit 2
-fi
-LOGS="$($ADB_BIN logcat -d | grep "$CMD_ID" || true)"
-
-TEMP=$(echo "$LOGS" | sed -nE 's/.*UiActionStepResult\(id=read, actionType=read_text, data=\{text=([^,]+),.*/\1/p' | tail -n 1 || true)
-if [[ -z "$TEMP" ]]; then
-  TEMP=$(echo "$LOGS" | sed -nE 's/.*stage_success commandId=.* id=read data=\{[^}]*text=([^,}]+).*/\1/p' | tail -n 1 || true)
+if [[ -z "$DEVICE_ID" ]]; then
+  echo "Usage: $0 <device_id> [receiver_package]"
+  exit 1
 fi
 
-if [[ -n "$TEMP" ]]; then
+# Try to find clawperator CLI
+CLAW_BIN="clawperator"
+if ! command -v "$CLAW_BIN" &> /dev/null; then
+    # Fallback to local build if running from skills repo sibling
+    CLAW_BIN="node $(pwd)/../clawperator/apps/node/dist/cli/index.js"
+fi
+
+RESULT=$($CLAW_BIN action demo-switchbot-temp --device-id "$DEVICE_ID" --receiver-package "$RECEIVER_PKG")
+
+# Parse temperature using sed (no jq dependency required for this PoC)
+TEMP=$(echo "$RESULT" | sed -nE 's/.*"id":"read_temp".*"text":"([^"]+)".*/\1/p')
+
+if [[ -n "$TEMP" && "$TEMP" != "null" ]]; then
   echo "✅ Bedroom temperature: ${TEMP}"
 else
   echo "⚠️ Could not parse bedroom temperature"
+  echo "Raw result: $RESULT"
+  exit 2
 fi
