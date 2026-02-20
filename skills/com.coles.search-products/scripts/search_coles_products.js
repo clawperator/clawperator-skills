@@ -2,7 +2,7 @@
 const { runClawperator, findAttribute } = require("../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
-const query = process.argv[3] || process.env.QUERY || "Coke Zero";
+const query = process.argv[3] || process.env.QUERY || "Coke Zero 24 pack";
 const receiverPkg = process.argv[4] || process.env.RECEIVER_PKG || "com.clawperator.operator.dev";
 
 if (!deviceId) {
@@ -22,9 +22,11 @@ const execution = {
     { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
     { id: "open", type: "open_app", params: { applicationId: "com.coles.android.shopmate" } },
     { id: "wait_open", type: "sleep", params: { durationMs: 8000 } },
-    { id: "click-search", type: "click", params: { matcher: { textContains: "Search for products" } } },
-    { id: "type-query", type: "enter_text", params: { matcher: { role: "textfield" }, text: query, submit: true } },
-    { id: "wait_results", type: "sleep", params: { durationMs: 5000 } },
+    { id: "click-search", type: "click", params: { matcher: { textContains: "Search" } } },
+    { id: "type-query", type: "enter_text", params: { matcher: { role: "textfield" }, text: query, submit: false } },
+    { id: "wait_sugg", type: "sleep", params: { durationMs: 4000 } },
+    { id: "click-sugg", type: "click", params: { matcher: { textContains: "Coke" } } },
+    { id: "wait_results", type: "sleep", params: { durationMs: 8000 } },
     { id: "snap", type: "snapshot_ui", params: { format: "ascii" } }
   ]
 };
@@ -41,16 +43,28 @@ const snapStep = stepResults.find(s => s.id === "snap");
 const snapText = snapStep && snapStep.data ? snapStep.data.text : null;
 
 if (snapText) {
-  console.log(`✅ Coles search for '${query}' (top items from current view):`);
+  console.log(`✅ Coles search results for '${query}':`);
   const lines = snapText.split("\n");
+  
   lines.forEach(line => {
-     if (/(text|content-desc)="[^"]*\$/.test(line)) {
-       const txt = findAttribute(line, "text");
-       if (txt) console.log(`- ${txt}`);
-     }
+    const content = findAttribute(line, "content-desc") || findAttribute(line, "text") || "";
+    
+    if (content.includes("$") && content.length > 5) {
+      const priceMatch = content.match(/\$([0-9]+\.[0-9]{2})/);
+      const wasMatch = content.match(/Was \$([0-9]+\.[0-9]{2})/i);
+      const specialMatch = content.toLowerCase().includes("special");
+      
+      const name = content.split("\n")[0] || "Unknown Product";
+
+      if (name.toLowerCase().includes("coke") || name.toLowerCase().includes("cola")) {
+        console.log(`- ${name.trim()}`);
+        console.log(`  current_price: ${priceMatch ? "$" + priceMatch[1] : "NA"}`);
+        console.log(`  on_sale: ${specialMatch || wasMatch ? "YES" : "NO"}`);
+        console.log(`  original_price: ${wasMatch ? "$" + wasMatch[1] : "NA"}`);
+      }
+    }
   });
 } else {
   console.error("⚠️ Could not capture Coles search snapshot");
-  console.error(`Raw result: ${raw}`);
   process.exit(2);
 }
