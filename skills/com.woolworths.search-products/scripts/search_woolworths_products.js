@@ -2,11 +2,11 @@
 const { runClawperator, findAttribute } = require("../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
-const query = process.argv[3] || process.env.QUERY || "Coke Zero 24 pack";
+const query = process.argv[3] || process.env.QUERY;
 const receiverPkg = process.argv[4] || process.env.RECEIVER_PKG || "com.clawperator.operator.dev";
 
-if (!deviceId) {
-  console.error("Usage: node search_woolworths_products.js <device_id> [query] [receiver_package]");
+if (!deviceId || !query) {
+  console.error("Usage: node search_woolworths_products.js <device_id> <query> [receiver_package]");
   process.exit(1);
 }
 
@@ -23,9 +23,7 @@ const execution = {
     { id: "open", type: "open_app", params: { applicationId: "com.woolworths" } },
     { id: "wait_open", type: "sleep", params: { durationMs: 8000 } },
     { id: "click-search", type: "click", params: { matcher: { resourceId: "com.woolworths:id/search_view_blocker" } } },
-    { id: "type-query", type: "enter_text", params: { matcher: { resourceId: "com.woolworths:id/search_src_text" }, text: query, submit: false } },
-    { id: "wait_sugg", type: "sleep", params: { durationMs: 4000 } },
-    { id: "click-sugg", type: "click", params: { matcher: { resourceId: "com.woolworths:id/search_auto_complete_text" } } },
+    { id: "type-query", type: "enter_text", params: { matcher: { resourceId: "com.woolworths:id/search_src_text" }, text: query, submit: true } },
     { id: "wait_results", type: "sleep", params: { durationMs: 8000 } },
     { id: "snap", type: "snapshot_ui", params: { format: "ascii" } }
   ]
@@ -56,7 +54,7 @@ if (snapText) {
 
       const name = content.split("\n")[0] || "Unknown Product";
 
-      if (name.toLowerCase().includes("coke") || name.toLowerCase().includes("cola")) {
+      if (name.length > 3) {
         console.log(`- ${name.trim()}`);
         console.log(`  current_price: ${priceMatch ? "$" + priceMatch[1] : "NA"}`);
         console.log(`  on_sale: ${specialMatch || wasMatch ? "YES" : "NO"}`);
