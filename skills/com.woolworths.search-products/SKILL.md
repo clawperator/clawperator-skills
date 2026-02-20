@@ -1,35 +1,17 @@
 ---
 name: com.woolworths.search-products
-description: Search Woolworths Android app products and return structured results including current price, sale status, and original price when available.
+description: Search for products in the Woolworths Android app.
 ---
 
-Use a fresh app session (script closes then re-opens app) and parse multiple UI snapshots while scrolling.
+Performs a search for a specific product query and returns top results.
 
-Run:
-
-```bash
-cd "$(git rev-parse --show-toplevel)"
-./skills/com.woolworths.search-products/scripts/search_woolworths_products.sh
-```
-
-Optional args:
+## Usage
 
 ```bash
-./skills/com.woolworths.search-products/scripts/search_woolworths_products.sh \
-  app.actiontask.operator.development "Coke Zero"
+./skills/com.woolworths.search-products/scripts/search_woolworths_products.sh <device_id> [query] [receiver_package]
 ```
 
-Output format:
-
-- `SEARCH|app=com.woolworths|query=<...>|total_results=<n>`
-- `RESULT|index=<n>|name=<...>|current_price=<...>|on_sale=<YES|NO>|original_price=<price|NA>`
-
-Price semantics:
-
-- `current_price`: parsed from product price node.
-- `on_sale`: inferred from sale markers (`was`, `save`, `special`, etc.).
-- `original_price`: only populated when a prior/was price is detected, otherwise `NA`.
-
-Prerequisite:
-
-- Ensure `adb` is installed and available on `PATH`.
+Example:
+```bash
+./skills/com.woolworths.search-products/scripts/search_woolworths_products.sh <device_serial> "Milk"
+```
