@@ -24,10 +24,10 @@ const execution = {
   actions: [
     { id: "close", type: "close_app", params: { applicationId: "com.woolworths" } },
     { id: "open", type: "open_app", params: { applicationId: "com.woolworths" } },
-    { id: "wait_open", type: "sleep", params: { durationMs: 5000 } },
-    { id: "click-search", type: "click", params: { matcher: { textContains: "Search" } } },
-    { id: "type-query", type: "enter_text", params: { matcher: { role: "textfield" }, text: query, submit: true } },
-    { id: "wait_results", type: "sleep", params: { durationMs: 3000 } },
+    { id: "wait_open", type: "sleep", params: { durationMs: 8000 } },
+    { id: "click-search", type: "click", params: { matcher: { resourceId: "com.woolworths:id/search_src_text" } } },
+    { id: "type-query", type: "enter_text", params: { matcher: { resourceId: "com.woolworths:id/search_src_text" }, text: query, submit: true } },
+    { id: "wait_results", type: "sleep", params: { durationMs: 5000 } },
     { id: "snap", type: "snapshot_ui", params: { format: "ascii" } }
   ]
 };
