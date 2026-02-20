@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { runClawperator } = require("../../../utils/common");
+const { runClawperator } = require("../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const acTileName = process.argv[3] || process.env.AC_TILE_NAME;

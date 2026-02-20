@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { runClawperator, findAttribute } = require("../../../utils/common");
+const { runClawperator, findAttribute } = require("../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const receiverPkg = process.argv[3] || process.env.RECEIVER_PKG || "com.clawperator.operator.dev";

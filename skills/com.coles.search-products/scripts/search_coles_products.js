@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { runClawperator, findAttribute } = require("../../../utils/common");
+const { runClawperator, findAttribute } = require("../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const query = process.argv[3] || process.env.QUERY || "Coke Zero";
@@ -41,10 +41,10 @@ const snapStep = stepResults.find(s => s.id === "snap");
 const snapText = snapStep && snapStep.data ? snapStep.data.text : null;
 
 if (snapText) {
-  console.log(`✅ Coles search for \\ (top items from current view):`);
+  console.log(`✅ Coles search for '${query}' (top items from current view):`);
   const lines = snapText.split("\n");
   lines.forEach(line => {
-     if (line.includes("text=\"$")) {
+     if (/(text|content-desc)="[^"]*\$/.test(line)) {
        const txt = findAttribute(line, "text");
        if (txt) console.log(`- ${txt}`);
      }
