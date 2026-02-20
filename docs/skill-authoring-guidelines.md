@@ -1,51 +1,93 @@
-# Skill Authoring Guidelines
+# Skill Authoring Guidelines (v0.1 PoC)
 
-Related runtime/API repository: [clawperator](https://github.com/clawcave/clawperator.git)
+This document outlines the canonical best practices for writing Clawperator skills, based on lessons learned from porting high-value retail and utility skills.
 
-## Skill Package Shape
+## Core Doctrine: Generic Actuator
 
-Required:
+**Clawperator is the Hand; the Agent is the Brain.**
 
-- `skills/<applicationId>.<intent>/skill.json`
-- `skills/<applicationId>.<intent>/SKILL.md`
-- `skills/<applicationId>.<intent>/scripts/*.sh`
+1.  **Generic Interface:** The clawperator CLI/Node API knows nothing about specific apps. It only executes Execution JSON payloads.
+2.  **External Logic:** All app-specific logic (selectors, navigation flows, data parsing) MUST live in this clawperator-skills repository.
+3.  **Typed Contracts:** Skills should primarily be authored in Node.js (.js scripts) to ensure safe JSON construction and reliable result parsing.
 
-Optional:
+---
 
-- `skills/<applicationId>.<intent>/artifacts/*.recipe.json`
+## 1. The Deterministic Lifecycle (Close-Sleep-Open)
 
-Utilities:
+To ensure a predictable starting state, every skill MUST follow this sequence as its first set of actions:
 
-- `skills/utils/<utility>/...`
+json
+[
+  { "id": "close", "type": "close_app", "params": { "applicationId": "com.example" } },
+  { "id": "wait_close", "type": "sleep", "params": { "durationMs": 1500 } },
+  { "id": "open", "type": "open_app", "params": { "applicationId": "com.example" } },
+  { "id": "wait_open", "type": "sleep", "params": { "durationMs": 8000 } }
+]
 
-## Authoring Rules
 
-1. Keep scripts deterministic.
-2. Keep scripts narrow in scope (one clear job).
-3. Prefer stable selectors first (`resourceId` > generic text matching).
-4. Add settle delays around transitions where UI is known to lag.
-5. Document required env vars and defaults in `SKILL.md`.
-6. Emit machine-readable output lines where practical.
-7. Use absolute caution with shell quoting and payload construction.
+*   **Why Close?** Apps often cache state (previous searches, deep-linked tabs). Force-closing ensures the app starts on its true Home screen.
+*   **Why the 1.5s Sleep?** Android needs a moment to fully terminate the process before it can be reliably reopened.
+*   **Why the 8s Sleep?** Modern apps (especially retail like Coles/Woolworths) are slow to initialize. Give them a generous window to avoid Node Not Found errors.
 
-## Reliability Practices
+---
 
-- Use fresh-app baseline when needed (`close_app` -> `open_app`).
-- Add explicit waits before critical reads/clicks.
-- Include fallback paths for common UI variants.
-- Expect overlays/permission/update dialogs and handle or report them.
+## 2. Navigating Decoy UI Elements
 
-## Data and Privacy
+Many apps use fake UI elements on the home screen that act as triggers for the real interaction.
 
-- Never hardcode personal names.
-- Never hardcode device serials.
-- Never hardcode user-specific labels unless explicitly placeholder-driven.
-- Use placeholders in artifacts/examples (`{{PERSON_NAME}}`, `<device_serial>`).
+*   **The Search Bar Trap:** Often, the search bar on a home screen is just a TextView or Button styled to look like a field. Clicking it navigates to a new screen or opens an overlay with the real EditText.
+*   **Strategy:** 
+    1.  click the decoy bar (often identifiable by textContains: Search).
+    2.  sleep for 1-2s.
+    3.  enter_text into the real field (identifiable by role: textfield or a specific resourceId).
 
-## Validation Checklist Before Commit
+---
 
-1. `./scripts/generate_skill_indexes.sh`
-2. `find skills -type f -path '*/scripts/*.sh' -print0 | xargs -0 -n1 bash -n`
-3. Run at least one realistic execution path (or clearly document blocker).
-4. Confirm no blocked terms are present in staged changes.
-5. Update docs if command/output contract changed.
+## 3. Selector Strategy
+
+1.  **resourceId is King:** Always prefer resourceId (e.g., com.woolworths:id/search_src_text). It is the most stable selector across device locales.
+2.  **textEquals for Buttons:** Use textEquals for precise matches on menu items or specific labels.
+3.  **textContains as Fallback:** Use only when the text is dynamic or includes suffixes (e.g., Counter: 5).
+4.  **Avoid Coordinates:** Never use raw x,y coordinates. They break across different screen resolutions and aspect ratios.
+
+---
+
+## 4. Node.js vs. Bash
+
+While thin .sh wrappers are maintained for backward compatibility, the actual skill logic should be in a .js file using the Node.js standard library.
+
+*   **Safe Payloads:** Node.js allows you to build the Execution object as a native literal and JSON.stringify() it, avoiding the escaping nightmare of sed and printf in Bash.
+*   **Reliable Parsing:** The [Clawperator-Result] is a complex JSON object. Use JSON.parse() in Node to extract your data safely.
+*   **Error Handling:** Node scripts can easily check the status field and error.code returned by Clawperator to provide meaningful failure messages.
+
+---
+
+## 5. Capturing and Parsing UI State
+
+Use the snapshot_ui action to retrieve the full UI hierarchy for scraping or multimodal analysis.
+
+*   **Post-Processing:** The clawperator runtime automatically retrieves snapshot text from logcat. Your skill script should look for the snapshot_ui step in the stepResults and access the data.text field.
+*   **Parsing Snapshots:** Use simple regex or indexOf on the snapshot text to find data that isn't easily accessible via a single read_text call (e.g., parsing a complex list of search results).
+
+---
+
+## 6. Compliance and Security (Blocked Terms)
+
+**CRITICAL:** To protect user privacy and project integrity, the following must NEVER be hardcoded in scripts or documentation:
+
+1.  **Personal Paths:** Never include /Users/name/. Use relative paths or temporary directories.
+2.  **Device Serials:** Never hardcode your physical device ID (e.g., <device_id>). Pass the device ID as a command-line argument.
+3.  **PII:** Use placeholders like Person or AC_TILE_NAME for any user-specific data.
+
+**Validation Command:**
+
+grep -rE "Users/|R5CT[0-9A-Z]{7}" .
+
+
+---
+
+## 7. Mandatory Metadata
+
+Every Execution payload sent by a skill MUST include:
+*   **expectedFormat**: Must be "android-ui-automator".
+*   **timeoutMs**: Set a realistic timeout (e.g., 90000 for complex flows).
