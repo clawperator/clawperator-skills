@@ -8,7 +8,7 @@ This document outlines the canonical best practices for writing Clawperator skil
 
 1.  **Generic Interface:** The clawperator CLI/Node API knows nothing about specific apps. It only executes Execution JSON payloads.
 2.  **External Logic:** All app-specific logic (selectors, navigation flows, data parsing) MUST live in this clawperator-skills repository.
-3.  **Typed Contracts:** Skills should primarily be authored in Node.js (.js scripts) to ensure safe JSON construction and reliable result parsing.
+3.  **Plain Node.js (.js):** Skills should primarily be authored in Plain Node.js (.js scripts). This ensures a lightweight, high-performance environment with zero compilation overhead.
 
 ---
 
@@ -53,10 +53,11 @@ Many apps use fake UI elements on the home screen that act as triggers for the r
 
 ---
 
-## 4. Node.js vs. Bash
+## 4. Node.js (.js) vs. TypeScript/Bash
 
 While thin .sh wrappers are maintained for backward compatibility, the actual skill logic should be in a .js file using the Node.js standard library.
 
+*   **Why .js over .ts?** TypeScript (via tsx or tsc) adds heavy dependencies and compilation lag. Plain .js runs instantly on any Node.js runtime with zero overhead, keeping Clawperator "light on the edge."
 *   **Safe Payloads:** Node.js allows you to build the Execution object as a native literal and JSON.stringify() it, avoiding the escaping nightmare of sed and printf in Bash.
 *   **Reliable Parsing:** The [Clawperator-Result] is a complex JSON object. Use JSON.parse() in Node to extract your data safely.
 *   **Error Handling:** Node scripts can easily check the status field and error.code returned by Clawperator to provide meaningful failure messages.
