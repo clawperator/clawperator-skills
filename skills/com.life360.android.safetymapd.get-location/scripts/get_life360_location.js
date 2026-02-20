@@ -23,6 +23,7 @@ const execution = {
   timeoutMs: 120000,
   actions: [
     { id: "close", type: "close_app", params: { applicationId: "com.life360.android.safetymapd" } },
+    { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
     { id: "open", type: "open_app", params: { applicationId: "com.life360.android.safetymapd" } },
     { id: "wait_open", type: "sleep", params: { durationMs: 8000 } },
     { id: "click-person", type: "click", params: { matcher: { textEquals: personName } } },

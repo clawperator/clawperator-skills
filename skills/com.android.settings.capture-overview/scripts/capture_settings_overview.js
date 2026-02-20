@@ -22,6 +22,7 @@ const execution = {
   timeoutMs: 60000,
   actions: [
     { id: "close", type: "close_app", params: { applicationId: "com.android.settings" } },
+    { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
     { id: "open", type: "open_app", params: { applicationId: "com.android.settings" } },
     { id: "settle", type: "sleep", params: { durationMs: 2000 } },
     { id: "snap", type: "snapshot_ui", params: { format: "ascii" } }

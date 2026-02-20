@@ -22,6 +22,7 @@ const execution = {
   timeoutMs: 120000,
   actions: [
     { id: "close", type: "close_app", params: { applicationId: "com.globird.energy" } },
+    { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
     { id: "open", type: "open_app", params: { applicationId: "com.globird.energy" } },
     { id: "wait_open", type: "sleep", params: { durationMs: 8000 } },
     { id: "open-energy-tab", type: "click", params: { matcher: { textEquals: "Energy" } } },

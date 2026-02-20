@@ -23,6 +23,7 @@ const execution = {
   timeoutMs: 90000,
   actions: [
     { id: "close", type: "close_app", params: { applicationId: "com.google.android.apps.chromecast.app" } },
+    { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
     { id: "open", type: "open_app", params: { applicationId: "com.google.android.apps.chromecast.app" } },
     { id: "wait1", type: "sleep", params: { durationMs: 3500 } },
     {

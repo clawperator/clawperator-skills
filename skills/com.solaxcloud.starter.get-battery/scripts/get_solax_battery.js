@@ -22,6 +22,7 @@ const execution = {
   timeoutMs: 120000,
   actions: [
     { id: "close", type: "close_app", params: { applicationId: "com.solaxcloud.starter" } },
+    { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
     { id: "open", type: "open_app", params: { applicationId: "com.solaxcloud.starter" } },
     { id: "wait_load", type: "sleep", params: { durationMs: 12000 } },
     { id: "read-battery-value", type: "read_text", params: { matcher: { resourceId: "com.solaxcloud.starter:id/tv_pb_title" } } },

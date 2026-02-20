@@ -22,6 +22,7 @@ const execution = {
   timeoutMs: 60000,
   actions: [
     { id: "close", type: "close_app", params: { applicationId: "com.theswitchbot.switchbot" } },
+    { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
     { id: "open", type: "open_app", params: { applicationId: "com.theswitchbot.switchbot" } },
     { id: "wait_open", type: "sleep", params: { durationMs: 4000 } },
     { id: "read_temp", type: "read_text", params: { matcher: { resourceId: "com.theswitchbot.switchbot:id/tvTemp" } } }

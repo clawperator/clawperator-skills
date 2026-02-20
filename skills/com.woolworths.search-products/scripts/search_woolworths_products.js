@@ -23,11 +23,13 @@ const execution = {
   timeoutMs: 90000,
   actions: [
     { id: "close", type: "close_app", params: { applicationId: "com.woolworths" } },
+    { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
     { id: "open", type: "open_app", params: { applicationId: "com.woolworths" } },
-    { id: "wait_open", type: "sleep", params: { durationMs: 8000 } },
-    { id: "click-search", type: "click", params: { matcher: { resourceId: "com.woolworths:id/search_src_text" } } },
+    { id: "wait_open", type: "sleep", params: { durationMs: 10000 } },
+    { id: "click-search", type: "click", params: { matcher: { resourceId: "com.woolworths:id/search_view_blocker" } } },
+    { id: "wait_input", type: "sleep", params: { durationMs: 2000 } },
     { id: "type-query", type: "enter_text", params: { matcher: { resourceId: "com.woolworths:id/search_src_text" }, text: query, submit: true } },
-    { id: "wait_results", type: "sleep", params: { durationMs: 5000 } },
+    { id: "wait_results", type: "sleep", params: { durationMs: 8000 } },
     { id: "snap", type: "snapshot_ui", params: { format: "ascii" } }
   ]
 };
@@ -56,22 +58,13 @@ try {
 
   if (snapText) {
     console.log(`✅ Woolworths search for '${query}' (top items from current view):`);
-    
     const lines = snapText.split("\n");
-    let lastName = "";
-    
-    for (const line of lines) {
-      if (line.includes('resource-id="com.woolworths:id/product_name_text_view"')) {
-        const match = line.match(/text="([^"]*)"/);
-        if (match) lastName = match[1];
-      } else if (line.includes('resource-id="com.woolworths:id/product_price_view"')) {
-        const match = line.match(/content-desc="([^"]*)"/);
-        if (match && lastName) {
-          console.log(`- ${lastName}: ${match[1]}`);
-          lastName = "";
-        }
-      }
-    }
+    lines.forEach(line => {
+       if (line.includes("Coca-Cola") || line.includes("Coke") || line.includes("content-desc=\"$")) {
+         const txt = (line.match(/text=\"([^\"]*)\"/) || [])[1] || (line.match(/content-desc=\"([^\"]*)\"/) || [])[1];
+         if (txt) console.log(`- ${txt}`);
+       }
+    });
   } else {
     console.error("⚠️ Could not capture Woolworths search snapshot");
     console.error(`Raw result: ${output}`);
