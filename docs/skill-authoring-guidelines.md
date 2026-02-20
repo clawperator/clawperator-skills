@@ -1,6 +1,6 @@
 # Skill Authoring Guidelines (v0.1 PoC)
 
-This document outlines the canonical best practices for writing Clawperator skills, based on lessons learned from porting high-value retail and utility skills.
+This document outlines the canonical best practices for writing Clawperator skills.
 
 ## Core Doctrine: Generic Actuator
 
@@ -16,17 +16,18 @@ This document outlines the canonical best practices for writing Clawperator skil
 
 To ensure a predictable starting state, every skill MUST follow this sequence as its first set of actions:
 
-json
+```json
 [
   { "id": "close", "type": "close_app", "params": { "applicationId": "com.example" } },
   { "id": "wait_close", "type": "sleep", "params": { "durationMs": 1500 } },
   { "id": "open", "type": "open_app", "params": { "applicationId": "com.example" } },
   { "id": "wait_open", "type": "sleep", "params": { "durationMs": 8000 } }
 ]
-
+```
 
 *   **Why Close?** Apps often cache state (previous searches, deep-linked tabs). Force-closing ensures the app starts on its true Home screen.
-*   **Why the 1.5s Sleep?** Android needs a moment to fully terminate the process before it can be reliably reopened.
+*   **How it works:** Because Android security restricts apps from killing other processes, the **Clawperator Node CLI** automatically intercepts close_app actions and performs a genuine adb shell am force-stop **before** dispatching the command to the device.
+*   **Why the 1.5s Sleep?** Even after a force-stop, Android needs a moment to fully clean up the process before it can be reliably reopened.
 *   **Why the 8s Sleep?** Modern apps (especially retail like Coles/Woolworths) are slow to initialize. Give them a generous window to avoid Node Not Found errors.
 
 ---
@@ -81,7 +82,7 @@ Use the snapshot_ui action to retrieve the full UI hierarchy for scraping or mul
 
 **Validation Command:**
 
-grep -rE "Users/|R5CT[0-9A-Z]{7}" .
+grep -rE "Users/|<device_id_pattern>" .
 
 
 ---
