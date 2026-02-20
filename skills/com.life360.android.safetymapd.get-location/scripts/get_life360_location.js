@@ -6,11 +6,12 @@ const { tmpdir } = require("os");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const personName = process.argv[3] || process.env.PERSON_NAME;
-const receiverPkg = process.argv[4] || process.env.RECEIVER_PKG || "com.clawperator.operator.dev";
+const screenshotPath = process.argv[4] || process.env.SCREENSHOT_PATH;
+const receiverPkg = process.argv[5] || process.env.RECEIVER_PKG || "com.clawperator.operator.dev";
 let clawBin = process.env.CLAW_BIN || "clawperator";
 
 if (!deviceId || !personName) {
-  console.error("Usage: node get_life360_location.js <device_id> <person_name> [receiver_package]");
+  console.error("Usage: node get_life360_location.js <device_id> <person_name> [screenshot_path] [receiver_package]");
   process.exit(1);
 }
 
@@ -29,7 +30,7 @@ const execution = {
     { id: "click-person", type: "click", params: { matcher: { textEquals: personName } } },
     { id: "wait_detail", type: "sleep", params: { durationMs: 3000 } },
     { id: "snap", type: "snapshot_ui", params: { format: "ascii" } },
-    { id: "visual", type: "take_screenshot", params: {} }
+    { id: "visual", type: "take_screenshot", params: screenshotPath ? { path: screenshotPath } : {} }
   ]
 };
 
@@ -56,7 +57,7 @@ try {
   const snapText = snapStep && snapStep.data ? snapStep.data.text : null;
 
   const screenStep = result.envelope.stepResults.find(s => s.id === "visual");
-  const screenPath = screenStep && screenStep.data ? screenStep.data.path : null;
+  const finalPath = screenStep && screenStep.data ? screenStep.data.path : null;
 
   if (snapText) {
     const batteryMatch = snapText.match(/text="([0-9]+%)".*resource-id=".*battery_percentages_textView"/);
@@ -68,8 +69,8 @@ try {
     console.log(`✅ Life360 location for ${personName}:`);
     console.log(`   Place: ${place}`);
     console.log(`   Battery: ${battery}`);
-    if (screenPath) {
-      console.log(`   Screenshot: ${screenPath}`);
+    if (finalPath) {
+      console.log(`   Screenshot: ${finalPath}`);
     }
   } else {
     console.error("⚠️ Could not capture Life360 location snapshot");
