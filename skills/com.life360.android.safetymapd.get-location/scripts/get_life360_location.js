@@ -28,7 +28,8 @@ const execution = {
     { id: "wait_open", type: "sleep", params: { durationMs: 8000 } },
     { id: "click-person", type: "click", params: { matcher: { textEquals: personName } } },
     { id: "wait_detail", type: "sleep", params: { durationMs: 3000 } },
-    { id: "snap", type: "snapshot_ui", params: { format: "ascii" } }
+    { id: "snap", type: "snapshot_ui", params: { format: "ascii" } },
+    { id: "visual", type: "take_screenshot", params: {} }
   ]
 };
 
@@ -54,6 +55,9 @@ try {
   const snapStep = result.envelope.stepResults.find(s => s.id === "snap");
   const snapText = snapStep && snapStep.data ? snapStep.data.text : null;
 
+  const screenStep = result.envelope.stepResults.find(s => s.id === "visual");
+  const screenPath = screenStep && screenStep.data ? screenStep.data.path : null;
+
   if (snapText) {
     const batteryMatch = snapText.match(/text="([0-9]+%)".*resource-id=".*battery_percentages_textView"/);
     const placeMatch = snapText.match(/text="([^"]*)".*resource-id=".*place_textView"/);
@@ -64,6 +68,9 @@ try {
     console.log(`✅ Life360 location for ${personName}:`);
     console.log(`   Place: ${place}`);
     console.log(`   Battery: ${battery}`);
+    if (screenPath) {
+      console.log(`   Screenshot: ${screenPath}`);
+    }
   } else {
     console.error("⚠️ Could not capture Life360 location snapshot");
     console.error(`Raw result: ${output}`);
