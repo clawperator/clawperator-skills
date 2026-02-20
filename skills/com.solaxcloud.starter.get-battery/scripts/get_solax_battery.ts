@@ -1,15 +1,17 @@
-#!/usr/bin/env node
-const { execFileSync } = require("child_process");
-const { writeFileSync } = require("fs");
-const { join } = require("path");
-const { tmpdir } = require("os");
+import { execFileSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const receiverPkg = process.argv[3] || process.env.RECEIVER_PKG || "com.clawperator.operator.dev";
 let clawBin = process.env.CLAW_BIN || "clawperator";
 
 if (!deviceId) {
-  console.error("Usage: node get_solax_battery.js <device_id> [receiver_package]");
+  console.error("Usage: npx tsx get_solax_battery.ts <device_id> [receiver_package]");
   process.exit(1);
 }
 
@@ -49,8 +51,8 @@ try {
   const output = execFileSync(cmd, args, { encoding: "utf-8" });
   const result = JSON.parse(output);
 
-  const valStep = result.envelope.stepResults.find(s => s.id === "read-battery-value");
-  const unitStep = result.envelope.stepResults.find(s => s.id === "read-battery-unit");
+  const valStep = result.envelope.stepResults.find((s: any) => s.id === "read-battery-value");
+  const unitStep = result.envelope.stepResults.find((s: any) => s.id === "read-battery-unit");
   const val = valStep && valStep.data ? valStep.data.text : null;
   const unit = unitStep && unitStep.data ? unitStep.data.text : null;
 
@@ -61,7 +63,7 @@ try {
     console.error(`Raw result: ${output}`);
     process.exit(2);
   }
-} catch (e) {
+} catch (e: any) {
   console.error("⚠️ Skill execution failed");
   if (e.stdout) console.error(e.stdout);
   if (e.stderr) console.error(e.stderr);

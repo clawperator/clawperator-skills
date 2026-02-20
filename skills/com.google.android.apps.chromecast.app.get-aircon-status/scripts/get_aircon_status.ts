@@ -1,8 +1,10 @@
-#!/usr/bin/env node
-const { execFileSync } = require("child_process");
-const { writeFileSync } = require("fs");
-const { join } = require("path");
-const { tmpdir } = require("os");
+import { execFileSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const acTileName = process.argv[3] || process.env.AC_TILE_NAME;
@@ -10,7 +12,7 @@ const receiverPkg = process.argv[4] || process.env.RECEIVER_PKG || "com.clawpera
 let clawBin = process.env.CLAW_BIN || "clawperator";
 
 if (!deviceId || !acTileName) {
-  console.error("Usage: node get_aircon_status.js <device_id> <ac_tile_name> [receiver_package]");
+  console.error("Usage: npx tsx get_aircon_status.ts <device_id> <ac_tile_name> [receiver_package]");
   process.exit(1);
 }
 
@@ -76,9 +78,9 @@ try {
   const output = execFileSync(cmd, args, { encoding: "utf-8" });
   const result = JSON.parse(output);
 
-  const powerStep = result.envelope.stepResults.find(s => s.id === "read-power");
-  const modeStep = result.envelope.stepResults.find(s => s.id === "read-mode");
-  const tempStep = result.envelope.stepResults.find(s => s.id === "read-indoor-temp");
+  const powerStep = result.envelope.stepResults.find((s: any) => s.id === "read-power");
+  const modeStep = result.envelope.stepResults.find((s: any) => s.id === "read-mode");
+  const tempStep = result.envelope.stepResults.find((s: any) => s.id === "read-indoor-temp");
 
   const power = powerStep && powerStep.data ? powerStep.data.text : null;
   const mode = modeStep && modeStep.data ? modeStep.data.text : "unknown";
@@ -91,7 +93,7 @@ try {
     console.error(`Raw result: ${output}`);
     process.exit(2);
   }
-} catch (e) {
+} catch (e: any) {
   console.error("⚠️ Skill execution failed");
   if (e.stdout) console.error(e.stdout);
   if (e.stderr) console.error(e.stderr);
