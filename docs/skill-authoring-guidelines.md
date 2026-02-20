@@ -1,7 +1,5 @@
 # Skill Authoring Guidelines (v0.1 PoC)
 
-This document outlines the canonical best practices for writing Clawperator skills.
-
 ## Core Doctrine: Generic Actuator
 
 **Clawperator is the Hand; the Agent is the Brain.**
@@ -9,6 +7,7 @@ This document outlines the canonical best practices for writing Clawperator skil
 1.  **Generic Interface:** The clawperator CLI/Node API knows nothing about specific apps. It only executes Execution JSON payloads.
 2.  **External Logic:** All app-specific logic (selectors, navigation flows, data parsing) MUST live in this clawperator-skills repository.
 3.  **Plain Node.js (.js):** Skills should primarily be authored in Plain Node.js (.js scripts). This ensures a lightweight, high-performance environment with zero compilation overhead.
+4.  **Migrating from Bash:** New skills MUST be authored in Node.js. Existing Bash-based skills SHOULD be migrated when they require significant updates or grow in complexity. Prefer opportunistic migration over big-bang rewrites.
 
 ---
 
@@ -26,9 +25,9 @@ To ensure a predictable starting state, every skill MUST follow this sequence as
 ```
 
 *   **Why Close?** Apps often cache state (previous searches, deep-linked tabs). Force-closing ensures the app starts on its true Home screen.
-*   **How it works:** Because Android security restricts apps from killing other processes, the **Clawperator Node CLI** automatically intercepts close_app actions and performs a genuine adb shell am force-stop **before** dispatching the command to the device.
-*   **Why the 1.5s Sleep?** Even after a force-stop, Android needs a moment to fully clean up the process before it can be reliably reopened.
-*   **Why the 8s Sleep?** Modern apps (especially retail like Coles/Woolworths) are slow to initialize. Give them a generous window to avoid Node Not Found errors.
+*   **How it works:** The **Clawperator Node CLI** automatically intercepts close_app actions and performs a genuine adb shell am force-stop **before** dispatching the command to the device.
+*   **Why the 1.5s Sleep?** Android needs a moment to fully clean up the process after a force-stop before it can be reliably reopened.
+*   **Why the 8s Sleep?** 8 seconds is a conservative default for slow-to-initialize apps (e.g. retail). Treat this as a guideline: tune `durationMs` per app for reliability, keeping it consistent across that app's skills.
 
 ---
 
@@ -48,47 +47,35 @@ Many apps use fake UI elements on the home screen that act as triggers for the r
 
 1.  **resourceId is King:** Always prefer resourceId (e.g., com.woolworths:id/search_src_text). It is the most stable selector across device locales.
 2.  **textEquals for Buttons:** Use textEquals for precise matches on menu items or specific labels.
-3.  **textContains as Fallback:** Use only when the text is dynamic or includes suffixes (e.g., Counter: 5).
-4.  **Avoid Coordinates:** Never use raw x,y coordinates. They break across different screen resolutions and aspect ratios.
+3.  **Avoid Coordinates:** Never use raw x,y coordinates. They break across different screen resolutions and aspect ratios.
 
 ---
 
-## 4. Node.js (.js) vs. TypeScript/Bash
+## 4. Reliable Node.js Patterns
 
-While thin .sh wrappers are maintained for backward compatibility, the actual skill logic should be in a .js file using the Node.js standard library.
-
-*   **Why .js over .ts?** TypeScript (via tsx or tsc) adds heavy dependencies and compilation lag. Plain .js runs instantly on any Node.js runtime with zero overhead, keeping Clawperator "light on the edge."
-*   **Safe Payloads:** Node.js allows you to build the Execution object as a native literal and JSON.stringify() it, avoiding the escaping nightmare of sed and printf in Bash.
-*   **Reliable Parsing:** The [Clawperator-Result] is a complex JSON object. Use JSON.parse() in Node to extract your data safely.
-*   **Error Handling:** Node scripts can easily check the status field and error.code returned by Clawperator to provide meaningful failure messages.
+*   **Safe Payloads:** Use Node.js to build Execution objects as native literals and JSON.stringify() them to avoid shell escaping issues.
+*   **Robust Parsing:** Never assume XML attribute order in UI snapshots. Use attribute-independent regex: 
+    `const match = line.match(/resource-id="[^"]*target_id"[^>]*text="([^"]*)"/);`
+*   **Error Handling:** Check `execFileSync` errors for `e.stdout` and `e.stderr` (converted from Buffers to strings) to provide meaningful failure messages.
 
 ---
 
-## 5. Capturing and Parsing UI State
-
-Use the snapshot_ui action to retrieve the full UI hierarchy for scraping or multimodal analysis.
-
-*   **Post-Processing:** The clawperator runtime automatically retrieves snapshot text from logcat. Your skill script should look for the snapshot_ui step in the stepResults and access the data.text field.
-*   **Parsing Snapshots:** Use simple regex or indexOf on the snapshot text to find data that isn't easily accessible via a single read_text call (e.g., parsing a complex list of search results).
-
----
-
-## 6. Compliance and Security (Blocked Terms)
+## 5. Compliance and Security (Blocked Terms)
 
 **CRITICAL:** To protect user privacy and project integrity, the following must NEVER be hardcoded in scripts or documentation:
 
 1.  **Personal Paths:** Never include /Users/name/. Use relative paths or temporary directories.
-2.  **Device Serials:** Never hardcode your physical device ID (e.g., <device_id>). Pass the device ID as a command-line argument.
+2.  **Device Serials:** Never hardcode your physical device ID. Pass the device ID as a command-line argument.
 3.  **PII:** Use placeholders like Person or AC_TILE_NAME for any user-specific data.
 
 **Validation Command:**
 
-grep -rE "Users/|<device_id_pattern>" .
+grep -rE "Users/|[0-9A-Fa-f]{16}" .
 
 
 ---
 
-## 7. Mandatory Metadata
+## 6. Mandatory Metadata
 
 Every Execution payload sent by a skill MUST include:
 *   **expectedFormat**: Must be "android-ui-automator".

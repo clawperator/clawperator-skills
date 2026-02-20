@@ -1,13 +1,9 @@
 #!/usr/bin/env node
-const { execFileSync } = require("child_process");
-const { writeFileSync } = require("fs");
-const { join } = require("path");
-const { tmpdir } = require("os");
+const { runClawperator } = require("../../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const acTileName = process.argv[3] || process.env.AC_TILE_NAME;
 const receiverPkg = process.argv[4] || process.env.RECEIVER_PKG || "com.clawperator.operator.dev";
-let clawBin = process.env.CLAW_BIN || "clawperator";
 
 if (!deviceId || !acTileName) {
   console.error("Usage: node get_aircon_status.js <device_id> <ac_tile_name> [receiver_package]");
@@ -57,43 +53,26 @@ const execution = {
   ]
 };
 
-const tmpFile = join(tmpdir(), `${commandId}.json`);
-writeFileSync(tmpFile, JSON.stringify(execution));
+const { ok, result, error, raw } = runClawperator(execution, deviceId, receiverPkg);
 
-try {
-  let cmd = clawBin;
-  let args = ["execute", "--execution", tmpFile, "--device-id", deviceId, "--receiver-package", receiverPkg];
-  
-  if (clawBin === "clawperator") {
-    try {
-      execFileSync("command", ["-v", "clawperator"]);
-    } catch {
-      cmd = "node";
-      args = [join(__dirname, "..", "..", "..", "..", "clawperator", "apps", "node", "dist", "cli", "index.js"), ...args];
-    }
-  }
+if (!ok) {
+  console.error(`⚠️ Skill execution failed: ${error}`);
+  process.exit(2);
+}
 
-  const output = execFileSync(cmd, args, { encoding: "utf-8" });
-  const result = JSON.parse(output);
+const stepResults = (result.envelope && result.envelope.stepResults) || [];
+const powerStep = stepResults.find(s => s.id === "read-power");
+const modeStep = stepResults.find(s => s.id === "read-mode");
+const tempStep = stepResults.find(s => s.id === "read-indoor-temp");
 
-  const powerStep = result.envelope.stepResults.find(s => s.id === "read-power");
-  const modeStep = result.envelope.stepResults.find(s => s.id === "read-mode");
-  const tempStep = result.envelope.stepResults.find(s => s.id === "read-indoor-temp");
+const power = powerStep && powerStep.data ? powerStep.data.text : null;
+const mode = modeStep && modeStep.data ? modeStep.data.text : "unknown";
+const temp = tempStep && tempStep.data ? tempStep.data.text : "unknown";
 
-  const power = powerStep && powerStep.data ? powerStep.data.text : null;
-  const mode = modeStep && modeStep.data ? modeStep.data.text : "unknown";
-  const temp = tempStep && tempStep.data ? tempStep.data.text : "unknown";
-
-  if (power) {
-    console.log(`✅ AC status (${acTileName}): power=${power}, mode=${mode}, indoor_temp=${temp}`);
-  } else {
-    console.error("⚠️ Could not parse AC status values");
-    console.error(`Raw result: ${output}`);
-    process.exit(2);
-  }
-} catch (e) {
-  console.error("⚠️ Skill execution failed");
-  if (e.stdout) console.error(e.stdout);
-  if (e.stderr) console.error(e.stderr);
+if (power) {
+  console.log(`✅ AC status (${acTileName}): power=${power}, mode=${mode}, indoor_temp=${temp}`);
+} else {
+  console.error("⚠️ Could not parse AC status values");
+  console.error(`Raw result: ${raw}`);
   process.exit(2);
 }

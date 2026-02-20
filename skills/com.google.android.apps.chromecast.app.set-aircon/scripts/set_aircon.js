@@ -2,9 +2,14 @@
 const { execFileSync } = require("child_process");
 const { join } = require("path");
 
-const state = process.argv[2] || "on";
+const stateInput = (process.argv[2] || "on").toLowerCase();
 const deviceId = process.argv[3] || process.env.DEVICE_ID;
 const acTileName = process.argv[4] || process.env.AC_TILE_NAME;
+
+if (!["on", "off"].includes(stateInput)) {
+  console.error("Error: state must be \on\ or \off\");
+  process.exit(1);
+}
 
 if (!deviceId || !acTileName) {
   console.error("Usage: node set_aircon.js <on|off> <device_id> <ac_tile_name>");
@@ -18,8 +23,8 @@ try {
   const output = execFileSync("node", [statusScript, deviceId, acTileName], { encoding: "utf-8" });
   console.log(output.trim());
 
-  if (output.toLowerCase().includes(`power=${state.toLowerCase()}`)) {
-    console.log(`✅ Already in requested state: ${state}`);
+  if (output.toLowerCase().includes(`power=${stateInput}`)) {
+    console.log(`✅ Already in requested state: ${stateInput}`);
     process.exit(0);
   }
 

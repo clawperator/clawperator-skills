@@ -1,16 +1,12 @@
 #!/usr/bin/env node
-const { execFileSync } = require("child_process");
-const { writeFileSync } = require("fs");
-const { join } = require("path");
-const { tmpdir } = require("os");
+const { runClawperator, findAttribute } = require("../../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const query = process.argv[3] || process.env.QUERY || "Coke Zero";
 const receiverPkg = process.argv[4] || process.env.RECEIVER_PKG || "com.clawperator.operator.dev";
-let clawBin = process.env.CLAW_BIN || "clawperator";
 
 if (!deviceId) {
-  console.error("Usage: node search_woolworths_products.js <device_id> <query> [receiver_package]");
+  console.error("Usage: node search_woolworths_products.js <device_id> [query] [receiver_package]");
   process.exit(1);
 }
 
@@ -33,45 +29,28 @@ const execution = {
   ]
 };
 
-const tmpFile = join(tmpdir(), `${commandId}.json`);
-writeFileSync(tmpFile, JSON.stringify(execution));
+const { ok, result, error, raw } = runClawperator(execution, deviceId, receiverPkg);
 
-try {
-  let cmd = clawBin;
-  let args = ["execute", "--execution", tmpFile, "--device-id", deviceId, "--receiver-package", receiverPkg];
-  
-  if (clawBin === "clawperator") {
-    try {
-      execFileSync("command", ["-v", "clawperator"]);
-    } catch {
-      cmd = "node";
-      args = [join(__dirname, "..", "..", "..", "..", "clawperator", "apps", "node", "dist", "cli", "index.js"), ...args];
-    }
-  }
+if (!ok) {
+  console.error(`⚠️ Skill execution failed: ${error}`);
+  process.exit(2);
+}
 
-  const output = execFileSync(cmd, args, { encoding: "utf-8" });
-  const result = JSON.parse(output);
+const stepResults = (result.envelope && result.envelope.stepResults) || [];
+const snapStep = stepResults.find(s => s.id === "snap");
+const snapText = snapStep && snapStep.data ? snapStep.data.text : null;
 
-  const snapStep = result.envelope.stepResults.find(s => s.id === "snap");
-  const snapText = snapStep && snapStep.data ? snapStep.data.text : null;
-
-  if (snapText) {
-    console.log(`✅ Woolworths search for '${query}' (top items from current view):`);
-    const lines = snapText.split("\n");
-    lines.forEach(line => {
-       if (line.includes("Coca-Cola") || line.includes("Coke") || line.includes("content-desc=\"$")) {
-         const txt = (line.match(/text="([^"]*)"/) || [])[1] || (line.match(/content-desc="([^"]*)"/) || [])[1];
-         if (txt) console.log(`- ${txt}`);
-       }
-    });
-  } else {
-    console.error("⚠️ Could not capture Woolworths search snapshot");
-    console.error(`Raw result: ${output}`);
-    process.exit(2);
-  }
-} catch (e) {
-  console.error("⚠️ Skill execution failed");
-  if (e.stdout) console.error(e.stdout);
-  if (e.stderr) console.error(e.stderr);
+if (snapText) {
+  console.log(`✅ Woolworths search for \\ (top items from current view):`);
+  const lines = snapText.split("\n");
+  lines.forEach(line => {
+     if (line.includes("$")) {
+       const txt = findAttribute(line, "text") || findAttribute(line, "content-desc");
+       if (txt) console.log(`- ${txt}`);
+     }
+  });
+} else {
+  console.error("⚠️ Could not capture Woolworths search snapshot");
+  console.error(`Raw result: ${raw}`);
   process.exit(2);
 }

@@ -1,12 +1,8 @@
 #!/usr/bin/env node
-const { execFileSync } = require("child_process");
-const { writeFileSync } = require("fs");
-const { join } = require("path");
-const { tmpdir } = require("os");
+const { runClawperator } = require("../../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const receiverPkg = process.argv[3] || process.env.RECEIVER_PKG || "com.clawperator.operator.dev";
-let clawBin = process.env.CLAW_BIN || "clawperator";
 
 if (!deviceId) {
   console.error("Usage: node get_bedroom_temperature.js <device_id> [receiver_package]");
@@ -29,38 +25,21 @@ const execution = {
   ]
 };
 
-const tmpFile = join(tmpdir(), `${commandId}.json`);
-writeFileSync(tmpFile, JSON.stringify(execution));
+const { ok, result, error, raw } = runClawperator(execution, deviceId, receiverPkg);
 
-try {
-  let cmd = clawBin;
-  let args = ["execute", "--execution", tmpFile, "--device-id", deviceId, "--receiver-package", receiverPkg];
-  
-  if (clawBin === "clawperator") {
-    try {
-      execFileSync("command", ["-v", "clawperator"]);
-    } catch {
-      cmd = "node";
-      args = [join(__dirname, "..", "..", "..", "..", "clawperator", "apps", "node", "dist", "cli", "index.js"), ...args];
-    }
-  }
+if (!ok) {
+  console.error(`⚠️ Skill execution failed: ${error}`);
+  process.exit(2);
+}
 
-  const output = execFileSync(cmd, args, { encoding: "utf-8" });
-  const result = JSON.parse(output);
+const stepResults = (result.envelope && result.envelope.stepResults) || [];
+const snapStep = stepResults.find(s => s.id === "read_temp");
+const temp = snapStep && snapStep.data ? snapStep.data.text : null;
 
-  const snapStep = result.envelope.stepResults.find(s => s.id === "read_temp");
-  const temp = snapStep && snapStep.data ? snapStep.data.text : null;
-
-  if (temp) {
-    console.log(`✅ Bedroom temperature: ${temp}`);
-  } else {
-    console.error("⚠️ Could not parse bedroom temperature");
-    console.error(`Raw result: ${output}`);
-    process.exit(2);
-  }
-} catch (e) {
-  console.error("⚠️ Skill execution failed");
-  if (e.stdout) console.error(e.stdout);
-  if (e.stderr) console.error(e.stderr);
+if (temp) {
+  console.log(`✅ Bedroom temperature: ${temp}`);
+} else {
+  console.error("⚠️ Could not parse bedroom temperature");
+  console.error(`Raw result: ${raw}`);
   process.exit(2);
 }

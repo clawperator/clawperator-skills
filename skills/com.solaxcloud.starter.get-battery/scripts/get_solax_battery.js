@@ -1,12 +1,8 @@
 #!/usr/bin/env node
-const { execFileSync } = require("child_process");
-const { writeFileSync } = require("fs");
-const { join } = require("path");
-const { tmpdir } = require("os");
+const { runClawperator } = require("../../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const receiverPkg = process.argv[3] || process.env.RECEIVER_PKG || "com.clawperator.operator.dev";
-let clawBin = process.env.CLAW_BIN || "clawperator";
 
 if (!deviceId) {
   console.error("Usage: node get_solax_battery.js <device_id> [receiver_package]");
@@ -30,40 +26,23 @@ const execution = {
   ]
 };
 
-const tmpFile = join(tmpdir(), `${commandId}.json`);
-writeFileSync(tmpFile, JSON.stringify(execution));
+const { ok, result, error, raw } = runClawperator(execution, deviceId, receiverPkg);
 
-try {
-  let cmd = clawBin;
-  let args = ["execute", "--execution", tmpFile, "--device-id", deviceId, "--receiver-package", receiverPkg];
-  
-  if (clawBin === "clawperator") {
-    try {
-      execFileSync("command", ["-v", "clawperator"]);
-    } catch {
-      cmd = "node";
-      args = [join(__dirname, "..", "..", "..", "..", "clawperator", "apps", "node", "dist", "cli", "index.js"), ...args];
-    }
-  }
+if (!ok) {
+  console.error(`⚠️ Skill execution failed: ${error}`);
+  process.exit(2);
+}
 
-  const output = execFileSync(cmd, args, { encoding: "utf-8" });
-  const result = JSON.parse(output);
+const stepResults = (result.envelope && result.envelope.stepResults) || [];
+const valStep = stepResults.find(s => s.id === "read-battery-value");
+const unitStep = stepResults.find(s => s.id === "read-battery-unit");
+const val = valStep && valStep.data ? valStep.data.text : null;
+const unit = unitStep && unitStep.data ? unitStep.data.text : null;
 
-  const valStep = result.envelope.stepResults.find(s => s.id === "read-battery-value");
-  const unitStep = result.envelope.stepResults.find(s => s.id === "read-battery-unit");
-  const val = valStep && valStep.data ? valStep.data.text : null;
-  const unit = unitStep && unitStep.data ? unitStep.data.text : null;
-
-  if (val) {
-    console.log(`✅ SolaX battery level: ${val}${unit || ""}`);
-  } else {
-    console.error("⚠️ Could not parse SolaX battery level");
-    console.error(`Raw result: ${output}`);
-    process.exit(2);
-  }
-} catch (e) {
-  console.error("⚠️ Skill execution failed");
-  if (e.stdout) console.error(e.stdout);
-  if (e.stderr) console.error(e.stderr);
+if (val) {
+  console.log(`✅ SolaX battery level: ${val}${unit || ""}`);
+} else {
+  console.error("⚠️ Could not parse SolaX battery level");
+  console.error(`Raw result: ${raw}`);
   process.exit(2);
 }

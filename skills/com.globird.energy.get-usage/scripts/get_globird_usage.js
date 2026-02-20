@@ -1,12 +1,8 @@
 #!/usr/bin/env node
-const { execFileSync } = require("child_process");
-const { writeFileSync } = require("fs");
-const { join } = require("path");
-const { tmpdir } = require("os");
+const { runClawperator, findAttribute } = require("../../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const receiverPkg = process.argv[3] || process.env.RECEIVER_PKG || "com.clawperator.operator.dev";
-let clawBin = process.env.CLAW_BIN || "clawperator";
 
 if (!deviceId) {
   console.error("Usage: node get_globird_usage.js <device_id> [receiver_package]");
@@ -31,53 +27,36 @@ const execution = {
   ]
 };
 
-const tmpFile = join(tmpdir(), `${commandId}.json`);
-writeFileSync(tmpFile, JSON.stringify(execution));
+const { ok, result, error, raw } = runClawperator(execution, deviceId, receiverPkg);
 
-try {
-  let cmd = clawBin;
-  let args = ["execute", "--execution", tmpFile, "--device-id", deviceId, "--receiver-package", receiverPkg];
-  
-  if (clawBin === "clawperator") {
-    try {
-      execFileSync("command", ["-v", "clawperator"]);
-    } catch {
-      cmd = "node";
-      args = [join(__dirname, "..", "..", "..", "..", "clawperator", "apps", "node", "dist", "cli", "index.js"), ...args];
-    }
-  }
+if (!ok) {
+  console.error(`⚠️ Skill execution failed: ${error}`);
+  process.exit(2);
+}
 
-  const output = execFileSync(cmd, args, { encoding: "utf-8" });
-  const result = JSON.parse(output);
+const stepResults = (result.envelope && result.envelope.stepResults) || [];
+const snapStep = stepResults.find(s => s.id === "snap");
+const snapText = snapStep && snapStep.data ? snapStep.data.text : null;
 
-  const snapStep = result.envelope.stepResults.find(s => s.id === "snap");
-  const snapText = snapStep && snapStep.data ? snapStep.data.text : null;
+if (snapText) {
+  const lines = snapText.split("\n");
+  let cost = "unknown", right = "unknown", grid = "unknown", solar = "unknown";
 
-  if (snapText) {
-    const costMatch = snapText.match(/text="([^"]*)".*resource-id="energy-usage-cost-left-stat-value"/);
-    const rightMatch = snapText.match(/text="([^"]*)".*resource-id="energy-usage-cost-right-stat-value"/);
-    const gridMatch = snapText.match(/text="([^"]*)".*resource-id="energy-usage-grid-usage"/);
-    const solarMatch = snapText.match(/text="([^"]*)".*resource-id="energy-usage-solar-feed-in"/);
-    
-    const cost = costMatch ? costMatch[1] : "unknown";
-    const right = rightMatch ? rightMatch[1] : "unknown";
-    const grid = gridMatch ? gridMatch[1] : "unknown";
-    const solar = solarMatch ? solarMatch[1] : "unknown";
+  lines.forEach(line => {
+    if (line.includes("energy-usage-cost-left-stat-value")) cost = findAttribute(line, "text") || cost;
+    if (line.includes("energy-usage-cost-right-stat-value")) right = findAttribute(line, "text") || right;
+    if (line.includes("energy-usage-grid-usage")) grid = findAttribute(line, "text") || grid;
+    if (line.includes("energy-usage-solar-feed-in")) solar = findAttribute(line, "text") || solar;
+  });
 
-    if (cost !== "unknown" || grid !== "unknown" || solar !== "unknown") {
-      console.log(`✅ GloBird usage: cost_so_far=${cost}, avg_cost_per_day=${right}, grid_usage=${grid}, solar_feed_in=${solar}`);
-    } else {
-      console.error("⚠️ Could not parse GloBird values from snapshot. Is the app on the Energy tab?");
-      process.exit(2);
-    }
+  if (cost !== "unknown" || grid !== "unknown" || solar !== "unknown") {
+    console.log(`✅ GloBird usage: cost_so_far=${cost}, avg_cost_per_day=${right}, grid_usage=${grid}, solar_feed_in=${solar}`);
   } else {
-    console.error("⚠️ Could not capture GloBird usage snapshot");
-    console.error(`Raw result: ${output}`);
+    console.error("⚠️ Could not parse GloBird values from snapshot. Is the app on the Energy tab?");
     process.exit(2);
   }
-} catch (e) {
-  console.error("⚠️ Skill execution failed");
-  if (e.stdout) console.error(e.stdout);
-  if (e.stderr) console.error(e.stderr);
+} else {
+  console.error("⚠️ Could not capture GloBird usage snapshot");
+  console.error(`Raw result: ${raw}`);
   process.exit(2);
 }
