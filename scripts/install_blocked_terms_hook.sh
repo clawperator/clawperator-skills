@@ -3,9 +3,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HOOK_PATH="$ROOT_DIR/.git/hooks/pre-commit"
-WORKSPACE_PARENT="$(cd "$ROOT_DIR/.." && pwd)"
-DEFAULT_SHARED_HOOK="$WORKSPACE_PARENT/.clawcave/pre-commit-blocked-terms.sh"
-DEFAULT_TERMS_FILE="$WORKSPACE_PARENT/.clawcave/blocked-terms.txt"
+DEFAULT_SHARED_HOME="${HOME}/.clawpilled"
+DEFAULT_SHARED_HOOK="$DEFAULT_SHARED_HOME/pre-commit-blocked-terms.sh"
+DEFAULT_TERMS_FILE="$DEFAULT_SHARED_HOME/blocked-terms.txt"
 SHARED_HOOK="${CLAWPERATOR_SHARED_HOOK:-$DEFAULT_SHARED_HOOK}"
 
 cat > "$HOOK_PATH" <<HOOK
