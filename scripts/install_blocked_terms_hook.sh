@@ -3,6 +3,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HOOK_PATH="$ROOT_DIR/.git/hooks/pre-commit"
+if [[ -z "${HOME:-}" ]]; then
+  echo "ERROR: HOME is not set. Set HOME or run this installer in an environment where HOME is defined." >&2
+  exit 1
+fi
 DEFAULT_SHARED_HOME="${HOME}/.clawpilled"
 DEFAULT_SHARED_HOOK="$DEFAULT_SHARED_HOME/pre-commit-blocked-terms.sh"
 DEFAULT_TERMS_FILE="$DEFAULT_SHARED_HOME/blocked-terms.txt"

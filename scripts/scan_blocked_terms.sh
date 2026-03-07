@@ -1,9 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEFAULT_TERMS_FILE="${HOME}/.clawpilled/blocked-terms.txt"
-TERMS_FILE="${CLAWPERATOR_BLOCKED_TERMS_FILE:-$DEFAULT_TERMS_FILE}"
+DEFAULT_TERMS_FILE=""
+if [[ -n "${HOME:-}" ]]; then
+  DEFAULT_TERMS_FILE="${HOME}/.clawpilled/blocked-terms.txt"
+fi
+
+if [[ -n "${CLAWPERATOR_BLOCKED_TERMS_FILE:-}" ]]; then
+  TERMS_FILE="${CLAWPERATOR_BLOCKED_TERMS_FILE}"
+elif [[ -n "$DEFAULT_TERMS_FILE" ]]; then
+  TERMS_FILE="$DEFAULT_TERMS_FILE"
+else
+  echo "[scan] HOME is not set and CLAWPERATOR_BLOCKED_TERMS_FILE is not configured; skipping scan." >&2
+  exit 0
+fi
 SCAN_HISTORY="false"
 
 usage() {
