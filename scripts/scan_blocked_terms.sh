@@ -2,8 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WORKSPACE_PARENT="$(cd "$ROOT_DIR/.." && pwd)"
-DEFAULT_TERMS_FILE="$WORKSPACE_PARENT/.clawcave/blocked-terms.txt"
+DEFAULT_TERMS_FILE="${HOME}/.clawpilled/blocked-terms.txt"
 TERMS_FILE="${CLAWPERATOR_BLOCKED_TERMS_FILE:-$DEFAULT_TERMS_FILE}"
 SCAN_HISTORY="false"
 

@@ -135,14 +135,14 @@ find skills -type f -path '*/scripts/*.sh' -print0 | xargs -0 -n1 bash -n
 
 ## Local Privacy Pre-Commit Hook
 
-This repo shares a blocked-terms file with `clawperator`:
+This repo shares a user-scoped blocked-terms file with `clawperator`:
 
-1. Optional: populate `../.clawcave/blocked-terms.txt` (sibling to this repo) with one forbidden term per line.
+1. Optional: populate `~/.clawpilled/blocked-terms.txt` with one forbidden term per line.
 2. Install hook:
 
 ```bash
-mkdir -p ../.clawcave
-cp ./blocked-terms.txt.example ../.clawcave/blocked-terms.txt
+mkdir -p ~/.clawpilled
+cp ./blocked-terms.txt.example ~/.clawpilled/blocked-terms.txt
 ./scripts/install_blocked_terms_hook.sh
 ./scripts/scan_blocked_terms.sh
 ```
