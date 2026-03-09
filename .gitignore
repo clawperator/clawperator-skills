@@ -15,6 +15,9 @@ skills/generated/*
 !skills/generated/skills-index.jsonl
 !skills/generated/skills-index.min.json
 
+# Local agent worktrees
+.claude/worktrees/
+
 # Never commit local secrets or user-specific data
 .env
 .env.*
