@@ -2,7 +2,7 @@
 const { runClawperator } = require("../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
-const receiverPkg = process.argv[3] || process.env.RECEIVER_PKG || "com.clawperator.operator.dev";
+const receiverPkg = process.argv[3] || process.env.RECEIVER_PKG || "com.clawperator.operator";
 
 if (!deviceId) {
   console.error("Usage: node get_bedroom_temperature.js <device_id> [receiver_package]");

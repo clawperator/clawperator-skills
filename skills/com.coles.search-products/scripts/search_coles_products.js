@@ -4,7 +4,7 @@ const { runClawperator, findAttribute } = require('../../utils/common');
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const rawQuery = process.argv[3] || process.env.QUERY || '';
 const query = rawQuery.trim();
-const receiverPkg = process.argv[4] || process.env.RECEIVER_PKG || 'com.clawperator.operator.dev';
+const receiverPkg = process.argv[4] || process.env.RECEIVER_PKG || 'com.clawperator.operator';
 const MAX_QUERY_LENGTH = 256;
 
 if (!deviceId || !query) {
