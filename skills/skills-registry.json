@@ -1,8 +1,32 @@
 {
   "$schema": "./skills-registry.schema.json",
   "schemaVersion": "1.0",
-  "generatedAt": "2026-02-19T02:41:30Z",
+  "generatedAt": "2026-03-11T00:00:00Z",
   "skills": [
+    {
+      "id": "com.android.vending.install-app",
+      "applicationId": "com.android.vending",
+      "intent": "install-app",
+      "summary": "Install an Android app from its Google Play Store details page and confirm the result.",
+      "path": "skills/com.android.vending.install-app",
+      "skillFile": "skills/com.android.vending.install-app/SKILL.md",
+      "scripts": [
+        "skills/com.android.vending.install-app/scripts/install_play_app.sh"
+      ],
+      "artifacts": []
+    },
+    {
+      "id": "com.android.vending.search-app",
+      "applicationId": "com.android.vending",
+      "intent": "search-app",
+      "summary": "Search for an Android app in the Google Play Store and navigate to its details page.",
+      "path": "skills/com.android.vending.search-app",
+      "skillFile": "skills/com.android.vending.search-app/SKILL.md",
+      "scripts": [
+        "skills/com.android.vending.search-app/scripts/search_play_store.sh"
+      ],
+      "artifacts": []
+    },
     {
       "id": "com.android.settings.capture-overview",
       "applicationId": "com.android.settings",

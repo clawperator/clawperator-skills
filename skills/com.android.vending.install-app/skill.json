@@ -1,0 +1,12 @@
+{
+  "id": "com.android.vending.install-app",
+  "applicationId": "com.android.vending",
+  "intent": "install-app",
+  "summary": "Install an Android app from its Google Play Store details page and confirm the result.",
+  "path": "skills/com.android.vending.install-app",
+  "skillFile": "skills/com.android.vending.install-app/SKILL.md",
+  "scripts": [
+    "skills/com.android.vending.install-app/scripts/install_play_app.sh"
+  ],
+  "artifacts": []
+}
