@@ -63,3 +63,10 @@ On success, prints a summary of the app details page including:
 - From the search path, clicking the first app entry navigates to a full-page details view.
 - From the direct path, the market:// URI opens a bottom sheet details view. Both support
   the Install button in the same way.
+- If snapshot extraction fails (step returns `success: false` with
+  `data.error: "SNAPSHOT_EXTRACTION_FAILED"`, or the skill exits with "No snapshot
+  returned" despite the device being on the correct screen), the globally installed
+  `clawperator` binary may be out of date. Reinstall with `npm install -g clawperator`
+  or set `CLAW_BIN` to a local or updated build:
+  `export CLAW_BIN=/path/to/clawperator/apps/node/dist/cli/index.js`
+  Then run `clawperator version --check-compat` to confirm compatibility.
