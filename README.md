@@ -73,7 +73,8 @@ This demo is intentionally bare-bones and OEM-agnostic. It does not depend on an
 From this repo (direct skill run):
 
 ```bash
-./skills/com.android.settings.capture-overview/scripts/capture_settings_overview.sh com.clawperator.operator.dev
+DEVICE_ID="$(adb devices | awk 'NR>1 && $2==\"device\" {print $1; exit}')"
+./skills/com.android.settings.capture-overview/scripts/capture_settings_overview.sh "$DEVICE_ID" com.clawperator.operator.dev
 ```
 
 Or from the `clawperator` repo (manual JSON execution + screenshot):
@@ -93,7 +94,7 @@ cat > /tmp/clawperator-settings-snapshot.json <<'JSON'
     { "id": "close", "type": "close_app", "params": { "applicationId": "com.android.settings" } },
     { "id": "open", "type": "open_app", "params": { "applicationId": "com.android.settings" } },
     { "id": "settle", "type": "sleep", "params": { "durationMs": 1800 } },
-    { "id": "snap", "type": "snapshot_ui", "params": { "format": "ascii" } }
+    { "id": "snap", "type": "snapshot_ui" }
   ]
 }
 JSON

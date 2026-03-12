@@ -14,13 +14,13 @@ Runs a minimal OEM-agnostic baseline on `com.android.settings`:
 Usage:
 
 ```bash
-./skills/com.android.settings.capture-overview/scripts/capture_settings_overview.sh
+./skills/com.android.settings.capture-overview/scripts/capture_settings_overview.sh <device_id>
 ```
 
 Optional args:
 
 ```bash
-./skills/com.android.settings.capture-overview/scripts/capture_settings_overview.sh <receiver_package>
+./skills/com.android.settings.capture-overview/scripts/capture_settings_overview.sh <device_id> <receiver_package>
 ```
 
 Optional env:
