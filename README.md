@@ -2,7 +2,7 @@
 
 Skills repository for the Clawperator ecosystem.
 
-Related runtime/API repository: [clawperator](https://github.com/clawcave/clawperator.git)
+Related runtime/API repository: [clawperator](https://github.com/clawperator/clawperator.git)
 
 ## What This Repo Is
 
@@ -138,12 +138,12 @@ find skills -type f -path '*/scripts/*.sh' -print0 | xargs -0 -n1 bash -n
 
 This repo shares a user-scoped blocked-terms file with `clawperator`:
 
-1. Optional: populate `~/.clawpilled/blocked-terms.txt` with one forbidden term per line.
+1. Optional: populate `~/.clawperator/blocked-terms.txt` with one forbidden term per line.
 2. Install hook:
 
 ```bash
-mkdir -p ~/.clawpilled
-cp ./blocked-terms.txt.example ~/.clawpilled/blocked-terms.txt
+mkdir -p ~/.clawperator
+cp ./blocked-terms.txt.example ~/.clawperator/blocked-terms.txt
 ./scripts/install_blocked_terms_hook.sh
 ./scripts/scan_blocked_terms.sh
 ```

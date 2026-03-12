@@ -4,7 +4,7 @@
 
 This repository stores Clawperator skill packages that LLM/agent systems can run through the Clawperator runtime.
 
-Runtime/API source of truth: [clawperator](https://github.com/clawcave/clawperator.git)
+Runtime/API source of truth: [clawperator](https://github.com/clawperator/clawperator.git)
 
 ## Required Mental Model
 

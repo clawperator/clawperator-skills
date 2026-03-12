@@ -3,7 +3,7 @@ set -euo pipefail
 
 DEFAULT_TERMS_FILE=""
 if [[ -n "${HOME:-}" ]]; then
-  DEFAULT_TERMS_FILE="${HOME}/.clawpilled/blocked-terms.txt"
+  DEFAULT_TERMS_FILE="${HOME}/.clawperator/blocked-terms.txt"
 fi
 
 if [[ -n "${CLAWPERATOR_BLOCKED_TERMS_FILE:-}" ]]; then
