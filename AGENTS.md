@@ -61,4 +61,3 @@ Do not put agentic/business logic in skill scripts.
 - `docs/usage-model.md`
 - `docs/skill-authoring-guidelines.md`
 - `docs/device-prep-and-runtime-tips.md`
-- `docs/skills-verification.md`

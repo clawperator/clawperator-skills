@@ -64,7 +64,6 @@ Not intended:
 - `docs/skill-development-workflow.md` - shortest path from exploration to a reusable skill.
 - `docs/skill-authoring-guidelines.md` - conventions and quality bar for new skills.
 - `docs/device-prep-and-runtime-tips.md` - practical device/app prep and runtime reliability tips.
-- `docs/skills-verification.md` - dated verification snapshot for the current skill set.
 - `docs/blocked-terms-policy.md` - shared blocked-terms hook and scan policy.
 
 ## First-Time Agent Quickstart (Settings App)
