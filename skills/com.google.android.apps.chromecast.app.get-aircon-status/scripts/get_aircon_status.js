@@ -26,7 +26,7 @@ const execution = {
       id: "climate",
       type: "scroll_and_click",
       params: {
-        target: { textEquals: "Climate" },
+        matcher: { textEquals: "Climate" },
         container: { resourceId: "com.google.android.apps.chromecast.app:id/category_chips" },
         direction: "right",
         maxSwipes: 6,
@@ -39,7 +39,7 @@ const execution = {
       id: "openController",
       type: "scroll_and_click",
       params: {
-        target: { textContains: acTileName },
+        matcher: { textContains: acTileName },
         container: { resourceId: "com.google.android.apps.chromecast.app:id/pager_home_tab" },
         direction: "down",
         maxSwipes: 8,
