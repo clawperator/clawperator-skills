@@ -156,3 +156,7 @@ Details: `docs/blocked-terms-policy.md`
 - Do not commit device serials.
 - Do not commit user-specific local identifiers.
 - Use placeholders in docs/examples: `<person>`, `<device_serial>`, `<home_label>`.
+
+## License
+
+Apache 2.0
