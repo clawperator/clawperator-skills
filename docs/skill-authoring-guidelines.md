@@ -55,6 +55,14 @@ visible. Let the screen stabilize briefly after the app opens, then scroll to
 the destination and click it. That avoids dead waits on rows that start below
 the fold.
 
+When turning a recording into a skill, do not treat the raw trace as a final
+replay script. A recording is evidence of intent, but the skill is only done
+when every meaningful recorded action is either represented literally or is
+explicitly normalized with a documented reason. If a click, submit, or
+terminal-state transition disappears during authoring, stop and explain why.
+That is the difference between a faithful replay skill and a brittle
+best-effort script.
+
 ---
 
 ## 2. Skill folder layout

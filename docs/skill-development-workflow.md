@@ -160,6 +160,16 @@ literally. Normalize it into a stable replay sequence:
   receiver package so the skill exercises the code that is actually being
   authored
 
+Do not declare the skill complete until the replay covers every meaningful
+recorded action or documents why a step was normalized away. A click that
+opened a page in the recording, but is missing from the replay, is a bug - not
+just a stylistic difference. The same is true for any action that was
+replaced by `open_app`, `close_app`, IME submit, or a deliberate row click.
+
+If the recording lands on a terminal result screen, the skill should finish as
+soon as that screen is visible. Avoid fixed "sleep and hope" completion logic
+unless the app offers no better signal.
+
 ## 7. Use a layered test loop
 
 Treat skill verification as four distinct layers:
@@ -233,7 +243,9 @@ For a new skill, this is the practical order:
 6. run `clawperator execute --validate-only ...` on candidate payloads
 7. run `clawperator skills run <skill_id> --device-id <device_id>`
 8. harden selectors, timeout budgets, and output formatting
-9. run `clawperator skills validate --all` before wider use
+9. verify that every meaningful recorded action is covered or explicitly
+   normalized
+10. run `clawperator skills validate --all` before wider use
 
 ## Related pages
 
