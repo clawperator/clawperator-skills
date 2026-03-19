@@ -138,6 +138,25 @@ clawperator execute --validate-only --execution /path/to/compiled-execution.json
 
 This is the closest current workflow to a dry run for artifact-backed skills.
 
+### Recording-derived skills
+
+When a skill is authored from a human recording, do not replay the trace
+literally. Normalize it into a stable replay sequence:
+
+- map launcher entry taps to `open_app`
+- add `close_app` only when the app is stateful and a clean baseline is needed
+- keep the raw recording as evidence, but make the replay skill follow the
+  stable app-level intent
+- if a search screen stays open after `enter_text`, submit with a real IME
+  enter key instead of assuming the text action will advance the app
+- use live snapshots to detect terminal states instead of long fixed sleeps
+- stop immediately when the final screen is visible, even if the screen
+  arrived faster than expected
+- keep stdout for the final artifact and use stderr for small progress markers
+- during validation, prefer the branch-local Node CLI build and the dev
+  receiver package so the skill exercises the code that is actually being
+  authored
+
 ## 7. Use a layered test loop
 
 Treat skill verification as four distinct layers:

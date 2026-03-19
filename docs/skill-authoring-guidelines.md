@@ -43,6 +43,12 @@ close-sleep-open sequence:
 Use judgment. Some skills should not force-close if the intent depends on
 preserving user state.
 
+Recording-derived skills may also need to normalize search entry behavior. If a
+recorded flow stays on a query entry screen after `enter_text`, submit the
+search with a real IME enter key rather than assuming the text action will
+advance the app. That keeps the skill aligned with what actually dismisses the
+UI on the target device.
+
 ---
 
 ## 2. Skill folder layout
