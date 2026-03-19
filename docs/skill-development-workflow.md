@@ -149,6 +149,9 @@ literally. Normalize it into a stable replay sequence:
   stable app-level intent
 - if a search screen stays open after `enter_text`, submit with a real IME
   enter key instead of assuming the text action will advance the app
+- for long scrollable settings lists, settle briefly after the screen opens,
+  then scroll to the target element instead of waiting for that element to
+  already be visible
 - use live snapshots to detect terminal states instead of long fixed sleeps
 - stop immediately when the final screen is visible, even if the screen
   arrived faster than expected

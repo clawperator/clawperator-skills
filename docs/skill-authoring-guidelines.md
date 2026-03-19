@@ -49,6 +49,12 @@ search with a real IME enter key rather than assuming the text action will
 advance the app. That keeps the skill aligned with what actually dismisses the
 UI on the target device.
 
+For long, scrollable settings-style lists, prefer a "settle, then scroll to
+`<element>`" pattern instead of waiting for the target row to already be
+visible. Let the screen stabilize briefly after the app opens, then scroll to
+the destination and click it. That avoids dead waits on rows that start below
+the fold.
+
 ---
 
 ## 2. Skill folder layout
