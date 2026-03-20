@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-const { runClawperator, findAttribute } = require('../../utils/common');
+const { runClawperator, findAttribute, resolveReceiverPackage } = require('../../utils/common');
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const personName = process.argv[3] || process.env.PERSON_NAME;
 const screenshotPath = process.argv[4] || process.env.SCREENSHOT_PATH;
-const receiverPkg = process.argv[5] || process.env.RECEIVER_PKG || 'com.clawperator.operator';
+const receiverPkg = resolveReceiverPackage(process.argv[5]);
 
 if (!deviceId || !personName) {
   console.error('Usage: node get_life360_location.js <device_id> <person_name> [screenshot_path] [receiver_package]');

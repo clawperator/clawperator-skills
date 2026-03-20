@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-const { runClawperator } = require("../../utils/common");
+const { runClawperator, resolveReceiverPackage } = require("../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
-const receiverPkg = process.argv[3] || process.env.RECEIVER_PKG || "com.clawperator.operator";
+const receiverPkg = resolveReceiverPackage(process.argv[3]);
 
 if (!deviceId) {
   console.error("Usage: node get_solax_battery.js <device_id> [receiver_package]");

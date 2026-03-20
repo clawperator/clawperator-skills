@@ -26,10 +26,10 @@
  *   - Uninstall (settled): textEquals "Uninstall"
  */
 
-const { runClawperator, findAttribute } = require('../../utils/common');
+const { runClawperator, findAttribute, resolveReceiverPackage } = require('../../utils/common');
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
-const receiverPkg = process.argv[3] || process.env.RECEIVER_PKG || 'com.clawperator.operator';
+const receiverPkg = resolveReceiverPackage(process.argv[3]);
 
 if (!deviceId) {
   console.error('Usage: node install_play_app.js <device_id> [receiver_package]');
