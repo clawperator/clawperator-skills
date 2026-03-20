@@ -1,5 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { mkdtemp, rm, writeFile } = require('node:fs/promises');
+const { join } = require('node:path');
+const { tmpdir } = require('node:os');
 
 const { resolveClawperatorBin, resolveReceiverPackage } = require('./common');
 
@@ -84,6 +87,28 @@ test('resolveClawperatorBin preserves a plain executable path as cmd only', () =
     } else {
       process.env.CLAWPERATOR_BIN = original;
     }
+  }
+});
+
+test('resolveClawperatorBin launches a .js entrypoint through node when set explicitly', async () => {
+  const originalBin = process.env.CLAWPERATOR_BIN;
+  const tempDir = await mkdtemp(join(tmpdir(), 'clawperator-bin-'));
+  const scriptPath = join(tempDir, 'index.js');
+  await writeFile(scriptPath, 'console.log("hello from temp script");\n');
+  process.env.CLAWPERATOR_BIN = scriptPath;
+
+  try {
+    assert.deepStrictEqual(resolveClawperatorBin(), {
+      cmd: process.execPath,
+      args: [scriptPath],
+    });
+  } finally {
+    if (originalBin === undefined) {
+      delete process.env.CLAWPERATOR_BIN;
+    } else {
+      process.env.CLAWPERATOR_BIN = originalBin;
+    }
+    await rm(tempDir, { recursive: true, force: true });
   }
 });
 

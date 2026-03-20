@@ -1,6 +1,6 @@
 const { execFileSync } = require('child_process');
 const { writeFileSync, existsSync, unlinkSync } = require('fs');
-const { join, resolve } = require('path');
+const { join, resolve, extname } = require('path');
 const { tmpdir } = require('os');
 
 /**
@@ -21,6 +21,9 @@ function resolveClawperatorBin() {
   const explicitBin = process.env.CLAWPERATOR_BIN;
   if (explicitBin) {
     if (existsSync(explicitBin)) {
+      if (extname(explicitBin) === '.js') {
+        return { cmd: process.execPath, args: [explicitBin] };
+      }
       return { cmd: explicitBin, args: [] };
     }
     const parsedBin = parseCommandSpec(explicitBin);
