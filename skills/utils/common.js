@@ -6,9 +6,8 @@ const { tmpdir } = require('os');
 /**
  * REQ-4.1: Binary preference order:
  *   1. CLAWPERATOR_BIN env var (explicit override - highest priority)
- *   2. CLAW_BIN env var (deprecated alias - second priority)
- *   3. Local sibling build (if present at the expected sibling repo path)
- *   4. Global clawperator binary (fallback)
+ *   2. Local sibling build (if present at the expected sibling repo path)
+ *   3. Global clawperator binary (fallback)
  *
  * The sibling build is preferred over the global binary so that users with a
  * local checkout automatically get the correct compiled output, which is always
@@ -31,15 +30,7 @@ function resolveClawperatorBin() {
     return { cmd: explicitBin, args: [] };
   }
 
-  // 2. Deprecated alias CLAW_BIN (with warning)
-  if (process.env.CLAW_BIN) {
-    process.stderr.write(
-      '[clawperator-skills] WARNING: CLAW_BIN is deprecated. Use CLAWPERATOR_BIN instead.\n'
-    );
-    return { cmd: process.env.CLAW_BIN, args: [] };
-  }
-
-  // 3. Local sibling build (preferred over global when present)
+  // 2. Local sibling build (preferred over global when present)
   const siblingCli = process.env.CLAW_CLI_PATH ||
     resolve(__dirname, '..', '..', '..', 'clawperator', 'apps', 'node', 'dist', 'cli', 'index.js');
   if (existsSync(siblingCli)) {
@@ -47,7 +38,7 @@ function resolveClawperatorBin() {
     return { cmd: 'node', args: [siblingCli] };
   }
 
-  // 4. Global clawperator binary
+  // 3. Global clawperator binary
   return { cmd: 'clawperator', args: [] };
 }
 

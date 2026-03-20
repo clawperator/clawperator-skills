@@ -86,3 +86,35 @@ test('resolveClawperatorBin preserves a plain executable path as cmd only', () =
     }
   }
 });
+
+test('resolveClawperatorBin ignores legacy CLAW_BIN', () => {
+  const originalBin = process.env.CLAWPERATOR_BIN;
+  const originalLegacyBin = process.env.CLAW_BIN;
+  const originalCliPath = process.env.CLAW_CLI_PATH;
+  delete process.env.CLAWPERATOR_BIN;
+  process.env.CLAW_BIN = '/legacy/claw/bin';
+  process.env.CLAW_CLI_PATH = '/definitely/missing/sibling-build.js';
+
+  try {
+    assert.deepStrictEqual(resolveClawperatorBin(), {
+      cmd: 'clawperator',
+      args: [],
+    });
+  } finally {
+    if (originalBin === undefined) {
+      delete process.env.CLAWPERATOR_BIN;
+    } else {
+      process.env.CLAWPERATOR_BIN = originalBin;
+    }
+    if (originalLegacyBin === undefined) {
+      delete process.env.CLAW_BIN;
+    } else {
+      process.env.CLAW_BIN = originalLegacyBin;
+    }
+    if (originalCliPath === undefined) {
+      delete process.env.CLAW_CLI_PATH;
+    } else {
+      process.env.CLAW_CLI_PATH = originalCliPath;
+    }
+  }
+});
