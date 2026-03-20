@@ -17,7 +17,7 @@ const { tmpdir } = require('os');
  *
  * CLAW_CLI_PATH env var overrides the sibling build path lookup.
  */
-function resolveClawBin() {
+function resolveClawperatorBin() {
   // 1. Explicit override via CLAWPERATOR_BIN (new canonical name)
   const explicitBin = process.env.CLAWPERATOR_BIN;
   if (explicitBin) {
@@ -171,7 +171,7 @@ function runClawperator(execution, deviceId, receiverPkg, clawBinOverride) {
     cmd = clawBinOverride;
     extraArgs = [];
   } else {
-    const resolved = resolveClawBin();
+    const resolved = resolveClawperatorBin();
     cmd = resolved.cmd;
     extraArgs = resolved.args;
   }
@@ -202,4 +202,4 @@ function findAttribute(line, attrName) {
   return match[1] === '' ? null : match[1];
 }
 
-module.exports = { runClawperator, findAttribute, resolveClawBin, resolveReceiverPackage, parseCommandSpec };
+module.exports = { runClawperator, findAttribute, resolveClawperatorBin, resolveReceiverPackage, parseCommandSpec };
