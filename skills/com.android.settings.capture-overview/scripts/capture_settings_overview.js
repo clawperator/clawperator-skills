@@ -2,10 +2,10 @@
 const { execFileSync } = require("child_process");
 const { mkdirSync, writeFileSync } = require("fs");
 const { join, resolve } = require("path");
-const { runClawperator } = require("../../utils/common");
+const { runClawperator, resolveReceiverPackage } = require("../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
-const receiverPkg = process.argv[3] || process.env.RECEIVER_PKG || "com.clawperator.operator";
+const receiverPkg = resolveReceiverPackage(process.argv[3]);
 const screenshotDir = resolve(process.env.SCREENSHOT_DIR || "/tmp/clawperator-settings-screenshots");
 const settingsAppId = process.env.SETTINGS_APP_ID || "com.android.settings";
 const adbBin = process.env.ADB_BIN || "adb";

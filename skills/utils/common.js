@@ -1,11 +1,11 @@
 const { execFileSync } = require('child_process');
 const { writeFileSync, existsSync, unlinkSync } = require('fs');
-const { join, resolve } = require('path');
+const { join, resolve, extname } = require('path');
 const { tmpdir } = require('os');
 
 /**
- * REQ-4.1: Binary preference order:
- *   1. CLAW_BIN env var (explicit override - highest priority)
+ * Binary preference order:
+ *   1. CLAWPERATOR_BIN env var (explicit override - highest priority)
  *   2. Local sibling build (if present at the expected sibling repo path)
  *   3. Global clawperator binary (fallback)
  *
@@ -16,10 +16,21 @@ const { tmpdir } = require('os');
  *
  * CLAW_CLI_PATH env var overrides the sibling build path lookup.
  */
-function resolveClawBin() {
-  // 1. Explicit override via CLAW_BIN
-  if (process.env.CLAW_BIN) {
-    return { cmd: process.env.CLAW_BIN, args: [] };
+function resolveClawperatorBin() {
+  // 1. Explicit override via CLAWPERATOR_BIN (new canonical name)
+  const explicitBin = process.env.CLAWPERATOR_BIN;
+  if (explicitBin) {
+    if (existsSync(explicitBin)) {
+      if (extname(explicitBin) === '.js') {
+        return { cmd: process.execPath, args: [explicitBin] };
+      }
+      return { cmd: explicitBin, args: [] };
+    }
+    const parsedBin = parseCommandSpec(explicitBin);
+    if (parsedBin !== null) {
+      return parsedBin;
+    }
+    return { cmd: explicitBin, args: [] };
   }
 
   // 2. Local sibling build (preferred over global when present)
@@ -35,11 +46,87 @@ function resolveClawBin() {
 }
 
 /**
- * REQ-3.1: Check whether any snapshot_ui step in the result indicates extraction
- * failure and emit a diagnostic warning to stderr if so.
+ * Parse a shell-style command specification into an executable and arguments.
+ *
+ * This accepts the `node "/path/to/index.js"` shape emitted by the Node CLI
+ * while still preserving plain executable paths as a single command.
+ */
+function parseCommandSpec(commandSpec) {
+  const parts = [];
+  let current = '';
+  let quote = null;
+
+  for (let i = 0; i < commandSpec.length; i += 1) {
+    const char = commandSpec[i];
+
+    if (quote) {
+      if (char === quote) {
+        quote = null;
+      } else if (char === '\\' && quote === '"' && i + 1 < commandSpec.length) {
+        i += 1;
+        current += commandSpec[i];
+      } else {
+        current += char;
+      }
+      continue;
+    }
+
+    if (char === '"' || char === '\'') {
+      quote = char;
+      continue;
+    }
+
+    if (/\s/.test(char)) {
+      if (current !== '') {
+        parts.push(current);
+        current = '';
+      }
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (quote) {
+    return null;
+  }
+
+  if (current !== '') {
+    parts.push(current);
+  }
+
+  if (parts.length === 0) {
+    return null;
+  }
+
+  return { cmd: parts[0], args: parts.slice(1) };
+}
+
+/**
+ * Resolve the receiver package for skill execution.
+ *
+ * Preference order:
+ *   1. Explicit receiverPkg parameter passed to runClawperator()
+ *   2. CLAWPERATOR_RECEIVER_PACKAGE env var
+ *   3. Default release package 'com.clawperator.operator'
+ */
+function resolveReceiverPackage(explicitPkg) {
+  if (explicitPkg !== undefined && explicitPkg !== null && explicitPkg !== "") {
+    return explicitPkg;
+  }
+  const envPkg = process.env.CLAWPERATOR_RECEIVER_PACKAGE;
+  if (envPkg !== undefined && envPkg !== "") {
+    return envPkg;
+  }
+  return 'com.clawperator.operator';
+}
+
+/**
+ * Check whether any snapshot_ui step in the result indicates extraction failure
+ * and emit a diagnostic warning to stderr if so.
  *
  * Checks for the new SNAPSHOT_EXTRACTION_FAILED contract (success:false +
- * data.error === "SNAPSHOT_EXTRACTION_FAILED") as well as the pre-REQ-2.3
+ * data.error === "SNAPSHOT_EXTRACTION_FAILED") as well as the older
  * fallback (success:true with absent or empty data.text) to handle older
  * binaries that predate the contract change.
  */
@@ -60,8 +147,8 @@ function warnOnSnapshotExtractionFailure(result) {
         'of date with the Android Operator APK.\n' +
         'Fix: reinstall the npm package:\n' +
         '  npm install -g clawperator\n' +
-        'Or set CLAW_BIN to a local or updated build:\n' +
-        '  export CLAW_BIN=/path/to/clawperator/apps/node/dist/cli/index.js\n' +
+        'Or set CLAWPERATOR_BIN to a local or updated build:\n' +
+        '  export CLAWPERATOR_BIN=/path/to/clawperator/apps/node/dist/cli/index.js\n' +
         'Or run: clawperator version --check-compat\n'
       );
     }
@@ -78,12 +165,15 @@ function runClawperator(execution, deviceId, receiverPkg, clawBinOverride) {
     cmd = clawBinOverride;
     extraArgs = [];
   } else {
-    const resolved = resolveClawBin();
+    const resolved = resolveClawperatorBin();
     cmd = resolved.cmd;
     extraArgs = resolved.args;
   }
 
-  const args = [...extraArgs, 'execute', '--execution', tmpFile, '--device-id', deviceId, '--receiver-package', receiverPkg];
+  // Resolve receiver package using the new precedence rules.
+  const effectiveReceiverPkg = resolveReceiverPackage(receiverPkg);
+
+  const args = [...extraArgs, 'execute', '--execution', tmpFile, '--device-id', deviceId, '--receiver-package', effectiveReceiverPkg];
 
   try {
     const output = execFileSync(cmd, args, { encoding: 'utf-8' });
@@ -106,4 +196,4 @@ function findAttribute(line, attrName) {
   return match[1] === '' ? null : match[1];
 }
 
-module.exports = { runClawperator, findAttribute };
+module.exports = { runClawperator, findAttribute, resolveClawperatorBin, resolveReceiverPackage, parseCommandSpec };

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-const { runClawperator } = require("../../utils/common");
+const { runClawperator, resolveReceiverPackage } = require("../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const acTileName = process.argv[3] || process.env.AC_TILE_NAME;
-const receiverPkg = process.argv[4] || process.env.RECEIVER_PKG || "com.clawperator.operator";
+const receiverPkg = resolveReceiverPackage(process.argv[4]);
 
 if (!deviceId || !acTileName) {
   console.error("Usage: node get_aircon_status.js <device_id> <ac_tile_name> [receiver_package]");

@@ -24,12 +24,12 @@
 
 const { execFileSync } = require('child_process');
 const path = require('path');
-const { runClawperator, findAttribute } = require('../../utils/common');
+const { runClawperator, findAttribute, resolveReceiverPackage } = require('../../utils/common');
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const rawQuery = process.argv[3] || process.env.QUERY || '';
 const query = rawQuery.trim();
-const receiverPkg = process.argv[4] || process.env.RECEIVER_PKG || 'com.clawperator.operator';
+const receiverPkg = resolveReceiverPackage(process.argv[4]);
 const packageId = process.argv[5] || process.env.PACKAGE_ID || '';
 
 const MAX_QUERY_LENGTH = 256;

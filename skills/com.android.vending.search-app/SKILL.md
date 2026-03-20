@@ -67,6 +67,6 @@ On success, prints a summary of the app details page including:
   `data.error: "SNAPSHOT_EXTRACTION_FAILED"`, or the skill exits with "No snapshot
   returned" despite the device being on the correct screen), the globally installed
   `clawperator` binary may be out of date. Reinstall with `npm install -g clawperator`
-  or set `CLAW_BIN` to a local or updated build:
-  `export CLAW_BIN=/path/to/clawperator/apps/node/dist/cli/index.js`
+  or set `CLAWPERATOR_BIN` to a local or updated build:
+  `export CLAWPERATOR_BIN=/path/to/clawperator/apps/node/dist/cli/index.js`
   Then run `clawperator version --check-compat` to confirm compatibility.
