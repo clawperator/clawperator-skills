@@ -31,6 +31,7 @@ Do not put agentic/business logic in skill scripts.
 4. Use placeholders for user-specific values; never hardcode personal/device identifiers.
 5. Keep scripts deterministic and narrowly scoped.
 6. Expect UI drift and document fallback behavior in `SKILL.md`.
+7. Never shorten `Clawperator` to `Claw` in code, docs, comments, or commit messages. `Claw` refers to OpenClaw/OpenClaw-like agents and is not an acceptable shorthand for this project.
 
 ## Pre-commit Checklist
 
