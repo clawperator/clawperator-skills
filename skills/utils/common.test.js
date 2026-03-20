@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { resolveReceiverPackage } = require('./common');
+const { resolveClawBin, resolveReceiverPackage } = require('./common');
 
 test('resolveReceiverPackage prefers an explicit package over env var', () => {
   const original = process.env.CLAWPERATOR_RECEIVER_PACKAGE;
@@ -47,6 +47,42 @@ test('resolveReceiverPackage falls back to the release default', () => {
       delete process.env.CLAWPERATOR_RECEIVER_PACKAGE;
     } else {
       process.env.CLAWPERATOR_RECEIVER_PACKAGE = original;
+    }
+  }
+});
+
+test('resolveClawBin splits a combined command string into cmd and args', () => {
+  const original = process.env.CLAWPERATOR_BIN;
+  process.env.CLAWPERATOR_BIN = 'node "/tmp/clawperator/apps/node/dist/cli/index.js"';
+
+  try {
+    assert.deepStrictEqual(resolveClawBin(), {
+      cmd: 'node',
+      args: ['/tmp/clawperator/apps/node/dist/cli/index.js'],
+    });
+  } finally {
+    if (original === undefined) {
+      delete process.env.CLAWPERATOR_BIN;
+    } else {
+      process.env.CLAWPERATOR_BIN = original;
+    }
+  }
+});
+
+test('resolveClawBin preserves a plain executable path as cmd only', () => {
+  const original = process.env.CLAWPERATOR_BIN;
+  process.env.CLAWPERATOR_BIN = process.execPath;
+
+  try {
+    assert.deepStrictEqual(resolveClawBin(), {
+      cmd: process.execPath,
+      args: [],
+    });
+  } finally {
+    if (original === undefined) {
+      delete process.env.CLAWPERATOR_BIN;
+    } else {
+      process.env.CLAWPERATOR_BIN = original;
     }
   }
 });

@@ -19,8 +19,16 @@ const { tmpdir } = require('os');
  */
 function resolveClawBin() {
   // 1. Explicit override via CLAWPERATOR_BIN (new canonical name)
-  if (process.env.CLAWPERATOR_BIN) {
-    return { cmd: process.env.CLAWPERATOR_BIN, args: [] };
+  const explicitBin = process.env.CLAWPERATOR_BIN;
+  if (explicitBin) {
+    if (existsSync(explicitBin)) {
+      return { cmd: explicitBin, args: [] };
+    }
+    const parsedBin = parseCommandSpec(explicitBin);
+    if (parsedBin !== null) {
+      return parsedBin;
+    }
+    return { cmd: explicitBin, args: [] };
   }
 
   // 2. Deprecated alias CLAW_BIN (with warning)
@@ -41,6 +49,63 @@ function resolveClawBin() {
 
   // 4. Global clawperator binary
   return { cmd: 'clawperator', args: [] };
+}
+
+/**
+ * Parse a shell-style command specification into an executable and arguments.
+ *
+ * This accepts the `node "/path/to/index.js"` shape emitted by the Node CLI
+ * while still preserving plain executable paths as a single command.
+ */
+function parseCommandSpec(commandSpec) {
+  const parts = [];
+  let current = '';
+  let quote = null;
+
+  for (let i = 0; i < commandSpec.length; i += 1) {
+    const char = commandSpec[i];
+
+    if (quote) {
+      if (char === quote) {
+        quote = null;
+      } else if (char === '\\' && quote === '"' && i + 1 < commandSpec.length) {
+        i += 1;
+        current += commandSpec[i];
+      } else {
+        current += char;
+      }
+      continue;
+    }
+
+    if (char === '"' || char === '\'') {
+      quote = char;
+      continue;
+    }
+
+    if (/\s/.test(char)) {
+      if (current !== '') {
+        parts.push(current);
+        current = '';
+      }
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (quote) {
+    return null;
+  }
+
+  if (current !== '') {
+    parts.push(current);
+  }
+
+  if (parts.length === 0) {
+    return null;
+  }
+
+  return { cmd: parts[0], args: parts.slice(1) };
 }
 
 /**
@@ -137,4 +202,4 @@ function findAttribute(line, attrName) {
   return match[1] === '' ? null : match[1];
 }
 
-module.exports = { runClawperator, findAttribute, resolveClawBin, resolveReceiverPackage };
+module.exports = { runClawperator, findAttribute, resolveClawBin, resolveReceiverPackage, parseCommandSpec };
