@@ -47,20 +47,19 @@ function resolveClawBin() {
  * Resolve the receiver package for skill execution.
  *
  * Preference order:
- *   1. CLAWPERATOR_RECEIVER_PACKAGE env var
- *   2. Explicit receiverPkg parameter passed to runClawperator(), when it is
- *      different from the default release package
+ *   1. Explicit receiverPkg parameter passed to runClawperator()
+ *   2. CLAWPERATOR_RECEIVER_PACKAGE env var
  *   3. Default release package 'com.clawperator.operator'
  */
 function resolveReceiverPackage(explicitPkg) {
-  const envPkg = process.env.CLAWPERATOR_RECEIVER_PACKAGE;
-  if (envPkg) {
-    return envPkg;
-  }
-  if (explicitPkg && explicitPkg !== 'com.clawperator.operator') {
+  if (explicitPkg !== undefined && explicitPkg !== null && explicitPkg !== "") {
     return explicitPkg;
   }
-  return explicitPkg || 'com.clawperator.operator';
+  const envPkg = process.env.CLAWPERATOR_RECEIVER_PACKAGE;
+  if (envPkg !== undefined && envPkg !== "") {
+    return envPkg;
+  }
+  return 'com.clawperator.operator';
 }
 
 /**
