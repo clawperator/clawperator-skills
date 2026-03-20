@@ -47,18 +47,20 @@ function resolveClawBin() {
  * Resolve the receiver package for skill execution.
  *
  * Preference order:
- *   1. Explicit receiverPkg parameter passed to runClawperator()
- *   2. CLAWPERATOR_RECEIVER_PACKAGE env var
+ *   1. CLAWPERATOR_RECEIVER_PACKAGE env var
+ *   2. Explicit receiverPkg parameter passed to runClawperator(), when it is
+ *      different from the default release package
  *   3. Default release package 'com.clawperator.operator'
  */
 function resolveReceiverPackage(explicitPkg) {
-  if (explicitPkg) {
+  const envPkg = process.env.CLAWPERATOR_RECEIVER_PACKAGE;
+  if (envPkg) {
+    return envPkg;
+  }
+  if (explicitPkg && explicitPkg !== 'com.clawperator.operator') {
     return explicitPkg;
   }
-  if (process.env.CLAWPERATOR_RECEIVER_PACKAGE) {
-    return process.env.CLAWPERATOR_RECEIVER_PACKAGE;
-  }
-  return 'com.clawperator.operator';
+  return explicitPkg || 'com.clawperator.operator';
 }
 
 /**
@@ -110,7 +112,7 @@ function runClawperator(execution, deviceId, receiverPkg, clawBinOverride) {
     extraArgs = resolved.args;
   }
 
-  // Resolve receiver package using the new precedence rules
+  // Resolve receiver package using the new precedence rules.
   const effectiveReceiverPkg = resolveReceiverPackage(receiverPkg);
 
   const args = [...extraArgs, 'execute', '--execution', tmpFile, '--device-id', deviceId, '--receiver-package', effectiveReceiverPkg];
