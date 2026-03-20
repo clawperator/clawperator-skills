@@ -5,9 +5,10 @@ const { tmpdir } = require('os');
 
 /**
  * REQ-4.1: Binary preference order:
- *   1. CLAW_BIN env var (explicit override - highest priority)
- *   2. Local sibling build (if present at the expected sibling repo path)
- *   3. Global clawperator binary (fallback)
+ *   1. CLAWPERATOR_BIN env var (explicit override - highest priority)
+ *   2. CLAW_BIN env var (deprecated alias - second priority)
+ *   3. Local sibling build (if present at the expected sibling repo path)
+ *   4. Global clawperator binary (fallback)
  *
  * The sibling build is preferred over the global binary so that users with a
  * local checkout automatically get the correct compiled output, which is always
@@ -17,12 +18,20 @@ const { tmpdir } = require('os');
  * CLAW_CLI_PATH env var overrides the sibling build path lookup.
  */
 function resolveClawBin() {
-  // 1. Explicit override via CLAW_BIN
+  // 1. Explicit override via CLAWPERATOR_BIN (new canonical name)
+  if (process.env.CLAWPERATOR_BIN) {
+    return { cmd: process.env.CLAWPERATOR_BIN, args: [] };
+  }
+
+  // 2. Deprecated alias CLAW_BIN (with warning)
   if (process.env.CLAW_BIN) {
+    process.stderr.write(
+      '[clawperator-skills] WARNING: CLAW_BIN is deprecated. Use CLAWPERATOR_BIN instead.\n'
+    );
     return { cmd: process.env.CLAW_BIN, args: [] };
   }
 
-  // 2. Local sibling build (preferred over global when present)
+  // 3. Local sibling build (preferred over global when present)
   const siblingCli = process.env.CLAW_CLI_PATH ||
     resolve(__dirname, '..', '..', '..', 'clawperator', 'apps', 'node', 'dist', 'cli', 'index.js');
   if (existsSync(siblingCli)) {
@@ -30,8 +39,26 @@ function resolveClawBin() {
     return { cmd: 'node', args: [siblingCli] };
   }
 
-  // 3. Global clawperator binary
+  // 4. Global clawperator binary
   return { cmd: 'clawperator', args: [] };
+}
+
+/**
+ * Resolve the receiver package for skill execution.
+ *
+ * Preference order:
+ *   1. Explicit receiverPkg parameter passed to runClawperator()
+ *   2. CLAWPERATOR_RECEIVER_PACKAGE env var
+ *   3. Default release package 'com.clawperator.operator'
+ */
+function resolveReceiverPackage(explicitPkg) {
+  if (explicitPkg) {
+    return explicitPkg;
+  }
+  if (process.env.CLAWPERATOR_RECEIVER_PACKAGE) {
+    return process.env.CLAWPERATOR_RECEIVER_PACKAGE;
+  }
+  return 'com.clawperator.operator';
 }
 
 /**
@@ -60,8 +87,8 @@ function warnOnSnapshotExtractionFailure(result) {
         'of date with the Android Operator APK.\n' +
         'Fix: reinstall the npm package:\n' +
         '  npm install -g clawperator\n' +
-        'Or set CLAW_BIN to a local or updated build:\n' +
-        '  export CLAW_BIN=/path/to/clawperator/apps/node/dist/cli/index.js\n' +
+        'Or set CLAWPERATOR_BIN to a local or updated build:\n' +
+        '  export CLAWPERATOR_BIN=/path/to/clawperator/apps/node/dist/cli/index.js\n' +
         'Or run: clawperator version --check-compat\n'
       );
     }
@@ -83,7 +110,10 @@ function runClawperator(execution, deviceId, receiverPkg, clawBinOverride) {
     extraArgs = resolved.args;
   }
 
-  const args = [...extraArgs, 'execute', '--execution', tmpFile, '--device-id', deviceId, '--receiver-package', receiverPkg];
+  // Resolve receiver package using the new precedence rules
+  const effectiveReceiverPkg = resolveReceiverPackage(receiverPkg);
+
+  const args = [...extraArgs, 'execute', '--execution', tmpFile, '--device-id', deviceId, '--receiver-package', effectiveReceiverPkg];
 
   try {
     const output = execFileSync(cmd, args, { encoding: 'utf-8' });
@@ -106,4 +136,4 @@ function findAttribute(line, attrName) {
   return match[1] === '' ? null : match[1];
 }
 
-module.exports = { runClawperator, findAttribute };
+module.exports = { runClawperator, findAttribute, resolveClawBin, resolveReceiverPackage };
