@@ -4,7 +4,7 @@ const { join, resolve } = require('path');
 const { tmpdir } = require('os');
 
 /**
- * REQ-4.1: Binary preference order:
+ * Binary preference order:
  *   1. CLAWPERATOR_BIN env var (explicit override - highest priority)
  *   2. Local sibling build (if present at the expected sibling repo path)
  *   3. Global clawperator binary (fallback)
@@ -119,11 +119,11 @@ function resolveReceiverPackage(explicitPkg) {
 }
 
 /**
- * REQ-3.1: Check whether any snapshot_ui step in the result indicates extraction
- * failure and emit a diagnostic warning to stderr if so.
+ * Check whether any snapshot_ui step in the result indicates extraction failure
+ * and emit a diagnostic warning to stderr if so.
  *
  * Checks for the new SNAPSHOT_EXTRACTION_FAILED contract (success:false +
- * data.error === "SNAPSHOT_EXTRACTION_FAILED") as well as the pre-REQ-2.3
+ * data.error === "SNAPSHOT_EXTRACTION_FAILED") as well as the older
  * fallback (success:true with absent or empty data.text) to handle older
  * binaries that predate the contract change.
  */
