@@ -11,7 +11,45 @@ if (!deviceId || !acTileName) {
 }
 
 const commandId = `skill-gh-ac-status-${Date.now()}`;
-const execution = {
+
+function buildDirectReadExecution() {
+  return {
+    commandId,
+    taskId: commandId,
+    source: "clawperator-skill",
+    expectedFormat: "android-ui-automator",
+    timeoutMs: 90000,
+    actions: [
+      { id: "close", type: "close_app", params: { applicationId: "com.google.android.apps.chromecast.app" } },
+      { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
+      { id: "open", type: "open_app", params: { applicationId: "com.google.android.apps.chromecast.app" } },
+      { id: "wait1", type: "sleep", params: { durationMs: 3500 } },
+      { id: "read-power", type: "read_text", params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/low_value" } } },
+      { id: "read-mode", type: "read_text", params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/body_text" } } },
+      { id: "read-indoor-temp", type: "read_text", params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/first_value_title" } } }
+    ]
+  };
+}
+
+function buildPreflightExecution() {
+  return {
+    commandId,
+    taskId: commandId,
+    source: "clawperator-skill",
+    expectedFormat: "android-ui-automator",
+    timeoutMs: 30000,
+    actions: [
+      { id: "close", type: "close_app", params: { applicationId: "com.google.android.apps.chromecast.app" } },
+      { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
+      { id: "open", type: "open_app", params: { applicationId: "com.google.android.apps.chromecast.app" } },
+      { id: "wait1", type: "sleep", params: { durationMs: 3500 } },
+      { id: "snap", type: "snapshot_ui" }
+    ]
+  };
+}
+
+function buildNavigationExecution() {
+  return {
   commandId,
   taskId: commandId,
   source: "clawperator-skill",
@@ -51,28 +89,56 @@ const execution = {
     { id: "read-mode", type: "read_text", params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/body_text" } } },
     { id: "read-indoor-temp", type: "read_text", params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/first_value_title" } } }
   ]
-};
+  };
+}
 
-const { ok, result, error, raw } = runClawperator(execution, deviceId, receiverPkg);
+function extractValues(result) {
+  const stepResults = (result && result.envelope && result.envelope.stepResults) || [];
+  const powerStep = stepResults.find(s => s.id === "read-power");
+  const modeStep = stepResults.find(s => s.id === "read-mode");
+  const tempStep = stepResults.find(s => s.id === "read-indoor-temp");
 
-if (!ok) {
-  console.error(`⚠️ Skill execution failed: ${error}`);
+  const power = powerStep && powerStep.data ? powerStep.data.text : null;
+  const mode = modeStep && modeStep.data ? modeStep.data.text : "unknown";
+  const temp = tempStep && tempStep.data ? tempStep.data.text : "unknown";
+  return { power, mode, temp };
+}
+
+function getSnapshotText(result) {
+  const stepResults = (result && result.envelope && result.envelope.stepResults) || [];
+  const snapStep = stepResults.find((s) => s.id === "snap");
+  return snapStep && snapStep.data ? snapStep.data.text : "";
+}
+
+const preflightRun = runClawperator(buildPreflightExecution(), deviceId, receiverPkg);
+if (!preflightRun.ok) {
+  console.error(`⚠️ Skill execution failed: ${preflightRun.error}`);
   process.exit(2);
 }
 
-const stepResults = (result && result.envelope && result.envelope.stepResults) || [];
-const powerStep = stepResults.find(s => s.id === "read-power");
-const modeStep = stepResults.find(s => s.id === "read-mode");
-const tempStep = stepResults.find(s => s.id === "read-indoor-temp");
+const preflightSnap = getSnapshotText(preflightRun.result);
+const shouldNavigate = preflightSnap.includes('com.google.android.apps.chromecast.app:id/category_chips');
+const primaryRun = runClawperator(shouldNavigate ? buildNavigationExecution() : buildDirectReadExecution(), deviceId, receiverPkg);
+let finalRun = primaryRun;
+let values = primaryRun.ok ? extractValues(primaryRun.result) : { power: null, mode: "unknown", temp: "unknown" };
 
-const power = powerStep && powerStep.data ? powerStep.data.text : null;
-const mode = modeStep && modeStep.data ? modeStep.data.text : "unknown";
-const temp = tempStep && tempStep.data ? tempStep.data.text : "unknown";
+if (!values.power) {
+  const secondaryRun = runClawperator(shouldNavigate ? buildDirectReadExecution() : buildNavigationExecution(), deviceId, receiverPkg);
+  finalRun = secondaryRun;
+  if (secondaryRun.ok) {
+    values = extractValues(secondaryRun.result);
+  }
+}
 
-if (power) {
-  console.log(`✅ AC status (${acTileName}): power=${power}, mode=${mode}, indoor_temp=${temp}`);
+if (!finalRun.ok) {
+  console.error(`⚠️ Skill execution failed: ${finalRun.error}`);
+  process.exit(2);
+}
+
+if (values.power) {
+  console.log(`✅ AC status (${acTileName}): power=${values.power}, mode=${values.mode}, indoor_temp=${values.temp}`);
 } else {
   console.error("⚠️ Could not parse AC status values");
-  console.error(`Raw result: ${raw}`);
+  console.error(`Raw result: ${finalRun.raw}`);
   process.exit(2);
 }

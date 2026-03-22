@@ -5,6 +5,12 @@ const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const personName = process.argv[3] || process.env.PERSON_NAME;
 const screenshotPath = process.argv[4] || process.env.SCREENSHOT_PATH;
 const receiverPkg = resolveReceiverPackage(process.argv[5]);
+const normalizedPersonName = (personName || "")
+  .trim()
+  .split(/\s+/)
+  .filter(Boolean)
+  .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+  .join(" ");
 
 if (!deviceId || !personName) {
   console.error('Usage: node get_life360_location.js <device_id> <person_name> [screenshot_path] [receiver_package]');
@@ -16,9 +22,9 @@ const actions = [
   { id: 'wait_close', type: 'sleep', params: { durationMs: 1500 } },
   { id: 'open', type: 'open_app', params: { applicationId: 'com.life360.android.safetymapd' } },
   { id: 'wait_open', type: 'sleep', params: { durationMs: 8000 } },
-  { id: 'click-person', type: 'click', params: { matcher: { textEquals: personName } } },
+  { id: 'click-person', type: 'click', params: { matcher: { textEquals: normalizedPersonName } } },
   { id: 'wait_detail', type: 'sleep', params: { durationMs: 3000 } },
-  { id: 'snap', type: 'snapshot_ui', params: { format: 'ascii' } },
+  { id: 'snap', type: 'snapshot_ui' },
   ...(screenshotPath ? [{ id: 'visual', type: 'take_screenshot', params: { path: screenshotPath } }] : [])
 ];
 
@@ -55,7 +61,7 @@ if (snapText) {
     if (line.includes('place_textView')) place = findAttribute(line, 'text') || place;
   });
 
-  console.log(`✅ Life360 location for ${personName}:`);
+  console.log(`✅ Life360 location for ${normalizedPersonName}:`);
   console.log(`   Place: ${place}`);
   console.log(`   Battery: ${battery}`);
   if (finalPath) {

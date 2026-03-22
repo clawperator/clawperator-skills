@@ -32,7 +32,7 @@ const execution = {
     { id: 'click-search', type: 'click', params: { matcher: { textContains: 'Search' } } },
     { id: 'type-query', type: 'enter_text', params: { matcher: { role: 'textfield' }, text: query, submit: true } },
     { id: 'wait_results', type: 'sleep', params: { durationMs: 8000 } },
-    { id: 'snap', type: 'snapshot_ui', params: { format: 'ascii' } }
+    { id: 'snap', type: 'snapshot_ui' }
   ]
 };
 
