@@ -27,6 +27,8 @@ const execution = {
 };
 
 logSkillProgress(skillId, "Launching SwitchBot app...");
+logSkillProgress(skillId, "Navigating to bedroom device...");
+logSkillProgress(skillId, "Reading temperature...");
 const { ok, result, error, raw } = runClawperator(execution, deviceId, receiverPkg);
 
 if (!ok) {
@@ -39,8 +41,6 @@ const snapStep = stepResults.find(s => s.id === "read_temp");
 const temp = snapStep && snapStep.data ? snapStep.data.text : null;
 
 if (temp) {
-  logSkillProgress(skillId, "Navigating to bedroom device...");
-  logSkillProgress(skillId, "Reading temperature...");
   console.log(`✅ Bedroom temperature: ${temp}`);
 } else {
   console.error("⚠️ Could not parse bedroom temperature");

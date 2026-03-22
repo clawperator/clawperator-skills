@@ -55,6 +55,7 @@ if (!deviceId || !acTileName) {
 }
 
 const statusScript = join(__dirname, '..', '..', 'com.google.android.apps.chromecast.app.get-aircon-status', 'scripts', 'get_aircon_status.js');
+const { logSkillProgress } = require("../../utils/common");
 const skillId = "com.google.android.apps.chromecast.app.set-aircon";
 
 function extractPowerState(output) {
@@ -64,11 +65,15 @@ function extractPowerState(output) {
 }
 
 try {
-  console.log(`[skill:${skillId}] Verifying target state (${stateInput})...`);
-  console.log(`[skill:${skillId}] Locating ${acTileName} tile...`);
-  console.log(`[skill:${skillId}] Applying state change...`);
+  logSkillProgress(skillId, `Verifying target state (${stateInput})...`);
+  logSkillProgress(skillId, `Locating ${acTileName} tile...`);
+  logSkillProgress(skillId, "Reading current state via helper...");
   const output = execFileSync('node', [statusScript, deviceId, acTileName], { encoding: 'utf-8' });
-  console.log(output.trim());
+  output
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter((line) => line && !line.startsWith('✅ '))
+    .forEach((line) => console.log(line));
 
   const currentPower = extractPowerState(output);
   if (currentPower === stateInput) {
@@ -78,6 +83,7 @@ try {
 
   console.log('ℹ️ Direct semantic ac:on/ac:off invocation is not exposed via local debug broadcast yet.');
   console.log('ℹ️ Use the production command pipeline for state-changing actions.');
+  console.log(`✅ AC state helper finished: requested=${stateInput}, observed=${currentPower || 'unknown'}`);
 } catch (e) {
   console.error('⚠️ Failed to verify AC state');
   process.exit(2);
