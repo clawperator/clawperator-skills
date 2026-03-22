@@ -69,21 +69,14 @@ try {
   logSkillProgress(skillId, `Locating ${acTileName} tile...`);
   logSkillProgress(skillId, "Reading current state via helper...");
   const output = execFileSync('node', [statusScript, deviceId, acTileName], { encoding: 'utf-8' });
-  output
-    .split('\n')
-    .map((line) => line.trimEnd())
-    .filter((line) => line && !line.startsWith('✅ '))
-    .forEach((line) => console.log(line));
 
   const currentPower = extractPowerState(output);
   if (currentPower === stateInput) {
-    console.log(`✅ Already in requested state: ${stateInput}`);
+    console.log(`✅ ${acTileName}: requested=${stateInput}, observed=${currentPower}, action=none`);
     process.exit(0);
   }
 
-  console.log('ℹ️ Direct semantic ac:on/ac:off invocation is not exposed via local debug broadcast yet.');
-  console.log('ℹ️ Use the production command pipeline for state-changing actions.');
-  console.log(`✅ AC state helper finished: requested=${stateInput}, observed=${currentPower || 'unknown'}`);
+  console.log(`✅ ${acTileName}: requested=${stateInput}, observed=${currentPower || 'unknown'}, action=verify-only`);
 } catch (e) {
   console.error('⚠️ Failed to verify AC state');
   process.exit(2);

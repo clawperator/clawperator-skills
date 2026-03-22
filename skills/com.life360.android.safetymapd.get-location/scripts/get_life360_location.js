@@ -201,13 +201,8 @@ if (snapText) {
   logSkillProgress(skillId, "Capturing location snapshot...");
   logSkillProgress(skillId, "Parsing location data...");
   const { battery, place } = extractReadingFromSnapshot(snapText);
-
-  console.log(`✅ Life360 location for ${searchResult.resolvedName}:`);
-  console.log(`   Place: ${place}`);
-  console.log(`   Battery: ${battery}`);
-  if (finalPath) {
-    console.log(`   Screenshot: ${finalPath}`);
-  }
+  const screenshotSuffix = finalPath ? `, screenshot=${finalPath}` : '';
+  console.log(`✅ Life360 location for ${searchResult.resolvedName}: place=${place}, battery=${battery}${screenshotSuffix}`);
 } else {
   console.error('⚠️ Could not capture Life360 location snapshot');
   process.exit(2);

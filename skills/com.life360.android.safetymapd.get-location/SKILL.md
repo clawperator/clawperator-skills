@@ -30,9 +30,7 @@ Notes:
 
 Output format:
 
-- `SEARCH|app=com.life360.android.safetymapd|person=<name>|status=found`
-- `DETAIL|title=<...>|name=<...>|place=<...>|battery=<...>|last_updated=<...>`
-- `DETAIL_EXTRA|<additional observed detail line>`
+- `✅ Life360 location for <name>: place=<...>, battery=<...>[, screenshot=<absolute_file_path>]`
 - `SCREENSHOT|path=<absolute_file_path>` (only when `RETURN_SCREENSHOT=1`)
 - `SCREENSHOT_NOTE|captured_on=map_overview_before_detail_to_avoid_permissions_overlay` (when detail view warning could not be cleared)
 
