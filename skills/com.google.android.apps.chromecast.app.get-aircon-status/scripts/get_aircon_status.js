@@ -131,9 +131,9 @@ if (!preflightRun.ok) {
 const preflightSnap = getSnapshotText(preflightRun.result);
 const shouldNavigate = preflightSnap.includes('com.google.android.apps.chromecast.app:id/category_chips');
 if (shouldNavigate) {
-  logSkillProgress(skillId, "Home tiles detected, opening aircon device...");
+  logSkillProgress(skillId, "Home tiles detected, opening climate unit...");
 }
-logSkillProgress(skillId, "Capturing aircon status...");
+logSkillProgress(skillId, "Capturing HVAC status...");
 const primaryExecution = shouldNavigate ? buildNavigationExecution() : buildDirectReadExecution();
 const primaryRun = runClawperator(primaryExecution, deviceId, receiverPkg);
 let finalRun = primaryRun;
@@ -145,7 +145,7 @@ if (primaryRun.ok) {
 
 if (!primaryRun.ok || !values.power) {
   if (!shouldNavigate) {
-    logSkillProgress(skillId, "Direct read failed, navigating to aircon tile...");
+    logSkillProgress(skillId, "Direct read failed, navigating to climate unit tile...");
   }
   const fallbackExecution = shouldNavigate ? buildDirectReadExecution() : buildNavigationExecution();
   const fallbackRun = runClawperator(fallbackExecution, deviceId, receiverPkg);
@@ -164,10 +164,10 @@ if (values.power) {
   if (!shouldNavigate) {
     logSkillProgress(skillId, "Direct tile read succeeded...");
   }
-  logSkillProgress(skillId, "Parsing aircon data...");
-  console.log(`✅ AC status (${acTileName}): power=${values.power}, mode=${values.mode}, indoor_temp=${values.temp}`);
+  logSkillProgress(skillId, "Parsing HVAC data...");
+  console.log(`✅ HVAC status (${acTileName}): power=${values.power}, mode=${values.mode}, indoor_temp=${values.temp}`);
 } else {
-  console.error("⚠️ Could not parse AC status values");
+  console.error("⚠️ Could not parse HVAC status values");
   console.error(`Raw result: ${finalRun.raw}`);
   process.exit(2);
 }
