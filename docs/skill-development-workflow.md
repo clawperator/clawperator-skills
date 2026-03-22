@@ -280,6 +280,8 @@ Guardrails:
   and may include `[skill:*]` lines
 - consumers should filter `result.output` for the `✅` line instead of treating
   it as a structured payload
+- some legacy skills may still emit non-`✅` result shapes until they are
+  migrated to this convention
 
 What counts as a meaningful phase:
 

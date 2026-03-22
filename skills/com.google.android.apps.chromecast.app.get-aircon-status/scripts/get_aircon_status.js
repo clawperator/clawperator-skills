@@ -131,7 +131,7 @@ if (!preflightRun.ok) {
 const preflightSnap = getSnapshotText(preflightRun.result);
 const shouldNavigate = preflightSnap.includes('com.google.android.apps.chromecast.app:id/category_chips');
 if (shouldNavigate) {
-  logSkillProgress(skillId, "Direct read failed, navigating to aircon tile...");
+  logSkillProgress(skillId, "Home tiles detected, opening aircon device...");
 }
 logSkillProgress(skillId, "Capturing aircon status...");
 const primaryExecution = shouldNavigate ? buildNavigationExecution() : buildDirectReadExecution();

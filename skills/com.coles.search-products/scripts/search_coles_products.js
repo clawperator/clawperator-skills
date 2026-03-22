@@ -57,6 +57,7 @@ function buildProbeExecution() {
 
 logSkillProgress(skillId, "Opening Coles app...");
 logSkillProgress(skillId, `Searching for \"${query}\"...`);
+logSkillProgress(skillId, "Probing search suggestions...");
 const probeRun = runClawperator(buildProbeExecution(), deviceId, receiverPkg);
 
 if (!probeRun.ok) {
@@ -68,6 +69,7 @@ const probeSteps = (probeRun.result && probeRun.result.envelope && probeRun.resu
 const probeSnap = probeSteps.find(s => s.id === 'snap');
 const probeText = probeSnap && probeSnap.data ? probeSnap.data.text : '';
 const hasSuggestion = probeText.includes(`View ${query} products`);
+logSkillProgress(skillId, hasSuggestion ? "Using suggestion row to open results..." : "Submitting search with IME...");
 
 const { ok, result, error, raw } = runClawperator(
   buildSearchExecution(!hasSuggestion, hasSuggestion),
@@ -85,7 +87,6 @@ const snapStep = stepResults.find(s => s.id === 'snap');
 const snapText = snapStep && snapStep.data ? snapStep.data.text : null;
 
 if (snapText) {
-  logSkillProgress(skillId, "Capturing search results...");
   logSkillProgress(skillId, "Parsing product listings...");
   console.log(`✅ Coles search results for '${query}':`);
   const lines = snapText.split('\n');

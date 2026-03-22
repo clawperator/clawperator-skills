@@ -40,6 +40,7 @@ const execution = {
 
 logSkillProgress(skillId, "Opening Woolworths app...");
 logSkillProgress(skillId, `Searching for \"${query}\"...`);
+logSkillProgress(skillId, "Capturing search results...");
 const { ok, result, error, raw } = runClawperator(execution, deviceId, receiverPkg);
 
 if (!ok) {
@@ -52,7 +53,6 @@ const snapStep = stepResults.find(s => s.id === 'snap');
 const snapText = snapStep && snapStep.data ? snapStep.data.text : null;
 
 if (snapText) {
-  logSkillProgress(skillId, "Capturing search results...");
   logSkillProgress(skillId, "Parsing product listings...");
   console.log(`✅ Woolworths search results for '${query}':`);
   const lines = snapText.split('\n');

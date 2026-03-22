@@ -30,6 +30,7 @@ const execution = {
 
 logSkillProgress(skillId, "Launching GloBird app...");
 logSkillProgress(skillId, "Navigating to Energy tab...");
+logSkillProgress(skillId, "Capturing energy usage snapshot...");
 const { ok, result, error, raw } = runClawperator(execution, deviceId, receiverPkg);
 
 if (!ok) {
@@ -42,7 +43,6 @@ const snapStep = stepResults.find(s => s.id === "snap");
 const snapText = snapStep && snapStep.data ? snapStep.data.text : null;
 
 if (snapText) {
-  logSkillProgress(skillId, "Capturing energy usage snapshot...");
   const lines = snapText.split("\n");
   let cost = "unknown", right = "unknown", grid = "unknown", solar = "unknown";
 
