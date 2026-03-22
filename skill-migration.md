@@ -24,12 +24,12 @@ Registry notes:
 - Finding: no runtime issue on this device.
 - Notes: artifact-backed skill already runs cleanly on-device.
 
-### `com.google.android.apps.chromecast.app.get-aircon-status`
+### `com.google.android.apps.chromecast.app.get-climate`
 - Status: fixed, then pass
 - Finding: the skill needed to handle both the Google Home overview and the restored device detail view.
 - Fix: added a preflight snapshot and dual-path fallback so it can choose between direct reads and navigation to the tile.
 
-### `com.google.android.apps.chromecast.app.set-aircon`
+### `com.google.android.apps.chromecast.app.set-climate`
 - Status: fixed, then pass
 - Finding: positional parsing did not match `clawperator skills run` argument forwarding.
 - Fix: made the script accept both direct invocation and `skills run` argument shapes.
@@ -104,7 +104,7 @@ Registry notes:
   - `skills/com.coles.search-products/scripts/search_coles_products.js`
   - `skills/com.woolworths.search-products/scripts/search_woolworths_products.js`
   - `skills/com.life360.android.safetymapd.get-location/scripts/get_life360_location.js`
-- Hardened `skills/com.google.android.apps.chromecast.app.get-aircon-status/scripts/get_aircon_status.js` for both Google Home landing states.
-- Fixed `skills/com.google.android.apps.chromecast.app.set-aircon/scripts/set_aircon.js` argument parsing.
+- Hardened `skills/com.google.android.apps.chromecast.app.get-climate/scripts/get_climate_status.js` for both Google Home landing states.
+- Fixed `skills/com.google.android.apps.chromecast.app.set-climate/scripts/set_climate.js` argument parsing.
 - Updated `skills/com.life360.android.safetymapd.get-location/scripts/get_life360_location.js` to title-case the person name.
 - Regenerated the local skill registry/indexes.
