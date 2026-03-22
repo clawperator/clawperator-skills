@@ -32,12 +32,13 @@ Optional env:
 
 Output format:
 
-- `RESULT|app=com.android.settings|status=success|command_id=<...>|task_id=<...>`
 - `TEXT_BEGIN`
 - `<snapshot_ui text>`
 - `TEXT_END`
 - `SCREENSHOT|path=<absolute_file_path>`
+- `SNAPSHOT|path=<absolute_file_path>`
+- `✅ Settings overview captured for com.android.settings`
 
 On failure:
 
-- `RESULT|app=com.android.settings|status=failure|command_id=<...>|task_id=<...>|reason=<...>`
+- `⚠️` error lines on stderr and a non-zero exit code

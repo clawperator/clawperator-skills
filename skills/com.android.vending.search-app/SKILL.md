@@ -34,6 +34,9 @@ Examples:
 
 # Direct entry path
 ./skills/com.android.vending.search-app/scripts/search_play_store.sh <device_serial> "VLC" com.clawperator.operator org.videolan.vlc
+
+# Direct entry path for Action Launcher Play Store
+./skills/com.android.vending.search-app/scripts/search_play_store.sh <device_serial> "Action Launcher" com.clawperator.operator com.actionlauncher.playstore
 ```
 
 ## Output
@@ -44,6 +47,7 @@ On success, prints a summary of the app details page including:
 - Rating
 - Install state (Install / Open / Uninstall)
 - Download count
+- A terminal `✅` summary line
 
 ## Blocking states
 

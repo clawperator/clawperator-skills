@@ -119,7 +119,7 @@ function buildDirectEntryExecution() {
     taskId: commandId,
     source: 'clawperator-skill',
     expectedFormat: 'android-ui-automator',
-    timeoutMs: 30000,
+    timeoutMs: 60000,
     actions: [
       { id: 'wait-open', type: 'sleep', params: { durationMs: 3000 } },
       // Handle "Open with" picker if present (multi-store devices).
@@ -238,7 +238,6 @@ lines.forEach(line => {
 const pathUsed = usedDirectPath ? 'direct (market://)' : 'in-app search';
 
 logSkillProgress(skillId, "Parsing app details...");
-console.log(`SUCCESS - App details page loaded`);
 console.log(`Path used: ${pathUsed}`);
 console.log(`App: ${appName || '(not extracted)'}`);
 console.log(`Developer: ${developer || '(not extracted)'}`);
@@ -246,3 +245,4 @@ console.log(`Install state: ${installState}`);
 if (rating) console.log(`Rating: ${rating}`);
 if (downloads) console.log(`Downloads: ${downloads}`);
 console.log(`\nSnapshot saved to device. Ready for com.android.vending.install-app.`);
+console.log(`✅ App details page loaded`);

@@ -9,6 +9,7 @@ const receiverPkg = resolveReceiverPackage(process.argv[3]);
 const screenshotDir = resolve(process.env.SCREENSHOT_DIR || "/tmp/clawperator-settings-screenshots");
 const settingsAppId = process.env.SETTINGS_APP_ID || "com.android.settings";
 const adbBin = process.env.ADB_BIN || "adb";
+const captureStamp = Date.now();
 
 if (!deviceId) {
   console.error("Usage: node capture_settings_overview.js <device_id> [receiver_package]");
@@ -51,7 +52,8 @@ if (!snapText) {
 }
 
 mkdirSync(screenshotDir, { recursive: true });
-const screenshotPath = join(screenshotDir, `clawperator-settings-${deviceId}-${Date.now()}.png`);
+const screenshotPath = join(screenshotDir, `clawperator-settings-${deviceId}-${captureStamp}.png`);
+const snapshotPath = join(screenshotDir, `clawperator-settings-${deviceId}-${captureStamp}.txt`);
 
 try {
   logSkillProgress(skillId, "Saving screenshot to disk...");
@@ -61,13 +63,15 @@ try {
     maxBuffer: 20 * 1024 * 1024
   });
   writeFileSync(screenshotPath, image);
+  writeFileSync(snapshotPath, `${snapText}\n`);
 } catch (screenshotError) {
   console.error(`⚠️ Screenshot capture failed: ${screenshotError.message}`);
   process.exit(2);
 }
 
-console.log(`RESULT|app=${settingsAppId}|status=success|command_id=${commandId}|task_id=${commandId}`);
 console.log("TEXT_BEGIN");
 console.log(snapText);
 console.log("TEXT_END");
 console.log(`SCREENSHOT|path=${screenshotPath}`);
+console.log(`SNAPSHOT|path=${snapshotPath}`);
+console.log(`✅ Settings overview captured for ${settingsAppId}`);
