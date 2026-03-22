@@ -1,7 +1,7 @@
 {
   "$schema": "./skills-registry.schema.json",
   "schemaVersion": "1.0",
-  "generatedAt": "2026-03-22T06:05:07Z",
+  "generatedAt": "2026-03-22T06:35:28Z",
   "skills": [
     {
       "id": "com.android.settings.capture-overview",
@@ -66,28 +66,28 @@
       ]
     },
     {
-      "id": "com.google.android.apps.chromecast.app.get-aircon-status",
+      "id": "com.google.android.apps.chromecast.app.get-climate",
       "applicationId": "com.google.android.apps.chromecast.app",
-      "intent": "get-aircon-status",
-      "summary": "Read Google Home air conditioner status (power, mode, indoor temperature).",
-      "path": "skills/com.google.android.apps.chromecast.app.get-aircon-status",
-      "skillFile": "skills/com.google.android.apps.chromecast.app.get-aircon-status/SKILL.md",
+      "intent": "get-climate",
+      "summary": "Read Google Home climate unit status (power, mode, indoor temperature).",
+      "path": "skills/com.google.android.apps.chromecast.app.get-climate",
+      "skillFile": "skills/com.google.android.apps.chromecast.app.get-climate/SKILL.md",
       "scripts": [
-        "skills/com.google.android.apps.chromecast.app.get-aircon-status/scripts/get_aircon_status.sh"
+        "skills/com.google.android.apps.chromecast.app.get-climate/scripts/get_climate_status.sh"
       ],
       "artifacts": [
-        "skills/com.google.android.apps.chromecast.app.get-aircon-status/artifacts/ac-status.recipe.json"
+        "skills/com.google.android.apps.chromecast.app.get-climate/artifacts/climate-status.recipe.json"
       ]
     },
     {
-      "id": "com.google.android.apps.chromecast.app.set-aircon",
+      "id": "com.google.android.apps.chromecast.app.set-climate",
       "applicationId": "com.google.android.apps.chromecast.app",
-      "intent": "set-aircon",
-      "summary": "Precheck current Google Home air conditioner ON/OFF state and verify after external state-change actions.",
-      "path": "skills/com.google.android.apps.chromecast.app.set-aircon",
-      "skillFile": "skills/com.google.android.apps.chromecast.app.set-aircon/SKILL.md",
+      "intent": "set-climate",
+      "summary": "Precheck current Google Home climate unit ON/OFF state and verify after external state-change actions.",
+      "path": "skills/com.google.android.apps.chromecast.app.set-climate",
+      "skillFile": "skills/com.google.android.apps.chromecast.app.set-climate/SKILL.md",
       "scripts": [
-        "skills/com.google.android.apps.chromecast.app.set-aircon/scripts/set_aircon.sh"
+        "skills/com.google.android.apps.chromecast.app.set-climate/scripts/set_climate.sh"
       ],
       "artifacts": []
     },

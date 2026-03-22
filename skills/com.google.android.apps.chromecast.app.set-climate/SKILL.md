@@ -1,5 +1,5 @@
 ---
-name: com.google.android.apps.chromecast.app.set-aircon
+name: com.google.android.apps.chromecast.app.set-climate
 description: Precheck and verify Google Home HVAC unit ON/OFF state from ActionTask. Local debug wrapper does not perform state-changing action.
 ---
 
@@ -7,13 +7,13 @@ Use the skill-local script:
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-DEVICE_ID=<device_id> AC_TILE_NAME="YOUR_AC_TILE_NAME" ./skills/com.google.android.apps.chromecast.app.set-aircon/scripts/set_aircon.sh on
+DEVICE_ID=<device_id> CLIMATE_TILE_NAME="YOUR_TILE_NAME" ./skills/com.google.android.apps.chromecast.app.set-climate/scripts/set_climate.sh on
 ```
 
 Or set OFF:
 
 ```bash
-DEVICE_ID=<device_id> AC_TILE_NAME="YOUR_AC_TILE_NAME" ./skills/com.google.android.apps.chromecast.app.set-aircon/scripts/set_aircon.sh off
+DEVICE_ID=<device_id> CLIMATE_TILE_NAME="YOUR_TILE_NAME" ./skills/com.google.android.apps.chromecast.app.set-climate/scripts/set_climate.sh off
 ```
 
 The script also accepts forwarded args from `clawperator skills run`; use the

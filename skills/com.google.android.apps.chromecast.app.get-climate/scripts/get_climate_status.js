@@ -2,16 +2,16 @@
 const { runClawperator, findAttribute, resolveReceiverPackage, logSkillProgress } = require("../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
-const acTileName = process.argv[3] || process.env.AC_TILE_NAME;
+const climateTileName = process.argv[3] || process.env.CLIMATE_TILE_NAME || process.env.AC_TILE_NAME;
 const receiverPkg = resolveReceiverPackage(process.argv[4]);
 
-if (!deviceId || !acTileName) {
-  console.error("Usage: node get_aircon_status.js <device_id> <ac_tile_name> [receiver_package]");
+if (!deviceId || !climateTileName) {
+  console.error("Usage: node get_climate_status.js <device_id> <tile_name> [receiver_package]");
   process.exit(1);
 }
 
-const commandId = `skill-gh-ac-status-${Date.now()}`;
-const skillId = "com.google.android.apps.chromecast.app.get-aircon-status";
+const commandId = `skill-gh-climate-status-${Date.now()}`;
+const skillId = "com.google.android.apps.chromecast.app.get-climate";
 
 function buildDirectReadExecution() {
   return {
@@ -76,7 +76,7 @@ function buildNavigationExecution() {
       id: "openController",
       type: "scroll_and_click",
       params: {
-        matcher: { textContains: acTileName },
+        matcher: { textContains: climateTileName },
         container: { resourceId: "com.google.android.apps.chromecast.app:id/pager_home_tab" },
         direction: "down",
         maxSwipes: 8,
@@ -165,7 +165,7 @@ if (values.power) {
     logSkillProgress(skillId, "Direct tile read succeeded...");
   }
   logSkillProgress(skillId, "Parsing HVAC data...");
-  console.log(`✅ HVAC status (${acTileName}): power=${values.power}, mode=${values.mode}, indoor_temp=${values.temp}`);
+  console.log(`✅ HVAC status (${climateTileName}): power=${values.power}, mode=${values.mode}, indoor_temp=${values.temp}`);
 } else {
   console.error("⚠️ Could not parse HVAC status values");
   console.error(`Raw result: ${finalRun.raw}`);

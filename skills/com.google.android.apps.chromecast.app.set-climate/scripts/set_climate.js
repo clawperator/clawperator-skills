@@ -7,11 +7,11 @@ const argv3 = process.argv[3];
 const argv4 = process.argv[4];
 const argv5 = process.argv[5];
 
-// Support both direct invocation (`set_aircon.sh on`) and `clawperator skills run`,
+// Support both direct invocation (`set_climate.sh on`) and `clawperator skills run`,
 // which prepends the device id before forwarding extra args.
 let stateInput = process.env.STATE;
 let deviceId = process.env.DEVICE_ID;
-let acTileName = process.env.AC_TILE_NAME;
+let climateTileName = process.env.CLIMATE_TILE_NAME || process.env.AC_TILE_NAME;
 
 const argv = [argv2, argv3, argv4, argv5];
 const stateIndex = argv.findIndex((value) => value === "on" || value === "off");
@@ -22,21 +22,21 @@ if (stateIndex >= 0) {
   if (!deviceId) {
     deviceId = positional[0];
   }
-  if (!acTileName) {
-    acTileName = positional[1];
+  if (!climateTileName) {
+    climateTileName = positional[1];
   }
 } else if (stateInput === "on" || stateInput === "off") {
   const positional = argv.filter(Boolean);
   if (!deviceId) {
     deviceId = positional[0];
   }
-  if (!acTileName) {
-    acTileName = positional[1];
+  if (!climateTileName) {
+    climateTileName = positional[1];
   }
 } else {
-  console.error('Usage: node set_aircon.js <on|off> <device_id> <ac_tile_name>');
-  console.error('   or: node set_aircon.js <device_id> <on|off> <ac_tile_name>');
-  console.error('   or: STATE=<on|off> DEVICE_ID=<device_id> AC_TILE_NAME=<ac_tile_name> node set_aircon.js');
+  console.error('Usage: node set_climate.js <on|off> <device_id> <climate_tile_name>');
+  console.error('   or: node set_climate.js <device_id> <on|off> <climate_tile_name>');
+  console.error('   or: STATE=<on|off> DEVICE_ID=<device_id> CLIMATE_TILE_NAME=<tile_name> node set_climate.js');
   process.exit(1);
 }
 
@@ -47,16 +47,16 @@ if (!["on", "off"].includes(stateInput)) {
   process.exit(1);
 }
 
-if (!deviceId || !acTileName) {
-  console.error('Usage: node set_aircon.js <on|off> <device_id> <ac_tile_name>');
-  console.error('   or: node set_aircon.js <device_id> <on|off> <ac_tile_name>');
-  console.error('   or: STATE=<on|off> DEVICE_ID=<device_id> AC_TILE_NAME=<ac_tile_name> node set_aircon.js');
+if (!deviceId || !climateTileName) {
+  console.error('Usage: node set_climate.js <on|off> <device_id> <climate_tile_name>');
+  console.error('   or: node set_climate.js <device_id> <on|off> <climate_tile_name>');
+  console.error('   or: STATE=<on|off> DEVICE_ID=<device_id> CLIMATE_TILE_NAME=<tile_name> node set_climate.js');
   process.exit(1);
 }
 
-const statusScript = join(__dirname, '..', '..', 'com.google.android.apps.chromecast.app.get-aircon-status', 'scripts', 'get_aircon_status.js');
+const statusScript = join(__dirname, '..', '..', 'com.google.android.apps.chromecast.app.get-climate', 'scripts', 'get_climate_status.js');
 const { logSkillProgress } = require("../../utils/common");
-const skillId = "com.google.android.apps.chromecast.app.set-aircon";
+const skillId = "com.google.android.apps.chromecast.app.set-climate";
 
 function extractPowerState(output) {
   if (!output) return null;
@@ -66,18 +66,18 @@ function extractPowerState(output) {
 
 try {
   logSkillProgress(skillId, `Verifying target state (${stateInput})...`);
-  logSkillProgress(skillId, `Locating ${acTileName} tile...`);
+  logSkillProgress(skillId, `Locating ${climateTileName} tile...`);
   logSkillProgress(skillId, "Reading current state via helper...");
-  const output = execFileSync('node', [statusScript, deviceId, acTileName], { encoding: 'utf-8' });
+  const output = execFileSync('node', [statusScript, deviceId, climateTileName], { encoding: 'utf-8' });
 
   const currentPower = extractPowerState(output);
   if (currentPower === stateInput) {
-    console.log(`✅ ${acTileName}: requested=${stateInput}, observed=${currentPower}, action=none`);
+    console.log(`✅ ${climateTileName}: requested=${stateInput}, observed=${currentPower}, action=none`);
     process.exit(0);
   }
 
-  console.log(`✅ ${acTileName}: requested=${stateInput}, observed=${currentPower || 'unknown'}, action=verify-only`);
+  console.log(`✅ ${climateTileName}: requested=${stateInput}, observed=${currentPower || 'unknown'}, action=verify-only`);
 } catch (e) {
-  console.error('⚠️ Failed to verify AC state');
+  console.error('⚠️ Failed to verify climate unit state');
   process.exit(2);
 }

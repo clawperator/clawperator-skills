@@ -1,5 +1,5 @@
 ---
-name: com.google.android.apps.chromecast.app.get-aircon-status
+name: com.google.android.apps.chromecast.app.get-climate
 description: Read Google Home HVAC unit status (power/mode/indoor temp) on Android using ActionTask generic agent actions. Use when asked for current climate control status.
 ---
 
@@ -7,13 +7,13 @@ Use the skill-local script:
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-./skills/com.google.android.apps.chromecast.app.get-aircon-status/scripts/get_aircon_status.sh <device_id> "YOUR_AC_TILE_NAME"
+./skills/com.google.android.apps.chromecast.app.get-climate/scripts/get_climate_status.sh <device_id> "YOUR_TILE_NAME"
 ```
 
 Optional receiver package:
 
 ```bash
-./skills/com.google.android.apps.chromecast.app.get-aircon-status/scripts/get_aircon_status.sh <device_id> "YOUR_AC_TILE_NAME" com.clawperator.operator.dev
+./skills/com.google.android.apps.chromecast.app.get-climate/scripts/get_climate_status.sh <device_id> "YOUR_TILE_NAME" com.clawperator.operator.dev
 ```
 
 Expected output:
