@@ -29,10 +29,11 @@ const execution = {
     { id: 'wait_close', type: 'sleep', params: { durationMs: 1500 } },
     { id: 'open', type: 'open_app', params: { applicationId: 'com.woolworths' } },
     { id: 'wait_open', type: 'sleep', params: { durationMs: 8000 } },
-    { id: 'click-search', type: 'click', params: { matcher: { resourceId: 'com.woolworths:id/search_view_blocker' } } },
-    { id: 'type-query', type: 'enter_text', params: { matcher: { resourceId: 'com.woolworths:id/search_src_text' }, text: query, submit: true } },
-    { id: 'wait_results', type: 'sleep', params: { durationMs: 8000 } },
-    { id: 'snap', type: 'snapshot_ui', params: { format: 'ascii' } }
+    { id: 'click-search', type: 'click', params: { matcher: { contentDescContains: 'Search products' } } },
+    { id: 'wait_search', type: 'sleep', params: { durationMs: 1500 } },
+    { id: 'type-query', type: 'enter_text', params: { matcher: { role: 'textfield' }, text: query, submit: true } },
+    { id: 'wait_results', type: 'sleep', params: { durationMs: 10000 } },
+    { id: 'snap', type: 'snapshot_ui' }
   ]
 };
 

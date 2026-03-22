@@ -2,11 +2,33 @@
 const { execFileSync } = require('child_process');
 const { join } = require('path');
 
-const stateInput = (process.argv[2] || 'on').toLowerCase();
-const deviceId = process.argv[3] || process.env.DEVICE_ID;
-const acTileName = process.argv[4] || process.env.AC_TILE_NAME;
+const argv2 = process.argv[2];
+const argv3 = process.argv[3];
+const argv4 = process.argv[4];
 
-if (!['on', 'off'].includes(stateInput)) {
+// Support both direct invocation (`set_aircon.sh on`) and `clawperator skills run`,
+// which prepends the device id before forwarding extra args.
+let stateInput = process.env.STATE;
+let deviceId = process.env.DEVICE_ID;
+let acTileName = process.env.AC_TILE_NAME;
+
+if (argv2 === "on" || argv2 === "off") {
+  stateInput = argv2;
+  deviceId = argv3 || deviceId;
+  acTileName = argv4 || acTileName;
+} else if (argv3 === "on" || argv3 === "off") {
+  deviceId = argv2 || deviceId;
+  stateInput = argv3;
+  acTileName = argv4 || acTileName;
+} else {
+  stateInput = argv2 || stateInput;
+  deviceId = argv3 || deviceId;
+  acTileName = argv4 || acTileName;
+}
+
+stateInput = (stateInput || "on").toLowerCase();
+
+if (!["on", "off"].includes(stateInput)) {
   console.error('Error: state must be "on" or "off"');
   process.exit(1);
 }
@@ -20,7 +42,7 @@ const statusScript = join(__dirname, '..', '..', 'com.google.android.apps.chrome
 
 function extractPowerState(output) {
   if (!output) return null;
-  const match = output.match(/power\s*[:=]\s*(on|off)/i);
+  const match = output.match(/power\s*[:=]\s*(on|off)\b/i);
   return match ? match[1].toLowerCase() : null;
 }
 

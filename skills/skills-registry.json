@@ -1,8 +1,20 @@
 {
   "$schema": "./skills-registry.schema.json",
   "schemaVersion": "1.0",
-  "generatedAt": "2026-03-11T00:00:00Z",
+  "generatedAt": "2026-03-22T00:03:28Z",
   "skills": [
+    {
+      "id": "com.android.settings.capture-overview",
+      "applicationId": "com.android.settings",
+      "intent": "capture-overview",
+      "summary": "Open Android Settings, capture UI text snapshot, and save an ADB screenshot path.",
+      "path": "skills/com.android.settings.capture-overview",
+      "skillFile": "skills/com.android.settings.capture-overview/SKILL.md",
+      "scripts": [
+        "skills/com.android.settings.capture-overview/scripts/capture_settings_overview.sh"
+      ],
+      "artifacts": []
+    },
     {
       "id": "com.android.vending.install-app",
       "applicationId": "com.android.vending",
@@ -24,18 +36,6 @@
       "skillFile": "skills/com.android.vending.search-app/SKILL.md",
       "scripts": [
         "skills/com.android.vending.search-app/scripts/search_play_store.sh"
-      ],
-      "artifacts": []
-    },
-    {
-      "id": "com.android.settings.capture-overview",
-      "applicationId": "com.android.settings",
-      "intent": "capture-overview",
-      "summary": "Open Android Settings, capture UI text snapshot, and save an ADB screenshot path.",
-      "path": "skills/com.android.settings.capture-overview",
-      "skillFile": "skills/com.android.settings.capture-overview/SKILL.md",
-      "scripts": [
-        "skills/com.android.settings.capture-overview/scripts/capture_settings_overview.sh"
       ],
       "artifacts": []
     },
