@@ -138,18 +138,19 @@ clawperator execute --validate-only --execution /path/to/compiled-execution.json
 
 This is the closest current workflow to a dry run for artifact-backed skills.
 
-### Structural validation and live runs
+### Dry-run payload validation
 
-Before running a skill on a device, validate the skill definition first:
+Before running a skill, validate the skill payload with the pre-run gate:
 
 ```bash
-clawperator skills validate <skill_id>
+clawperator skills validate <skill_id> --dry-run
 clawperator skills run <skill_id> --device-id <device_id>
 ```
 
-`skills validate` keeps the normal integrity checks in place. It verifies that
-the registry entry exists, the metadata matches, and the declared scripts and
-artifacts are present on disk before any device interaction happens.
+`skills validate --dry-run` keeps the normal integrity checks and adds payload
+schema validation for artifact-backed skills. It reads each compiled artifact,
+parses the JSON, and validates it against Clawperator's execution schema before
+any device interaction happens.
 
 What it does not cover:
 
@@ -161,9 +162,13 @@ Script-only skills are a special case: their payload is generated at runtime by
 the skill script, so static payload validation is skipped and the command logs a
 reason instead of failing.
 
-There is no `--skip-validate` escape hatch in `clawperator skills run`. If you
-need to experiment with a script directly, invoke the underlying script or
-adjust the skill definition first, then re-run `clawperator skills validate`.
+If you need to bypass the pre-run gate for CI or development, use:
+
+```bash
+clawperator skills run <skill_id> --skip-validate --device-id <device_id>
+```
+
+Treat `--skip-validate` as an escape hatch, not a routine workflow.
 
 ### Recording-derived skills
 
@@ -269,12 +274,12 @@ For a new skill, this is the practical order:
 4. run `clawperator skills validate <skill_id>`
 5. if artifacts exist, run `clawperator skills compile-artifact ...`
 6. run `clawperator execute --validate-only ...` on candidate payloads
-7. run `clawperator skills validate <skill_id>`
+7. run `clawperator skills validate <skill_id> --dry-run`
 8. run `clawperator skills run <skill_id> --device-id <device_id>`
 9. harden selectors, timeout budgets, and output formatting
 10. verify that every meaningful recorded action is covered or explicitly
    normalized
-11. run `clawperator skills validate --all` before wider use
+11. run `clawperator skills validate --all --dry-run` before wider use
 
 ## Related pages
 

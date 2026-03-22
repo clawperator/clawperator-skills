@@ -42,7 +42,7 @@ const statusScript = join(__dirname, '..', '..', 'com.google.android.apps.chrome
 
 function extractPowerState(output) {
   if (!output) return null;
-  const match = output.match(/power\s*[:=]\s*(on|off)/i);
+  const match = output.match(/power\s*[:=]\s*(on|off)\b/i);
   return match ? match[1].toLowerCase() : null;
 }
 
