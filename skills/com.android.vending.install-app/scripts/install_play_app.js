@@ -26,7 +26,7 @@
  *   - Uninstall (settled): textEquals "Uninstall"
  */
 
-const { runClawperator, findAttribute, resolveReceiverPackage } = require('../../utils/common');
+const { runClawperator, findAttribute, resolveReceiverPackage, logSkillProgress } = require('../../utils/common');
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const receiverPkg = resolveReceiverPackage(process.argv[3]);
@@ -37,6 +37,7 @@ if (!deviceId) {
 }
 
 const commandId = `skill-play-install-${Date.now()}`;
+const skillId = "com.android.vending.install-app";
 
 /**
  * First, take a snapshot to detect the current state.
@@ -97,6 +98,7 @@ function buildInstallExecution() {
 // --- Preflight: detect current state ---
 
 const preflightExec = buildPreflightExecution();
+logSkillProgress(skillId, "Checking current install state...");
 const { ok: prefOk, result: prefResult, error: prefError } = runClawperator(preflightExec, deviceId, receiverPkg);
 
 if (!prefOk) {
@@ -195,6 +197,8 @@ if (!hasInstall && !hasUpdate) {
 // --- Execute install ---
 
 const installExec = buildInstallExecution();
+logSkillProgress(skillId, "Installing from Play Store details page...");
+logSkillProgress(skillId, "Waiting for Open button...");
 const { ok, result, error } = runClawperator(installExec, deviceId, receiverPkg);
 
 if (!ok) {
@@ -219,6 +223,7 @@ if (snapText) {
 }
 
 if (finalHasOpen) {
+  logSkillProgress(skillId, "Verifying installation result...");
   const state = finalHasUninstall ? 'installed (settled)' : 'installed (transition)';
   console.log(`SUCCESS - App installed. State: ${state}`);
   if (!finalHasUninstall) {

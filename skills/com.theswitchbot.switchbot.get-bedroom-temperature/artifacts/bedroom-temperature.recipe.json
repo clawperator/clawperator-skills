@@ -2,6 +2,7 @@
   "commandId": "{{COMMAND_ID}}",
   "taskId": "{{TASK_ID}}",
   "source": "debug",
+  "expectedFormat": "android-ui-automator",
   "timeoutMs": 60000,
   "actions": [
     {
@@ -28,9 +29,7 @@
     {
       "id": "snap",
       "type": "snapshot_ui",
-      "params": {
-        "format": "ascii"
-      }
+      "params": {}
     },
     {
       "id": "read",

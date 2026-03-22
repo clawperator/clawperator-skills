@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { runClawperator, resolveReceiverPackage } = require("../../utils/common");
+const { runClawperator, resolveReceiverPackage, logSkillProgress } = require("../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const receiverPkg = resolveReceiverPackage(process.argv[3]);
@@ -10,6 +10,7 @@ if (!deviceId) {
 }
 
 const commandId = `skill-switchbot-temp-${Date.now()}`;
+const skillId = "com.theswitchbot.switchbot.get-bedroom-temperature";
 const execution = {
   commandId,
   taskId: commandId,
@@ -25,6 +26,7 @@ const execution = {
   ]
 };
 
+logSkillProgress(skillId, "Launching SwitchBot app...");
 const { ok, result, error, raw } = runClawperator(execution, deviceId, receiverPkg);
 
 if (!ok) {
@@ -37,6 +39,8 @@ const snapStep = stepResults.find(s => s.id === "read_temp");
 const temp = snapStep && snapStep.data ? snapStep.data.text : null;
 
 if (temp) {
+  logSkillProgress(skillId, "Navigating to bedroom device...");
+  logSkillProgress(skillId, "Reading temperature...");
   console.log(`✅ Bedroom temperature: ${temp}`);
 } else {
   console.error("⚠️ Could not parse bedroom temperature");

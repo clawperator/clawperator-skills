@@ -55,6 +55,7 @@ if (!deviceId || !acTileName) {
 }
 
 const statusScript = join(__dirname, '..', '..', 'com.google.android.apps.chromecast.app.get-aircon-status', 'scripts', 'get_aircon_status.js');
+const skillId = "com.google.android.apps.chromecast.app.set-aircon";
 
 function extractPowerState(output) {
   if (!output) return null;
@@ -63,7 +64,9 @@ function extractPowerState(output) {
 }
 
 try {
-  console.log(`Checking current state for ${acTileName}...`);
+  console.log(`[skill:${skillId}] Verifying target state (${stateInput})...`);
+  console.log(`[skill:${skillId}] Locating ${acTileName} tile...`);
+  console.log(`[skill:${skillId}] Applying state change...`);
   const output = execFileSync('node', [statusScript, deviceId, acTileName], { encoding: 'utf-8' });
   console.log(output.trim());
 

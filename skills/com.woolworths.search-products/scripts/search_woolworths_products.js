@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { runClawperator, findAttribute, resolveReceiverPackage } = require('../../utils/common');
+const { runClawperator, findAttribute, resolveReceiverPackage, logSkillProgress } = require('../../utils/common');
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const rawQuery = process.argv[3] || process.env.QUERY || '';
@@ -18,6 +18,7 @@ if (query.length > MAX_QUERY_LENGTH) {
 }
 
 const commandId = `skill-woolworths-search-${Date.now()}`;
+const skillId = "com.woolworths.search-products";
 const execution = {
   commandId,
   taskId: commandId,
@@ -37,6 +38,8 @@ const execution = {
   ]
 };
 
+logSkillProgress(skillId, "Opening Woolworths app...");
+logSkillProgress(skillId, `Searching for \"${query}\"...`);
 const { ok, result, error, raw } = runClawperator(execution, deviceId, receiverPkg);
 
 if (!ok) {
@@ -49,6 +52,8 @@ const snapStep = stepResults.find(s => s.id === 'snap');
 const snapText = snapStep && snapStep.data ? snapStep.data.text : null;
 
 if (snapText) {
+  logSkillProgress(skillId, "Capturing search results...");
+  logSkillProgress(skillId, "Parsing product listings...");
   console.log(`✅ Woolworths search results for '${query}':`);
   const lines = snapText.split('\n');
   

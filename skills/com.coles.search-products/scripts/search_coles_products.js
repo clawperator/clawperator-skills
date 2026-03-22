@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { runClawperator, findAttribute, resolveReceiverPackage } = require('../../utils/common');
+const { runClawperator, findAttribute, resolveReceiverPackage, logSkillProgress } = require('../../utils/common');
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const rawQuery = process.argv[3] || process.env.QUERY || '';
@@ -18,6 +18,7 @@ if (query.length > MAX_QUERY_LENGTH) {
 }
 
 const commandId = `skill-coles-search-${Date.now()}`;
+const skillId = "com.coles.search-products";
 const execution = {
   commandId,
   taskId: commandId,
@@ -30,12 +31,16 @@ const execution = {
     { id: 'open', type: 'open_app', params: { applicationId: 'com.coles.android.shopmate' } },
     { id: 'wait_open', type: 'sleep', params: { durationMs: 8000 } },
     { id: 'click-search', type: 'click', params: { matcher: { textContains: 'Search' } } },
-    { id: 'type-query', type: 'enter_text', params: { matcher: { role: 'textfield' }, text: query, submit: true } },
-    { id: 'wait_results', type: 'sleep', params: { durationMs: 8000 } },
+    { id: 'type-query', type: 'enter_text', params: { matcher: { role: 'textfield' }, text: query, submit: false } },
+    { id: 'wait_suggest', type: 'sleep', params: { durationMs: 1500 } },
+    { id: 'click-suggestion', type: 'click', params: { matcher: { contentDescContains: `View ${query} products` } } },
+    { id: 'wait_results', type: 'sleep', params: { durationMs: 4000 } },
     { id: 'snap', type: 'snapshot_ui' }
   ]
 };
 
+logSkillProgress(skillId, "Opening Coles app...");
+logSkillProgress(skillId, `Searching for \"${query}\"...`);
 const { ok, result, error, raw } = runClawperator(execution, deviceId, receiverPkg);
 
 if (!ok) {
@@ -48,6 +53,8 @@ const snapStep = stepResults.find(s => s.id === 'snap');
 const snapText = snapStep && snapStep.data ? snapStep.data.text : null;
 
 if (snapText) {
+  logSkillProgress(skillId, "Capturing search results...");
+  logSkillProgress(skillId, "Parsing product listings...");
   console.log(`✅ Coles search results for '${query}':`);
   const lines = snapText.split('\n');
   

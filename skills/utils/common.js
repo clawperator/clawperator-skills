@@ -189,6 +189,10 @@ function runClawperator(execution, deviceId, receiverPkg, clawBinOverride) {
   }
 }
 
+function logSkillProgress(skillId, message) {
+  console.log(`[skill:${skillId}] ${message}`);
+}
+
 function findAttribute(line, attrName) {
   const regex = new RegExp(attrName + '="([^"]*)"');
   const match = line.match(regex);
@@ -196,4 +200,4 @@ function findAttribute(line, attrName) {
   return match[1] === '' ? null : match[1];
 }
 
-module.exports = { runClawperator, findAttribute, resolveClawperatorBin, resolveReceiverPackage, parseCommandSpec };
+module.exports = { runClawperator, findAttribute, resolveClawperatorBin, resolveReceiverPackage, parseCommandSpec, logSkillProgress };
