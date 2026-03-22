@@ -26,7 +26,7 @@
  *   - Uninstall (settled): textEquals "Uninstall"
  */
 
-const { runClawperator, findAttribute, resolveReceiverPackage } = require('../../utils/common');
+const { runClawperator, findAttribute, resolveReceiverPackage, logSkillProgress } = require('../../utils/common');
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const receiverPkg = resolveReceiverPackage(process.argv[3]);
@@ -37,6 +37,7 @@ if (!deviceId) {
 }
 
 const commandId = `skill-play-install-${Date.now()}`;
+const skillId = "com.android.vending.install-app";
 
 /**
  * First, take a snapshot to detect the current state.
@@ -69,7 +70,7 @@ function buildInstallExecution() {
     taskId: commandId,
     source: 'clawperator-skill',
     expectedFormat: 'android-ui-automator',
-    timeoutMs: 180000,
+    timeoutMs: 120000,
     actions: [
       // Click the Install button.
       // content-desc="Install" targets the label node; the click coordinates land on
@@ -86,7 +87,7 @@ function buildInstallExecution() {
         type: 'wait_for_node',
         params: {
           matcher: { textEquals: 'Open' },
-          timeoutMs: 120000
+          timeoutMs: 90000
         }
       },
       { id: 'snap', type: 'snapshot_ui' }
@@ -97,6 +98,7 @@ function buildInstallExecution() {
 // --- Preflight: detect current state ---
 
 const preflightExec = buildPreflightExecution();
+logSkillProgress(skillId, "Checking current install state...");
 const { ok: prefOk, result: prefResult, error: prefError } = runClawperator(preflightExec, deviceId, receiverPkg);
 
 if (!prefOk) {
@@ -140,18 +142,17 @@ if (hasSignIn) {
 }
 
 if (hasUpdate) {
-  console.log('STATE: update-available - App is installed but an update is available.');
-  console.log('Proceeding to update...');
+  logSkillProgress(skillId, "Update available; proceeding with install flow...");
   // Fall through to install execution (Update button uses same flow as Install)
 }
 
 if (hasOpen && hasUninstall && !hasInstall) {
-  console.log('STATE: already-installed - App is already installed. Nothing to do.');
+  console.log('✅ Already installed. Nothing to do.');
   process.exit(0);
 }
 
 if (hasOpen && hasCancel) {
-  console.log('STATE: install-in-progress - Install is already in progress. Waiting for completion.');
+  logSkillProgress(skillId, "Install already in progress; waiting for Open button...");
   // Could wait_for_node here; simplified version: just snap the final state
   const waitExec = {
     commandId: `${commandId}-wait`,
@@ -173,7 +174,7 @@ if (hasOpen && hasCancel) {
     console.error(`Wait for completion failed: ${error}`);
     process.exit(5);
   }
-  console.log('STATE: installed - Install completed (was in progress).');
+  console.log('✅ Install completed (was already in progress).');
   process.exit(0);
 }
 
@@ -195,6 +196,8 @@ if (!hasInstall && !hasUpdate) {
 // --- Execute install ---
 
 const installExec = buildInstallExecution();
+logSkillProgress(skillId, "Installing from Play Store details page...");
+logSkillProgress(skillId, "Waiting for Open button...");
 const { ok, result, error } = runClawperator(installExec, deviceId, receiverPkg);
 
 if (!ok) {
@@ -219,11 +222,12 @@ if (snapText) {
 }
 
 if (finalHasOpen) {
+  logSkillProgress(skillId, "Verifying installation result...");
   const state = finalHasUninstall ? 'installed (settled)' : 'installed (transition)';
-  console.log(`SUCCESS - App installed. State: ${state}`);
   if (!finalHasUninstall) {
-    console.log('(Uninstall button not yet visible - this is normal immediately after install)');
+    console.log('Uninstall button not yet visible - this is normal immediately after install.');
   }
+  console.log(`✅ App installed. State: ${state}`);
 } else {
   console.error('WARNING: Install may have failed. "Open" button not found in final snapshot.');
   process.exit(9);

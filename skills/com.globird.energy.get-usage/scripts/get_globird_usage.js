@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { runClawperator, findAttribute, resolveReceiverPackage } = require("../../utils/common");
+const { runClawperator, findAttribute, resolveReceiverPackage, logSkillProgress } = require("../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const receiverPkg = resolveReceiverPackage(process.argv[3]);
@@ -10,6 +10,7 @@ if (!deviceId) {
 }
 
 const commandId = `skill-globird-usage-${Date.now()}`;
+const skillId = "com.globird.energy.get-usage";
 const execution = {
   commandId,
   taskId: commandId,
@@ -23,10 +24,13 @@ const execution = {
     { id: "wait_open", type: "sleep", params: { durationMs: 8000 } },
     { id: "open-energy-tab", type: "click", params: { matcher: { textEquals: "Energy" } } },
     { id: "wait-energy", type: "sleep", params: { durationMs: 4000 } },
-    { id: "snap", type: "snapshot_ui", params: { format: "ascii" } }
+    { id: "snap", type: "snapshot_ui" }
   ]
 };
 
+logSkillProgress(skillId, "Launching GloBird app...");
+logSkillProgress(skillId, "Navigating to Energy tab...");
+logSkillProgress(skillId, "Capturing energy usage snapshot...");
 const { ok, result, error, raw } = runClawperator(execution, deviceId, receiverPkg);
 
 if (!ok) {
@@ -50,6 +54,7 @@ if (snapText) {
   });
 
   if (cost !== "unknown" || grid !== "unknown" || solar !== "unknown") {
+    logSkillProgress(skillId, "Parsing results...");
     console.log(`✅ GloBird usage: cost_so_far=${cost}, avg_cost_per_day=${right}, grid_usage=${grid}, solar_feed_in=${solar}`);
   } else {
     console.error("⚠️ Could not parse GloBird values from snapshot. Is the app on the Energy tab?");

@@ -24,7 +24,7 @@
 
 const { execFileSync } = require('child_process');
 const path = require('path');
-const { runClawperator, findAttribute, resolveReceiverPackage } = require('../../utils/common');
+const { runClawperator, findAttribute, resolveReceiverPackage, logSkillProgress } = require('../../utils/common');
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const rawQuery = process.argv[3] || process.env.QUERY || '';
@@ -45,6 +45,7 @@ if (query.length > MAX_QUERY_LENGTH) {
 }
 
 const commandId = `skill-play-search-${Date.now()}`;
+const skillId = "com.android.vending.search-app";
 
 /**
  * Build an in-app search execution payload.
@@ -84,17 +85,9 @@ function buildSearchExecution(query) {
       {
         id: 'enter-query',
         type: 'enter_text',
-        params: { matcher: { role: 'textfield' }, text: query, submit: false }
+        params: { matcher: { role: 'textfield' }, text: query, submit: true }
       },
-      { id: 'wait-suggest', type: 'sleep', params: { durationMs: 1500 } },
-      // Click the "Search for '<query>'" suggestion to execute the search.
-      // contentDescContains "Search for" avoids HTML entity encoding issues in content-desc.
-      {
-        id: 'click-suggestion',
-        type: 'click',
-        params: { matcher: { contentDescContains: 'Search for' } }
-      },
-      { id: 'wait-results', type: 'sleep', params: { durationMs: 3000 } },
+      { id: 'wait-results', type: 'sleep', params: { durationMs: 6000 } },
       // Click the first result that contains the query text in its content-desc.
       // The app entry node has content-desc="<AppName>\n<Developer>\n" (multiline).
       // contentDescContains on a substring of the app name is reliable.
@@ -126,7 +119,7 @@ function buildDirectEntryExecution() {
     taskId: commandId,
     source: 'clawperator-skill',
     expectedFormat: 'android-ui-automator',
-    timeoutMs: 30000,
+    timeoutMs: 60000,
     actions: [
       { id: 'wait-open', type: 'sleep', params: { durationMs: 3000 } },
       // Handle "Open with" picker if present (multi-store devices).
@@ -150,6 +143,7 @@ let result;
 let usedDirectPath = false;
 
 if (packageId) {
+  logSkillProgress(skillId, `Opening Play Store details for \"${query}\"...`);
   // Attempt direct entry path via market:// deep link (outside Clawperator execution).
   // This fires the intent synchronously; the Play Store opens asynchronously.
   try {
@@ -165,6 +159,7 @@ if (packageId) {
 }
 
 if (usedDirectPath) {
+  logSkillProgress(skillId, "Capturing app details...");
   const execution = buildDirectEntryExecution();
   const { ok, result: r, error } = runClawperator(execution, deviceId, receiverPkg);
   if (!ok) {
@@ -177,6 +172,7 @@ if (usedDirectPath) {
 }
 
 if (!usedDirectPath) {
+  logSkillProgress(skillId, `Searching Play Store for \"${query}\"...`);
   const execution = buildSearchExecution(query);
   const { ok, result: r, error } = runClawperator(execution, deviceId, receiverPkg);
   if (!ok) {
@@ -241,7 +237,7 @@ lines.forEach(line => {
 
 const pathUsed = usedDirectPath ? 'direct (market://)' : 'in-app search';
 
-console.log(`SUCCESS - App details page loaded`);
+logSkillProgress(skillId, "Parsing app details...");
 console.log(`Path used: ${pathUsed}`);
 console.log(`App: ${appName || '(not extracted)'}`);
 console.log(`Developer: ${developer || '(not extracted)'}`);
@@ -249,3 +245,4 @@ console.log(`Install state: ${installState}`);
 if (rating) console.log(`Rating: ${rating}`);
 if (downloads) console.log(`Downloads: ${downloads}`);
 console.log(`\nSnapshot saved to device. Ready for com.android.vending.install-app.`);
+console.log(`✅ App details page loaded`);

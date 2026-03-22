@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { runClawperator, resolveReceiverPackage } = require("../../utils/common");
+const { runClawperator, resolveReceiverPackage, logSkillProgress } = require("../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const receiverPkg = resolveReceiverPackage(process.argv[3]);
@@ -10,6 +10,7 @@ if (!deviceId) {
 }
 
 const commandId = `skill-solax-battery-${Date.now()}`;
+const skillId = "com.solaxcloud.starter.get-battery";
 const execution = {
   commandId,
   taskId: commandId,
@@ -26,6 +27,8 @@ const execution = {
   ]
 };
 
+logSkillProgress(skillId, "Launching SolaX app...");
+logSkillProgress(skillId, "Waiting for data to load (12s)...");
 const { ok, result, error, raw } = runClawperator(execution, deviceId, receiverPkg);
 
 if (!ok) {
@@ -40,6 +43,7 @@ const val = valStep && valStep.data ? valStep.data.text : null;
 const unit = unitStep && unitStep.data ? unitStep.data.text : null;
 
 if (val) {
+  logSkillProgress(skillId, "Reading battery level...");
   console.log(`✅ SolaX battery level: ${val}${unit || ""}`);
 } else {
   console.error("⚠️ Could not parse SolaX battery level");

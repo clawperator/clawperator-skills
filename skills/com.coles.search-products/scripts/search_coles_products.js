@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { runClawperator, findAttribute, resolveReceiverPackage } = require('../../utils/common');
+const { runClawperator, findAttribute, resolveReceiverPackage, logSkillProgress } = require('../../utils/common');
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const rawQuery = process.argv[3] || process.env.QUERY || '';
@@ -18,25 +18,64 @@ if (query.length > MAX_QUERY_LENGTH) {
 }
 
 const commandId = `skill-coles-search-${Date.now()}`;
-const execution = {
-  commandId,
-  taskId: commandId,
-  source: 'clawperator-skill',
-  expectedFormat: 'android-ui-automator',
-  timeoutMs: 90000,
-  actions: [
+const skillId = "com.coles.search-products";
+function buildSearchExecution(submit, useSuggestion) {
+  const actions = [
     { id: 'close', type: 'close_app', params: { applicationId: 'com.coles.android.shopmate' } },
     { id: 'wait_close', type: 'sleep', params: { durationMs: 1500 } },
     { id: 'open', type: 'open_app', params: { applicationId: 'com.coles.android.shopmate' } },
     { id: 'wait_open', type: 'sleep', params: { durationMs: 8000 } },
     { id: 'click-search', type: 'click', params: { matcher: { textContains: 'Search' } } },
-    { id: 'type-query', type: 'enter_text', params: { matcher: { role: 'textfield' }, text: query, submit: true } },
-    { id: 'wait_results', type: 'sleep', params: { durationMs: 8000 } },
-    { id: 'snap', type: 'snapshot_ui' }
-  ]
-};
+    { id: 'type-query', type: 'enter_text', params: { matcher: { role: 'textfield' }, text: query, submit } }
+  ];
 
-const { ok, result, error, raw } = runClawperator(execution, deviceId, receiverPkg);
+  if (useSuggestion) {
+    actions.push(
+      { id: 'wait_suggest', type: 'sleep', params: { durationMs: 1500 } },
+      { id: 'click-suggestion', type: 'click', params: { matcher: { contentDescContains: `View ${query} products` } } },
+      { id: 'wait_results', type: 'sleep', params: { durationMs: 4000 } }
+    );
+  } else {
+    actions.push({ id: 'wait_results', type: 'sleep', params: { durationMs: 8000 } });
+  }
+
+  actions.push({ id: 'snap', type: 'snapshot_ui' });
+
+  return {
+    commandId,
+    taskId: commandId,
+    source: 'clawperator-skill',
+    expectedFormat: 'android-ui-automator',
+    timeoutMs: 90000,
+    actions
+  };
+}
+
+function buildProbeExecution() {
+  return buildSearchExecution(false, false);
+}
+
+logSkillProgress(skillId, "Opening Coles app...");
+logSkillProgress(skillId, `Searching for \"${query}\"...`);
+logSkillProgress(skillId, "Probing search suggestions...");
+const probeRun = runClawperator(buildProbeExecution(), deviceId, receiverPkg);
+
+if (!probeRun.ok) {
+  console.error(`⚠️ Skill execution failed: ${probeRun.error}`);
+  process.exit(2);
+}
+
+const probeSteps = (probeRun.result && probeRun.result.envelope && probeRun.result.envelope.stepResults) || [];
+const probeSnap = probeSteps.find(s => s.id === 'snap');
+const probeText = probeSnap && probeSnap.data ? probeSnap.data.text : '';
+const hasSuggestion = probeText.includes(`View ${query} products`);
+logSkillProgress(skillId, hasSuggestion ? "Using suggestion row to open results..." : "Submitting search with IME...");
+
+const { ok, result, error, raw } = runClawperator(
+  buildSearchExecution(!hasSuggestion, hasSuggestion),
+  deviceId,
+  receiverPkg
+);
 
 if (!ok) {
   console.error(`⚠️ Skill execution failed: ${error}`);
@@ -48,6 +87,7 @@ const snapStep = stepResults.find(s => s.id === 'snap');
 const snapText = snapStep && snapStep.data ? snapStep.data.text : null;
 
 if (snapText) {
+  logSkillProgress(skillId, "Parsing product listings...");
   console.log(`✅ Coles search results for '${query}':`);
   const lines = snapText.split('\n');
   

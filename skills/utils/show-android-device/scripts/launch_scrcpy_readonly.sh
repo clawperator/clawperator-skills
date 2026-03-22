@@ -42,6 +42,7 @@ else
 fi
 
 # Launch scrcpy detached and read-only so it cannot interfere with automation input.
+echo "[skill:utils.show-android-device] Launching read-only device view..."
 nohup "$SCRCPY_BIN" --serial "$TARGET_DEVICE" --no-control >/dev/null 2>&1 &
 
 echo "Launched scrcpy in read-only mode for device $TARGET_DEVICE"

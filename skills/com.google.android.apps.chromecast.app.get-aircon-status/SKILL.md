@@ -23,5 +23,10 @@ Expected output:
 The script also respects `CLAWPERATOR_RECEIVER_PACKAGE` when called through
 `clawperator skills run`.
 
+If you are not given an aircon tile name, inspect the Google Home UI first,
+take a snapshot, and infer the most likely visible tile label before calling
+this skill. The skill is meant to report structured UI state, so an agent can
+use the snapshot to discover the name rather than failing immediately.
+
 Prerequisite:
 - Ensure `adb` is installed and available on `PATH`.

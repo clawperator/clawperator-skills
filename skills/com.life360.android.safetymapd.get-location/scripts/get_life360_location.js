@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-const { runClawperator, findAttribute, resolveReceiverPackage } = require('../../utils/common');
+const { runClawperator, findAttribute, resolveReceiverPackage, logSkillProgress } = require('../../utils/common');
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const personName = process.argv[3] || process.env.PERSON_NAME;
 const screenshotPath = process.argv[4] || process.env.SCREENSHOT_PATH;
 const receiverPkg = resolveReceiverPackage(process.argv[5]);
 const requestedPersonName = (personName || "").trim();
+const skillId = "com.life360.android.safetymapd.get-location";
 
 if (!deviceId || !personName) {
   console.error('Usage: node get_life360_location.js <device_id> <person_name> [screenshot_path] [receiver_package]');
@@ -133,6 +134,7 @@ function extractReadingFromSnapshot(snapText) {
 }
 
 function probeForVisibleName(maxScrolls) {
+  logSkillProgress(skillId, "Opening Life360...");
   const initialProbe = runClawperator(buildProbeExecution(0, false), deviceId, receiverPkg);
   if (!initialProbe.ok) {
     console.error(`⚠️ Skill execution failed: ${initialProbe.error}`);
@@ -142,7 +144,12 @@ function probeForVisibleName(maxScrolls) {
   const initialSteps = parseSnapshotSteps(initialProbe.result);
   const initialSnapText = extractSnapshotText(initialSteps, 'snap_0');
   const dismissOverlay = hasBlockingOverlay(initialSnapText);
+  const initialResolvedName = findVisibleLabel(initialSnapText, requestedPersonName);
+  if (initialResolvedName) {
+    return { resolvedName: initialResolvedName, scrollCount: 0, dismissOverlay };
+  }
 
+  logSkillProgress(skillId, `Searching for ${requestedPersonName}...`);
   const probeRun = runClawperator(buildProbeExecution(maxScrolls, dismissOverlay), deviceId, receiverPkg);
   if (!probeRun.ok) {
     console.error(`⚠️ Skill execution failed: ${probeRun.error}`);
@@ -191,14 +198,11 @@ const snapText = extractSnapshotText(stepResults, 'snap');
 const finalPath = extractFinalPath(stepResults);
 
 if (snapText) {
+  logSkillProgress(skillId, "Capturing location snapshot...");
+  logSkillProgress(skillId, "Parsing location data...");
   const { battery, place } = extractReadingFromSnapshot(snapText);
-
-  console.log(`✅ Life360 location for ${searchResult.resolvedName}:`);
-  console.log(`   Place: ${place}`);
-  console.log(`   Battery: ${battery}`);
-  if (finalPath) {
-    console.log(`   Screenshot: ${finalPath}`);
-  }
+  const screenshotSuffix = finalPath ? `, screenshot=${finalPath}` : '';
+  console.log(`✅ Life360 location for ${searchResult.resolvedName}: place=${place}, battery=${battery}${screenshotSuffix}`);
 } else {
   console.error('⚠️ Could not capture Life360 location snapshot');
   process.exit(2);

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { runClawperator, resolveReceiverPackage } = require("../../utils/common");
+const { runClawperator, findAttribute, resolveReceiverPackage, logSkillProgress } = require("../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const acTileName = process.argv[3] || process.env.AC_TILE_NAME;
@@ -11,6 +11,7 @@ if (!deviceId || !acTileName) {
 }
 
 const commandId = `skill-gh-ac-status-${Date.now()}`;
+const skillId = "com.google.android.apps.chromecast.app.get-aircon-status";
 
 function buildDirectReadExecution() {
   return {
@@ -23,10 +24,8 @@ function buildDirectReadExecution() {
       { id: "close", type: "close_app", params: { applicationId: "com.google.android.apps.chromecast.app" } },
       { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
       { id: "open", type: "open_app", params: { applicationId: "com.google.android.apps.chromecast.app" } },
-      { id: "wait1", type: "sleep", params: { durationMs: 3500 } },
-      { id: "read-power", type: "read_text", params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/low_value" } } },
-      { id: "read-mode", type: "read_text", params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/body_text" } } },
-      { id: "read-indoor-temp", type: "read_text", params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/first_value_title" } } }
+      { id: "wait1", type: "sleep", params: { durationMs: 12000 } },
+      { id: "snap", type: "snapshot_ui" }
     ]
   };
 }
@@ -37,12 +36,12 @@ function buildPreflightExecution() {
     taskId: commandId,
     source: "clawperator-skill",
     expectedFormat: "android-ui-automator",
-    timeoutMs: 30000,
+    timeoutMs: 60000,
     actions: [
       { id: "close", type: "close_app", params: { applicationId: "com.google.android.apps.chromecast.app" } },
       { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
       { id: "open", type: "open_app", params: { applicationId: "com.google.android.apps.chromecast.app" } },
-      { id: "wait1", type: "sleep", params: { durationMs: 3500 } },
+      { id: "wait1", type: "sleep", params: { durationMs: 15000 } },
       { id: "snap", type: "snapshot_ui" }
     ]
   };
@@ -84,23 +83,35 @@ function buildNavigationExecution() {
         clickType: "long_click"
       }
     },
-    { id: "wait3", type: "sleep", params: { durationMs: 3000 } },
-    { id: "read-power", type: "read_text", params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/low_value" } } },
-    { id: "read-mode", type: "read_text", params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/body_text" } } },
-    { id: "read-indoor-temp", type: "read_text", params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/first_value_title" } } }
+    { id: "wait3", type: "sleep", params: { durationMs: 8000 } },
+    { id: "snap", type: "snapshot_ui" }
   ]
   };
 }
 
 function extractValues(result) {
   const stepResults = (result && result.envelope && result.envelope.stepResults) || [];
-  const powerStep = stepResults.find(s => s.id === "read-power");
-  const modeStep = stepResults.find(s => s.id === "read-mode");
-  const tempStep = stepResults.find(s => s.id === "read-indoor-temp");
+  const snapStep = stepResults.find(s => s.id === "snap");
+  const snapText = snapStep && snapStep.data ? snapStep.data.text : "";
 
-  const power = powerStep && powerStep.data ? powerStep.data.text : null;
-  const mode = modeStep && modeStep.data ? modeStep.data.text : "unknown";
-  const temp = tempStep && tempStep.data ? tempStep.data.text : "unknown";
+  let power = null;
+  let mode = "unknown";
+  let temp = "unknown";
+
+  snapText.split("\n").forEach((line) => {
+    const resourceId = findAttribute(line, "resource-id") || "";
+    const text = findAttribute(line, "text") || "";
+    if (resourceId.includes("low_value") && text) {
+      power = text;
+    }
+    if (resourceId.includes("body_text") && text) {
+      mode = text;
+    }
+    if (resourceId.includes("first_value_title") && text) {
+      temp = text;
+    }
+  });
+
   return { power, mode, temp };
 }
 
@@ -110,6 +121,7 @@ function getSnapshotText(result) {
   return snapStep && snapStep.data ? snapStep.data.text : "";
 }
 
+logSkillProgress(skillId, "Taking preflight snapshot...");
 const preflightRun = runClawperator(buildPreflightExecution(), deviceId, receiverPkg);
 if (!preflightRun.ok) {
   console.error(`⚠️ Skill execution failed: ${preflightRun.error}`);
@@ -118,15 +130,28 @@ if (!preflightRun.ok) {
 
 const preflightSnap = getSnapshotText(preflightRun.result);
 const shouldNavigate = preflightSnap.includes('com.google.android.apps.chromecast.app:id/category_chips');
-const primaryRun = runClawperator(shouldNavigate ? buildNavigationExecution() : buildDirectReadExecution(), deviceId, receiverPkg);
+if (shouldNavigate) {
+  logSkillProgress(skillId, "Home tiles detected, opening aircon device...");
+}
+logSkillProgress(skillId, "Capturing aircon status...");
+const primaryExecution = shouldNavigate ? buildNavigationExecution() : buildDirectReadExecution();
+const primaryRun = runClawperator(primaryExecution, deviceId, receiverPkg);
 let finalRun = primaryRun;
-let values = primaryRun.ok ? extractValues(primaryRun.result) : { power: null, mode: "unknown", temp: "unknown" };
+let values = { power: null, mode: "unknown", temp: "unknown" };
 
-if (!values.power) {
-  const secondaryRun = runClawperator(shouldNavigate ? buildDirectReadExecution() : buildNavigationExecution(), deviceId, receiverPkg);
-  finalRun = secondaryRun;
-  if (secondaryRun.ok) {
-    values = extractValues(secondaryRun.result);
+if (primaryRun.ok) {
+  values = extractValues(primaryRun.result);
+}
+
+if (!primaryRun.ok || !values.power) {
+  if (!shouldNavigate) {
+    logSkillProgress(skillId, "Direct read failed, navigating to aircon tile...");
+  }
+  const fallbackExecution = shouldNavigate ? buildDirectReadExecution() : buildNavigationExecution();
+  const fallbackRun = runClawperator(fallbackExecution, deviceId, receiverPkg);
+  finalRun = fallbackRun;
+  if (fallbackRun.ok) {
+    values = extractValues(fallbackRun.result);
   }
 }
 
@@ -136,6 +161,10 @@ if (!finalRun.ok) {
 }
 
 if (values.power) {
+  if (!shouldNavigate) {
+    logSkillProgress(skillId, "Direct tile read succeeded...");
+  }
+  logSkillProgress(skillId, "Parsing aircon data...");
   console.log(`✅ AC status (${acTileName}): power=${values.power}, mode=${values.mode}, indoor_temp=${values.temp}`);
 } else {
   console.error("⚠️ Could not parse AC status values");

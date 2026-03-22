@@ -7,6 +7,8 @@ Installs an app from its Google Play Store details page and confirms the result.
 Assumes the device is already on the app details page (as left by
 `com.android.vending.search-app`).
 
+Validation commonly targets `com.actionlauncher.playstore` as the sample app to install.
+
 ## Install state signals
 
 | State | UI signal | Node attribute |
@@ -37,6 +39,7 @@ Example:
 On success, prints:
 - Final install state (installed, already-installed, update-available)
 - Any blocking state encountered
+- A terminal `✅` summary line
 
 ## Notes
 
