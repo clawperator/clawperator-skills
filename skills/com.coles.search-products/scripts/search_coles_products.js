@@ -19,29 +19,61 @@ if (query.length > MAX_QUERY_LENGTH) {
 
 const commandId = `skill-coles-search-${Date.now()}`;
 const skillId = "com.coles.search-products";
-const execution = {
-  commandId,
-  taskId: commandId,
-  source: 'clawperator-skill',
-  expectedFormat: 'android-ui-automator',
-  timeoutMs: 90000,
-  actions: [
+function buildSearchExecution(submit, useSuggestion) {
+  const actions = [
     { id: 'close', type: 'close_app', params: { applicationId: 'com.coles.android.shopmate' } },
     { id: 'wait_close', type: 'sleep', params: { durationMs: 1500 } },
     { id: 'open', type: 'open_app', params: { applicationId: 'com.coles.android.shopmate' } },
     { id: 'wait_open', type: 'sleep', params: { durationMs: 8000 } },
     { id: 'click-search', type: 'click', params: { matcher: { textContains: 'Search' } } },
-    { id: 'type-query', type: 'enter_text', params: { matcher: { role: 'textfield' }, text: query, submit: false } },
-    { id: 'wait_suggest', type: 'sleep', params: { durationMs: 1500 } },
-    { id: 'click-suggestion', type: 'click', params: { matcher: { contentDescContains: `View ${query} products` } } },
-    { id: 'wait_results', type: 'sleep', params: { durationMs: 4000 } },
-    { id: 'snap', type: 'snapshot_ui' }
-  ]
-};
+    { id: 'type-query', type: 'enter_text', params: { matcher: { role: 'textfield' }, text: query, submit } }
+  ];
+
+  if (useSuggestion) {
+    actions.push(
+      { id: 'wait_suggest', type: 'sleep', params: { durationMs: 1500 } },
+      { id: 'click-suggestion', type: 'click', params: { matcher: { contentDescContains: `View ${query} products` } } },
+      { id: 'wait_results', type: 'sleep', params: { durationMs: 4000 } }
+    );
+  } else {
+    actions.push({ id: 'wait_results', type: 'sleep', params: { durationMs: 8000 } });
+  }
+
+  actions.push({ id: 'snap', type: 'snapshot_ui' });
+
+  return {
+    commandId,
+    taskId: commandId,
+    source: 'clawperator-skill',
+    expectedFormat: 'android-ui-automator',
+    timeoutMs: 90000,
+    actions
+  };
+}
+
+function buildProbeExecution() {
+  return buildSearchExecution(false, false);
+}
 
 logSkillProgress(skillId, "Opening Coles app...");
 logSkillProgress(skillId, `Searching for \"${query}\"...`);
-const { ok, result, error, raw } = runClawperator(execution, deviceId, receiverPkg);
+const probeRun = runClawperator(buildProbeExecution(), deviceId, receiverPkg);
+
+if (!probeRun.ok) {
+  console.error(`⚠️ Skill execution failed: ${probeRun.error}`);
+  process.exit(2);
+}
+
+const probeSteps = (probeRun.result && probeRun.result.envelope && probeRun.result.envelope.stepResults) || [];
+const probeSnap = probeSteps.find(s => s.id === 'snap');
+const probeText = probeSnap && probeSnap.data ? probeSnap.data.text : '';
+const hasSuggestion = probeText.includes(`View ${query} products`);
+
+const { ok, result, error, raw } = runClawperator(
+  buildSearchExecution(!hasSuggestion, hasSuggestion),
+  deviceId,
+  receiverPkg
+);
 
 if (!ok) {
   console.error(`⚠️ Skill execution failed: ${error}`);

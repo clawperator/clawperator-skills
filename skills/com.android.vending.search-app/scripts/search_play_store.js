@@ -85,17 +85,9 @@ function buildSearchExecution(query) {
       {
         id: 'enter-query',
         type: 'enter_text',
-        params: { matcher: { role: 'textfield' }, text: query, submit: false }
+        params: { matcher: { role: 'textfield' }, text: query, submit: true }
       },
-      { id: 'wait-suggest', type: 'sleep', params: { durationMs: 1500 } },
-      // Click the "Search for '<query>'" suggestion to execute the search.
-      // contentDescContains "Search for" avoids HTML entity encoding issues in content-desc.
-      {
-        id: 'click-suggestion',
-        type: 'click',
-        params: { matcher: { contentDescContains: 'Search for' } }
-      },
-      { id: 'wait-results', type: 'sleep', params: { durationMs: 3000 } },
+      { id: 'wait-results', type: 'sleep', params: { durationMs: 6000 } },
       // Click the first result that contains the query text in its content-desc.
       // The app entry node has content-desc="<AppName>\n<Developer>\n" (multiline).
       // contentDescContains on a substring of the app name is reliable.
