@@ -5,6 +5,7 @@ const { join } = require('path');
 const argv2 = process.argv[2];
 const argv3 = process.argv[3];
 const argv4 = process.argv[4];
+const argv5 = process.argv[5];
 
 // Support both direct invocation (`set_aircon.sh on`) and `clawperator skills run`,
 // which prepends the device id before forwarding extra args.
@@ -12,21 +13,34 @@ let stateInput = process.env.STATE;
 let deviceId = process.env.DEVICE_ID;
 let acTileName = process.env.AC_TILE_NAME;
 
-if (argv2 === "on" || argv2 === "off") {
-  stateInput = argv2;
-  deviceId = argv3 || deviceId;
-  acTileName = argv4 || acTileName;
-} else if (argv3 === "on" || argv3 === "off") {
-  deviceId = argv2 || deviceId;
-  stateInput = argv3;
-  acTileName = argv4 || acTileName;
+const argv = [argv2, argv3, argv4, argv5];
+const stateIndex = argv.findIndex((value) => value === "on" || value === "off");
+
+if (stateIndex >= 0) {
+  stateInput = argv[stateIndex];
+  const positional = argv.filter((value) => value && value !== stateInput);
+  if (!deviceId) {
+    deviceId = positional[0];
+  }
+  if (!acTileName) {
+    acTileName = positional[1];
+  }
+} else if (stateInput === "on" || stateInput === "off") {
+  const positional = argv.filter(Boolean);
+  if (!deviceId) {
+    deviceId = positional[0];
+  }
+  if (!acTileName) {
+    acTileName = positional[1];
+  }
 } else {
-  stateInput = argv2 || stateInput;
-  deviceId = argv3 || deviceId;
-  acTileName = argv4 || acTileName;
+  console.error('Usage: node set_aircon.js <on|off> <device_id> <ac_tile_name>');
+  console.error('   or: node set_aircon.js <device_id> <on|off> <ac_tile_name>');
+  console.error('   or: STATE=<on|off> DEVICE_ID=<device_id> AC_TILE_NAME=<ac_tile_name> node set_aircon.js');
+  process.exit(1);
 }
 
-stateInput = (stateInput || "on").toLowerCase();
+stateInput = (stateInput || "").toLowerCase();
 
 if (!["on", "off"].includes(stateInput)) {
   console.error('Error: state must be "on" or "off"');
@@ -35,6 +49,8 @@ if (!["on", "off"].includes(stateInput)) {
 
 if (!deviceId || !acTileName) {
   console.error('Usage: node set_aircon.js <on|off> <device_id> <ac_tile_name>');
+  console.error('   or: node set_aircon.js <device_id> <on|off> <ac_tile_name>');
+  console.error('   or: STATE=<on|off> DEVICE_ID=<device_id> AC_TILE_NAME=<ac_tile_name> node set_aircon.js');
   process.exit(1);
 }
 

@@ -10,19 +10,14 @@ Run:
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-./skills/com.life360.android.safetymapd.get-location/scripts/get_life360_location.sh
-```
-
-Optional args:
-
-```bash
-./skills/com.life360.android.safetymapd.get-location/scripts/get_life360_location.sh \
-  app.actiontask.operator.development "<person_name>"
+DEVICE_ID=<device_id> PERSON_NAME="<person_name>" ./skills/com.life360.android.safetymapd.get-location/scripts/get_life360_location.sh
 ```
 
 Optional env vars:
 
+- `DEVICE_ID=<device_id>` when invoking the script directly.
 - `ADB_SERIAL=<device_id>` when multiple devices are connected.
+- `CLAWPERATOR_RECEIVER_PACKAGE=<package>` to override the receiver package.
 - `RETURN_SCREENSHOT=1` to capture and return a PNG of the final person/location view.
 - `SCREENSHOT_DIR=/absolute/path` to control where the PNG is saved (default: `/tmp/life360-screenshots`).
 - `OVERLAY_CLOSE_TAP_X=<x>` and `OVERLAY_CLOSE_TAP_Y=<y>` to override fallback tap coordinates for dismissing close-icon overlays (defaults: `1000`, `300`).
@@ -30,7 +25,7 @@ Optional env vars:
 Notes:
 
 - Detects the known Life360 permission warning and dismisses it with Hardware Back only when that dialog is present.
-- If direct click-by-name fails, it iterates visible member cards and matches by detail-screen name.
+- If direct click-by-name fails, it scans visible member cards case-insensitively and clicks the exact visible label without rewriting the caller's casing.
 - Attempts to clear blocking Life360 overlays (permissions/battery optimization prompts) before screenshot capture.
 
 Output format:
