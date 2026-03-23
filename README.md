@@ -101,7 +101,7 @@ JSON
 
 node apps/node/dist/cli/index.js execute \
   --device-id "$DEVICE_ID" \
-  --receiver-package com.clawperator.operator.dev \
+  --operator-package com.clawperator.operator.dev \
   --execution /tmp/clawperator-settings-snapshot.json \
   --output pretty
 

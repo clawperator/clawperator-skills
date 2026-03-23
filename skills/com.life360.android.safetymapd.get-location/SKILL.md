@@ -17,7 +17,7 @@ Optional env vars:
 
 - `DEVICE_ID=<device_id>` when invoking the script directly.
 - `ADB_SERIAL=<device_id>` when multiple devices are connected.
-- `CLAWPERATOR_RECEIVER_PACKAGE=<package>` to override the receiver package.
+- `CLAWPERATOR_OPERATOR_PACKAGE=<package>` to override the receiver package.
 - `RETURN_SCREENSHOT=1` to capture and return a PNG of the final person/location view.
 - `SCREENSHOT_DIR=/absolute/path` to control where the PNG is saved (default: `/tmp/life360-screenshots`).
 - `OVERLAY_CLOSE_TAP_X=<x>` and `OVERLAY_CLOSE_TAP_Y=<y>` to override fallback tap coordinates for dismissing close-icon overlays (defaults: `1000`, `300`).

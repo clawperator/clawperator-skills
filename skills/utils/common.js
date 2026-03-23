@@ -107,14 +107,14 @@ function parseCommandSpec(commandSpec) {
  *
  * Preference order:
  *   1. Explicit receiverPkg parameter passed to runClawperator()
- *   2. CLAWPERATOR_RECEIVER_PACKAGE env var
+ *   2. CLAWPERATOR_OPERATOR_PACKAGE env var
  *   3. Default release package 'com.clawperator.operator'
  */
 function resolveReceiverPackage(explicitPkg) {
   if (explicitPkg !== undefined && explicitPkg !== null && explicitPkg !== "") {
     return explicitPkg;
   }
-  const envPkg = process.env.CLAWPERATOR_RECEIVER_PACKAGE;
+  const envPkg = process.env.CLAWPERATOR_OPERATOR_PACKAGE;
   if (envPkg !== undefined && envPkg !== "") {
     return envPkg;
   }
