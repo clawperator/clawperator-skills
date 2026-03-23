@@ -26,10 +26,10 @@
  *   - Uninstall (settled): textEquals "Uninstall"
  */
 
-const { runClawperator, findAttribute, resolveReceiverPackage, logSkillProgress } = require('../../utils/common');
+const { runClawperator, findAttribute, resolveOperatorPackage, logSkillProgress } = require('../../utils/common');
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
-const receiverPkg = resolveReceiverPackage(process.argv[3]);
+const operatorPkg = resolveOperatorPackage(process.argv[3]);
 
 if (!deviceId) {
   console.error('Usage: node install_play_app.js <device_id> [receiver_package]');
@@ -99,7 +99,7 @@ function buildInstallExecution() {
 
 const preflightExec = buildPreflightExecution();
 logSkillProgress(skillId, "Checking current install state...");
-const { ok: prefOk, result: prefResult, error: prefError } = runClawperator(preflightExec, deviceId, receiverPkg);
+const { ok: prefOk, result: prefResult, error: prefError } = runClawperator(preflightExec, deviceId, operatorPkg);
 
 if (!prefOk) {
   console.error(`Preflight snapshot failed: ${prefError}`);
@@ -169,7 +169,7 @@ if (hasOpen && hasCancel) {
       { id: 'snap', type: 'snapshot_ui' }
     ]
   };
-  const { ok, result, error } = runClawperator(waitExec, deviceId, receiverPkg);
+  const { ok, result, error } = runClawperator(waitExec, deviceId, operatorPkg);
   if (!ok) {
     console.error(`Wait for completion failed: ${error}`);
     process.exit(5);
@@ -198,7 +198,7 @@ if (!hasInstall && !hasUpdate) {
 const installExec = buildInstallExecution();
 logSkillProgress(skillId, "Installing from Play Store details page...");
 logSkillProgress(skillId, "Waiting for Open button...");
-const { ok, result, error } = runClawperator(installExec, deviceId, receiverPkg);
+const { ok, result, error } = runClawperator(installExec, deviceId, operatorPkg);
 
 if (!ok) {
   console.error(`Install execution failed: ${error}`);

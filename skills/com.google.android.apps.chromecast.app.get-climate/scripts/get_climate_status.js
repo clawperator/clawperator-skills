@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-const { runClawperator, findAttribute, resolveReceiverPackage, logSkillProgress } = require("../../utils/common");
+const { runClawperator, findAttribute, resolveOperatorPackage, logSkillProgress } = require("../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const climateTileName = process.argv[3] || process.env.CLIMATE_TILE_NAME || process.env.AC_TILE_NAME;
-const receiverPkg = resolveReceiverPackage(process.argv[4]);
+const operatorPkg = resolveOperatorPackage(process.argv[4]);
 
 if (!deviceId || !climateTileName) {
   console.error("Usage: node get_climate_status.js <device_id> <tile_name> [receiver_package]");
@@ -122,7 +122,7 @@ function getSnapshotText(result) {
 }
 
 logSkillProgress(skillId, "Taking preflight snapshot...");
-const preflightRun = runClawperator(buildPreflightExecution(), deviceId, receiverPkg);
+const preflightRun = runClawperator(buildPreflightExecution(), deviceId, operatorPkg);
 if (!preflightRun.ok) {
   console.error(`⚠️ Skill execution failed: ${preflightRun.error}`);
   process.exit(2);
@@ -135,7 +135,7 @@ if (shouldNavigate) {
 }
 logSkillProgress(skillId, "Capturing HVAC status...");
 const primaryExecution = shouldNavigate ? buildNavigationExecution() : buildDirectReadExecution();
-const primaryRun = runClawperator(primaryExecution, deviceId, receiverPkg);
+const primaryRun = runClawperator(primaryExecution, deviceId, operatorPkg);
 let finalRun = primaryRun;
 let values = { power: null, mode: "unknown", temp: "unknown" };
 
@@ -148,7 +148,7 @@ if (!primaryRun.ok || !values.power) {
     logSkillProgress(skillId, "Direct read failed, navigating to climate unit tile...");
   }
   const fallbackExecution = shouldNavigate ? buildDirectReadExecution() : buildNavigationExecution();
-  const fallbackRun = runClawperator(fallbackExecution, deviceId, receiverPkg);
+  const fallbackRun = runClawperator(fallbackExecution, deviceId, operatorPkg);
   finalRun = fallbackRun;
   if (fallbackRun.ok) {
     values = extractValues(fallbackRun.result);

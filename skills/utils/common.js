@@ -106,11 +106,11 @@ function parseCommandSpec(commandSpec) {
  * Resolve the receiver package for skill execution.
  *
  * Preference order:
- *   1. Explicit receiverPkg parameter passed to runClawperator()
+ *   1. Explicit operatorPkg parameter passed to runClawperator()
  *   2. CLAWPERATOR_OPERATOR_PACKAGE env var
  *   3. Default release package 'com.clawperator.operator'
  */
-function resolveReceiverPackage(explicitPkg) {
+function resolveOperatorPackage(explicitPkg) {
   if (explicitPkg !== undefined && explicitPkg !== null && explicitPkg !== "") {
     return explicitPkg;
   }
@@ -155,7 +155,7 @@ function warnOnSnapshotExtractionFailure(result) {
   }
 }
 
-function runClawperator(execution, deviceId, receiverPkg, clawBinOverride) {
+function runClawperator(execution, deviceId, operatorPkg, clawBinOverride) {
   const commandId = execution.commandId;
   const tmpFile = join(tmpdir(), commandId + '.json');
   writeFileSync(tmpFile, JSON.stringify(execution));
@@ -171,9 +171,9 @@ function runClawperator(execution, deviceId, receiverPkg, clawBinOverride) {
   }
 
   // Resolve receiver package using the new precedence rules.
-  const effectiveReceiverPkg = resolveReceiverPackage(receiverPkg);
+  const effectiveOperatorPkg = resolveOperatorPackage(operatorPkg);
 
-  const args = [...extraArgs, 'execute', '--execution', tmpFile, '--device', deviceId, '--operator-package', effectiveReceiverPkg];
+  const args = [...extraArgs, 'execute', '--execution', tmpFile, '--device', deviceId, '--operator-package', effectiveOperatorPkg];
 
   try {
     const output = execFileSync(cmd, args, { encoding: 'utf-8' });
@@ -200,4 +200,4 @@ function findAttribute(line, attrName) {
   return match[1] === '' ? null : match[1];
 }
 
-module.exports = { runClawperator, findAttribute, resolveClawperatorBin, resolveReceiverPackage, parseCommandSpec, logSkillProgress };
+module.exports = { runClawperator, findAttribute, resolveClawperatorBin, resolveOperatorPackage, parseCommandSpec, logSkillProgress };

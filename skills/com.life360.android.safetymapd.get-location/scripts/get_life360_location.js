@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-const { runClawperator, findAttribute, resolveReceiverPackage, logSkillProgress } = require('../../utils/common');
+const { runClawperator, findAttribute, resolveOperatorPackage, logSkillProgress } = require('../../utils/common');
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const personName = process.argv[3] || process.env.PERSON_NAME;
 const screenshotPath = process.argv[4] || process.env.SCREENSHOT_PATH;
-const receiverPkg = resolveReceiverPackage(process.argv[5]);
+const operatorPkg = resolveOperatorPackage(process.argv[5]);
 const requestedPersonName = (personName || "").trim();
 const skillId = "com.life360.android.safetymapd.get-location";
 
@@ -135,7 +135,7 @@ function extractReadingFromSnapshot(snapText) {
 
 function probeForVisibleName(maxScrolls) {
   logSkillProgress(skillId, "Opening Life360...");
-  const initialProbe = runClawperator(buildProbeExecution(0, false), deviceId, receiverPkg);
+  const initialProbe = runClawperator(buildProbeExecution(0, false), deviceId, operatorPkg);
   if (!initialProbe.ok) {
     console.error(`⚠️ Skill execution failed: ${initialProbe.error}`);
     process.exit(2);
@@ -150,7 +150,7 @@ function probeForVisibleName(maxScrolls) {
   }
 
   logSkillProgress(skillId, `Searching for ${requestedPersonName}...`);
-  const probeRun = runClawperator(buildProbeExecution(maxScrolls, dismissOverlay), deviceId, receiverPkg);
+  const probeRun = runClawperator(buildProbeExecution(maxScrolls, dismissOverlay), deviceId, operatorPkg);
   if (!probeRun.ok) {
     console.error(`⚠️ Skill execution failed: ${probeRun.error}`);
     process.exit(2);
@@ -185,7 +185,7 @@ if (!searchResult.resolvedName) {
 const selectRun = runClawperator(
   buildSelectExecution(searchResult.scrollCount, searchResult.resolvedName, searchResult.dismissOverlay),
   deviceId,
-  receiverPkg
+  operatorPkg
 );
 
 if (!selectRun.ok) {

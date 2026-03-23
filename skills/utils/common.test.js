@@ -4,15 +4,15 @@ const { mkdtemp, rm, writeFile } = require('node:fs/promises');
 const { join } = require('node:path');
 const { tmpdir } = require('node:os');
 
-const { resolveClawperatorBin, resolveReceiverPackage } = require('./common');
+const { resolveClawperatorBin, resolveOperatorPackage } = require('./common');
 
-test('resolveReceiverPackage prefers an explicit package over env var', () => {
+test('resolveOperatorPackage prefers an explicit package over env var', () => {
   const original = process.env.CLAWPERATOR_OPERATOR_PACKAGE;
   process.env.CLAWPERATOR_OPERATOR_PACKAGE = 'com.clawperator.operator.dev';
 
   try {
-    assert.strictEqual(resolveReceiverPackage('com.explicit.package'), 'com.explicit.package');
-    assert.strictEqual(resolveReceiverPackage('com.clawperator.operator'), 'com.clawperator.operator');
+    assert.strictEqual(resolveOperatorPackage('com.explicit.package'), 'com.explicit.package');
+    assert.strictEqual(resolveOperatorPackage('com.clawperator.operator'), 'com.clawperator.operator');
   } finally {
     if (original === undefined) {
       delete process.env.CLAWPERATOR_OPERATOR_PACKAGE;
@@ -22,14 +22,14 @@ test('resolveReceiverPackage prefers an explicit package over env var', () => {
   }
 });
 
-test('resolveReceiverPackage falls back to env var when explicit package is absent', () => {
+test('resolveOperatorPackage falls back to env var when explicit package is absent', () => {
   const original = process.env.CLAWPERATOR_OPERATOR_PACKAGE;
   process.env.CLAWPERATOR_OPERATOR_PACKAGE = 'com.clawperator.operator.dev';
 
   try {
-    assert.strictEqual(resolveReceiverPackage(undefined), 'com.clawperator.operator.dev');
-    assert.strictEqual(resolveReceiverPackage(null), 'com.clawperator.operator.dev');
-    assert.strictEqual(resolveReceiverPackage(''), 'com.clawperator.operator.dev');
+    assert.strictEqual(resolveOperatorPackage(undefined), 'com.clawperator.operator.dev');
+    assert.strictEqual(resolveOperatorPackage(null), 'com.clawperator.operator.dev');
+    assert.strictEqual(resolveOperatorPackage(''), 'com.clawperator.operator.dev');
   } finally {
     if (original === undefined) {
       delete process.env.CLAWPERATOR_OPERATOR_PACKAGE;
@@ -39,12 +39,12 @@ test('resolveReceiverPackage falls back to env var when explicit package is abse
   }
 });
 
-test('resolveReceiverPackage falls back to the release default', () => {
+test('resolveOperatorPackage falls back to the release default', () => {
   const original = process.env.CLAWPERATOR_OPERATOR_PACKAGE;
   delete process.env.CLAWPERATOR_OPERATOR_PACKAGE;
 
   try {
-    assert.strictEqual(resolveReceiverPackage(undefined), 'com.clawperator.operator');
+    assert.strictEqual(resolveOperatorPackage(undefined), 'com.clawperator.operator');
   } finally {
     if (original === undefined) {
       delete process.env.CLAWPERATOR_OPERATOR_PACKAGE;
