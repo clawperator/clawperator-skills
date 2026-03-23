@@ -143,13 +143,13 @@ function warnOnSnapshotExtractionFailure(result) {
       process.stderr.write(
         `[clawperator-skills] WARNING: snapshot_ui step "${step.id}" extraction failed` +
         (isNewContractFailure ? ' (SNAPSHOT_EXTRACTION_FAILED)' : ' (empty data.text)') +
-        '. This is a known issue when the globally installed clawperator binary is out\n' +
+        '. This is a known issue when the clawperator binary is out\n' +
         'of date with the Android Operator APK.\n' +
-        'Fix: reinstall the npm package:\n' +
-        '  npm install -g clawperator\n' +
-        'Or set CLAWPERATOR_BIN to a local or updated build:\n' +
+        'Fix: set CLAWPERATOR_BIN to the local build:\n' +
         '  export CLAWPERATOR_BIN=/path/to/clawperator/apps/node/dist/cli/index.js\n' +
-        'Or run: clawperator version --check-compat\n'
+        'Or reinstall the npm package:\n' +
+        '  npm install -g clawperator\n' +
+        'Then verify with: clawperator snapshot --device <id>\n'
       );
     }
   }
@@ -173,7 +173,7 @@ function runClawperator(execution, deviceId, receiverPkg, clawBinOverride) {
   // Resolve receiver package using the new precedence rules.
   const effectiveReceiverPkg = resolveReceiverPackage(receiverPkg);
 
-  const args = [...extraArgs, 'execute', '--execution', tmpFile, '--device-id', deviceId, '--receiver-package', effectiveReceiverPkg];
+  const args = [...extraArgs, 'execute', '--execution', tmpFile, '--device', deviceId, '--operator-package', effectiveReceiverPkg];
 
   try {
     const output = execFileSync(cmd, args, { encoding: 'utf-8' });

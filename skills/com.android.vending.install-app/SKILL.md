@@ -54,8 +54,8 @@ On success, prints:
   but this does not block the install.
 - If the preflight snapshot step returns `success: false` with
   `data.error: "SNAPSHOT_EXTRACTION_FAILED"`, or the skill exits with "Preflight snapshot
-  returned empty" despite the device showing the app details page, the globally installed
-  `clawperator` binary may be out of date. Reinstall with `npm install -g clawperator`
-  or set `CLAWPERATOR_BIN` to a local or updated build:
+  returned empty" despite the device showing the app details page, the clawperator binary
+  may be out of date with the Android Operator APK. Set `CLAWPERATOR_BIN` to the
+  local build:
   `export CLAWPERATOR_BIN=/path/to/clawperator/apps/node/dist/cli/index.js`
-  Then run `clawperator version --check-compat` to confirm compatibility.
+  Then verify with: `clawperator snapshot --device <id>`
