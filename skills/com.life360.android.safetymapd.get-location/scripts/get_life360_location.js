@@ -9,7 +9,7 @@ const requestedPersonName = (personName || "").trim();
 const skillId = "com.life360.android.safetymapd.get-location";
 
 if (!deviceId || !personName) {
-  console.error('Usage: node get_life360_location.js <device_id> <person_name> [screenshot_path] [receiver_package]');
+  console.error('Usage: node get_life360_location.js <device_id> <person_name> [screenshot_path] [operator_package]');
   process.exit(1);
 }
 
@@ -92,8 +92,7 @@ function buildSelectExecution(scrollCount, exactName, dismissOverlay) {
   actions.push(
     { id: 'click-person', type: 'click', params: { matcher: { textEquals: exactName } } },
     { id: 'wait_detail', type: 'sleep', params: { durationMs: 3000 } },
-    { id: 'snap', type: 'snapshot_ui' },
-    ...(screenshotPath ? [{ id: 'visual', type: 'take_screenshot', params: { path: screenshotPath } }] : [])
+    { id: 'snap', type: 'snapshot_ui' }
   );
 
   return {
@@ -113,11 +112,6 @@ function parseSnapshotSteps(result) {
 function extractSnapshotText(stepResults, stepId) {
   const step = stepResults.find((s) => s.id === stepId);
   return step && step.data ? step.data.text : null;
-}
-
-function extractFinalPath(stepResults) {
-  const screenStep = stepResults.find(s => s.id === 'visual');
-  return screenStep && screenStep.data ? screenStep.data.path : null;
 }
 
 function extractReadingFromSnapshot(snapText) {
@@ -195,14 +189,12 @@ if (!selectRun.ok) {
 
 const stepResults = parseSnapshotSteps(selectRun.result);
 const snapText = extractSnapshotText(stepResults, 'snap');
-const finalPath = extractFinalPath(stepResults);
 
 if (snapText) {
   logSkillProgress(skillId, "Capturing location snapshot...");
   logSkillProgress(skillId, "Parsing location data...");
   const { battery, place } = extractReadingFromSnapshot(snapText);
-  const screenshotSuffix = finalPath ? `, screenshot=${finalPath}` : '';
-  console.log(`✅ Life360 location for ${searchResult.resolvedName}: place=${place}, battery=${battery}${screenshotSuffix}`);
+  console.log(`✅ Life360 location for ${searchResult.resolvedName}: place=${place}, battery=${battery}`);
 } else {
   console.error('⚠️ Could not capture Life360 location snapshot');
   process.exit(2);
