@@ -194,6 +194,32 @@ function logSkillProgress(skillId, message) {
   console.log(`[skill:${skillId}] ${message}`);
 }
 
+/**
+ * Run a Clawperator CLI command (screenshot, snapshot, click, etc.)
+ * Returns { ok: boolean, result: Buffer | string, error: string }
+ */
+function runClawperatorCommand(command, args, { encoding = null, throwOnNonZero = true } = {}) {
+  const resolved = resolveClawperatorBin();
+  const cmd = resolved.cmd;
+  const cmdArgs = [...resolved.args, command, ...args];
+
+  try {
+    const output = execFileSync(cmd, cmdArgs, {
+      encoding: encoding || 'buffer',
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    return { ok: true, result: output };
+  } catch (e) {
+    if (!throwOnNonZero && e.status && e.status !== 0) {
+      return { ok: false, error: e.message, exitCode: e.status };
+    }
+    let msg = e.message;
+    if (e.stderr) msg += '\nSTDERR: ' + Buffer.from(e.stderr).toString();
+    if (e.stdout) msg += '\nSTDOUT: ' + Buffer.from(e.stdout).toString();
+    return { ok: false, error: msg };
+  }
+}
+
 function findAttribute(line, attrName) {
   const regex = new RegExp(attrName + '="([^"]*)"');
   const match = line.match(regex);
@@ -201,4 +227,4 @@ function findAttribute(line, attrName) {
   return match[1] === '' ? null : match[1];
 }
 
-module.exports = { runClawperator, findAttribute, resolveClawperatorBin, resolveOperatorPackage, parseCommandSpec, logSkillProgress };
+module.exports = { runClawperator, runClawperatorCommand, findAttribute, resolveClawperatorBin, resolveOperatorPackage, parseCommandSpec, logSkillProgress };

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const { mkdirSync, writeFileSync } = require("fs");
 const { join, resolve } = require("path");
-const { runClawperator, resolveOperatorPackage, logSkillProgress } = require("../../utils/common");
+const { runClawperator, runClawperatorCommand, resolveOperatorPackage, logSkillProgress } = require("../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const operatorPkg = resolveOperatorPackage(process.argv[3]);
@@ -54,8 +54,17 @@ mkdirSync(screenshotDir, { recursive: true });
 const screenshotPath = join(screenshotDir, `clawperator-settings-${deviceId}-${captureStamp}.png`);
 writeFileSync(snapshotPath, `${snapText}\n`);
 
-// Create a placeholder screenshot file to maintain output format
-writeFileSync(screenshotPath, Buffer.alloc(0));
+// Capture the actual screenshot PNG using the Clawperator CLI
+const screenshotResult = runClawperatorCommand("screenshot", [
+  "--device", deviceId,
+  "--operator-package", operatorPkg,
+  "--path", screenshotPath
+]);
+
+if (!screenshotResult.ok) {
+  console.error(`⚠️ Warning: Could not capture screenshot PNG: ${screenshotResult.error}`);
+  console.error("The text snapshot will still be available.");
+}
 
 console.log("TEXT_BEGIN");
 console.log(snapText);
