@@ -20,7 +20,7 @@ Expected output:
 
 `HVAC status (...): power=<...>, mode=<...>, indoor_temp=<...>`
 
-The script also respects `CLAWPERATOR_RECEIVER_PACKAGE` when called through
+The script also respects `CLAWPERATOR_OPERATOR_PACKAGE` when called through
 `clawperator skills run`.
 
 If you are not given a tile name, inspect the Google Home UI first, take a

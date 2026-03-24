@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-const { runClawperator, findAttribute, resolveReceiverPackage, logSkillProgress } = require("../../utils/common");
+const { runClawperator, findAttribute, resolveOperatorPackage, logSkillProgress } = require("../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
-const receiverPkg = resolveReceiverPackage(process.argv[3]);
+const operatorPkg = resolveOperatorPackage(process.argv[3]);
 
 if (!deviceId) {
   console.error("Usage: node get_globird_usage.js <device_id> [receiver_package]");
@@ -31,7 +31,7 @@ const execution = {
 logSkillProgress(skillId, "Launching GloBird app...");
 logSkillProgress(skillId, "Navigating to Energy tab...");
 logSkillProgress(skillId, "Capturing energy usage snapshot...");
-const { ok, result, error, raw } = runClawperator(execution, deviceId, receiverPkg);
+const { ok, result, error, raw } = runClawperator(execution, deviceId, operatorPkg);
 
 if (!ok) {
   console.error(`⚠️ Skill execution failed: ${error}`);

@@ -69,8 +69,8 @@ On success, prints a summary of the app details page including:
   the Install button in the same way.
 - If snapshot extraction fails (step returns `success: false` with
   `data.error: "SNAPSHOT_EXTRACTION_FAILED"`, or the skill exits with "No snapshot
-  returned" despite the device being on the correct screen), the globally installed
-  `clawperator` binary may be out of date. Reinstall with `npm install -g clawperator`
-  or set `CLAWPERATOR_BIN` to a local or updated build:
+  returned" despite the device being on the correct screen), the clawperator binary
+  may be out of date with the Android Operator APK. Set `CLAWPERATOR_BIN` to the
+  local build:
   `export CLAWPERATOR_BIN=/path/to/clawperator/apps/node/dist/cli/index.js`
-  Then run `clawperator version --check-compat` to confirm compatibility.
+  Then verify with: `clawperator snapshot --device <id>`

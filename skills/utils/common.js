@@ -106,15 +106,15 @@ function parseCommandSpec(commandSpec) {
  * Resolve the receiver package for skill execution.
  *
  * Preference order:
- *   1. Explicit receiverPkg parameter passed to runClawperator()
- *   2. CLAWPERATOR_RECEIVER_PACKAGE env var
+ *   1. Explicit operatorPkg parameter passed to runClawperator()
+ *   2. CLAWPERATOR_OPERATOR_PACKAGE env var
  *   3. Default release package 'com.clawperator.operator'
  */
-function resolveReceiverPackage(explicitPkg) {
+function resolveOperatorPackage(explicitPkg) {
   if (explicitPkg !== undefined && explicitPkg !== null && explicitPkg !== "") {
     return explicitPkg;
   }
-  const envPkg = process.env.CLAWPERATOR_RECEIVER_PACKAGE;
+  const envPkg = process.env.CLAWPERATOR_OPERATOR_PACKAGE;
   if (envPkg !== undefined && envPkg !== "") {
     return envPkg;
   }
@@ -143,19 +143,19 @@ function warnOnSnapshotExtractionFailure(result) {
       process.stderr.write(
         `[clawperator-skills] WARNING: snapshot_ui step "${step.id}" extraction failed` +
         (isNewContractFailure ? ' (SNAPSHOT_EXTRACTION_FAILED)' : ' (empty data.text)') +
-        '. This is a known issue when the globally installed clawperator binary is out\n' +
+        '. This is a known issue when the clawperator binary is out\n' +
         'of date with the Android Operator APK.\n' +
-        'Fix: reinstall the npm package:\n' +
-        '  npm install -g clawperator\n' +
-        'Or set CLAWPERATOR_BIN to a local or updated build:\n' +
+        'Fix: set CLAWPERATOR_BIN to the local build:\n' +
         '  export CLAWPERATOR_BIN=/path/to/clawperator/apps/node/dist/cli/index.js\n' +
-        'Or run: clawperator version --check-compat\n'
+        'Or reinstall the npm package:\n' +
+        '  npm install -g clawperator\n' +
+        'Then verify with: clawperator snapshot --device <id>\n'
       );
     }
   }
 }
 
-function runClawperator(execution, deviceId, receiverPkg, clawBinOverride) {
+function runClawperator(execution, deviceId, operatorPkg, clawBinOverride) {
   const commandId = execution.commandId;
   const tmpFile = join(tmpdir(), commandId + '.json');
   writeFileSync(tmpFile, JSON.stringify(execution));
@@ -171,9 +171,9 @@ function runClawperator(execution, deviceId, receiverPkg, clawBinOverride) {
   }
 
   // Resolve receiver package using the new precedence rules.
-  const effectiveReceiverPkg = resolveReceiverPackage(receiverPkg);
+  const effectiveOperatorPkg = resolveOperatorPackage(operatorPkg);
 
-  const args = [...extraArgs, 'execute', '--execution', tmpFile, '--device-id', deviceId, '--receiver-package', effectiveReceiverPkg];
+  const args = [...extraArgs, 'execute', '--execution', tmpFile, '--device', deviceId, '--operator-package', effectiveOperatorPkg];
 
   try {
     const output = execFileSync(cmd, args, { encoding: 'utf-8' });
@@ -200,4 +200,4 @@ function findAttribute(line, attrName) {
   return match[1] === '' ? null : match[1];
 }
 
-module.exports = { runClawperator, findAttribute, resolveClawperatorBin, resolveReceiverPackage, parseCommandSpec, logSkillProgress };
+module.exports = { runClawperator, findAttribute, resolveClawperatorBin, resolveOperatorPackage, parseCommandSpec, logSkillProgress };

@@ -2,10 +2,10 @@
 const { execFileSync } = require("child_process");
 const { mkdirSync, writeFileSync } = require("fs");
 const { join, resolve } = require("path");
-const { runClawperator, resolveReceiverPackage, logSkillProgress } = require("../../utils/common");
+const { runClawperator, resolveOperatorPackage, logSkillProgress } = require("../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
-const receiverPkg = resolveReceiverPackage(process.argv[3]);
+const operatorPkg = resolveOperatorPackage(process.argv[3]);
 const screenshotDir = resolve(process.env.SCREENSHOT_DIR || "/tmp/clawperator-settings-screenshots");
 const settingsAppId = process.env.SETTINGS_APP_ID || "com.android.settings";
 const adbBin = process.env.ADB_BIN || "adb";
@@ -34,7 +34,7 @@ const execution = {
 };
 
 logSkillProgress(skillId, "Capturing system overview...");
-const { ok, result, error, raw } = runClawperator(execution, deviceId, receiverPkg);
+const { ok, result, error, raw } = runClawperator(execution, deviceId, operatorPkg);
 
 if (!ok) {
   console.error(`⚠️ Skill execution failed: ${error}`);

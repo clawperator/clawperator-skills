@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-const { runClawperator, findAttribute, resolveReceiverPackage, logSkillProgress } = require('../../utils/common');
+const { runClawperator, findAttribute, resolveOperatorPackage, logSkillProgress } = require('../../utils/common');
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const rawQuery = process.argv[3] || process.env.QUERY || '';
 const query = rawQuery.trim();
-const receiverPkg = resolveReceiverPackage(process.argv[4]);
+const operatorPkg = resolveOperatorPackage(process.argv[4]);
 const MAX_QUERY_LENGTH = 256;
 
 if (!deviceId || !query) {
@@ -58,7 +58,7 @@ function buildProbeExecution() {
 logSkillProgress(skillId, "Opening Coles app...");
 logSkillProgress(skillId, `Searching for \"${query}\"...`);
 logSkillProgress(skillId, "Probing search suggestions...");
-const probeRun = runClawperator(buildProbeExecution(), deviceId, receiverPkg);
+const probeRun = runClawperator(buildProbeExecution(), deviceId, operatorPkg);
 
 if (!probeRun.ok) {
   console.error(`⚠️ Skill execution failed: ${probeRun.error}`);
@@ -74,7 +74,7 @@ logSkillProgress(skillId, hasSuggestion ? "Using suggestion row to open results.
 const { ok, result, error, raw } = runClawperator(
   buildSearchExecution(!hasSuggestion, hasSuggestion),
   deviceId,
-  receiverPkg
+  operatorPkg
 );
 
 if (!ok) {

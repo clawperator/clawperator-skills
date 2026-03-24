@@ -24,12 +24,12 @@
 
 const { execFileSync } = require('child_process');
 const path = require('path');
-const { runClawperator, findAttribute, resolveReceiverPackage, logSkillProgress } = require('../../utils/common');
+const { runClawperator, findAttribute, resolveOperatorPackage, logSkillProgress } = require('../../utils/common');
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const rawQuery = process.argv[3] || process.env.QUERY || '';
 const query = rawQuery.trim();
-const receiverPkg = resolveReceiverPackage(process.argv[4]);
+const operatorPkg = resolveOperatorPackage(process.argv[4]);
 const packageId = process.argv[5] || process.env.PACKAGE_ID || '';
 
 const MAX_QUERY_LENGTH = 256;
@@ -161,7 +161,7 @@ if (packageId) {
 if (usedDirectPath) {
   logSkillProgress(skillId, "Capturing app details...");
   const execution = buildDirectEntryExecution();
-  const { ok, result: r, error } = runClawperator(execution, deviceId, receiverPkg);
+  const { ok, result: r, error } = runClawperator(execution, deviceId, operatorPkg);
   if (!ok) {
     console.error(`Direct entry execution failed: ${error}`);
     console.error('Falling back to in-app search path.');
@@ -174,7 +174,7 @@ if (usedDirectPath) {
 if (!usedDirectPath) {
   logSkillProgress(skillId, `Searching Play Store for \"${query}\"...`);
   const execution = buildSearchExecution(query);
-  const { ok, result: r, error } = runClawperator(execution, deviceId, receiverPkg);
+  const { ok, result: r, error } = runClawperator(execution, deviceId, operatorPkg);
   if (!ok) {
     console.error(`Search execution failed: ${error}`);
     process.exit(2);

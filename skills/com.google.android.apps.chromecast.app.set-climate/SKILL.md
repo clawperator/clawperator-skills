@@ -28,7 +28,7 @@ treating the missing name as a hard stop.
 Current behavior:
 - local debug broadcast path does not expose semantic `ac:on/ac:off` directly.
 - this script reports current state and whether a change is required; apply actual state-changing commands through the production command pipeline, then verify with the companion status skill.
-- the child status check inherits `CLAWPERATOR_RECEIVER_PACKAGE`, so use `com.clawperator.operator.dev` for local debug APKs.
+- the child status check inherits `CLAWPERATOR_OPERATOR_PACKAGE`, so use `com.clawperator.operator.dev` for local debug APKs.
 
 Terminal output:
 - a single `✅` summary line with requested and observed state
