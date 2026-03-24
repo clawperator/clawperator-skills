@@ -5,7 +5,7 @@ const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const operatorPkg = resolveOperatorPackage(process.argv[3]);
 
 if (!deviceId) {
-  console.error("Usage: node get_solax_battery.js <device_id> [receiver_package]");
+  console.error("Usage: node get_solax_battery.js <device_id> [operator_package]");
   process.exit(1);
 }
 

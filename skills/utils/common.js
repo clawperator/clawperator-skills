@@ -103,7 +103,7 @@ function parseCommandSpec(commandSpec) {
 }
 
 /**
- * Resolve the receiver package for skill execution.
+ * Resolve the operator package for skill execution.
  *
  * Preference order:
  *   1. Explicit operatorPkg parameter passed to runClawperator()
@@ -131,9 +131,10 @@ function resolveOperatorPackage(explicitPkg) {
  * binaries that predate the contract change.
  */
 function warnOnSnapshotExtractionFailure(result) {
-  if (!result || !Array.isArray(result.stepResults)) return;
+  const envelope = result && result.envelope;
+  if (!envelope || !Array.isArray(envelope.stepResults)) return;
 
-  for (const step of result.stepResults) {
+  for (const step of envelope.stepResults) {
     if (step.actionType !== 'snapshot_ui') continue;
 
     const isNewContractFailure = !step.success && step.data && step.data.error === 'SNAPSHOT_EXTRACTION_FAILED';
@@ -170,10 +171,10 @@ function runClawperator(execution, deviceId, operatorPkg, clawBinOverride) {
     extraArgs = resolved.args;
   }
 
-  // Resolve receiver package using the new precedence rules.
+  // Resolve operator package using the new precedence rules.
   const effectiveOperatorPkg = resolveOperatorPackage(operatorPkg);
 
-  const args = [...extraArgs, 'execute', '--execution', tmpFile, '--device', deviceId, '--operator-package', effectiveOperatorPkg];
+  const args = [...extraArgs, 'exec', tmpFile, '--device', deviceId, '--operator-package', effectiveOperatorPkg];
 
   try {
     const output = execFileSync(cmd, args, { encoding: 'utf-8' });
@@ -193,6 +194,32 @@ function logSkillProgress(skillId, message) {
   console.log(`[skill:${skillId}] ${message}`);
 }
 
+/**
+ * Run a Clawperator CLI command (screenshot, snapshot, click, etc.)
+ * Returns { ok: boolean, result: Buffer | string, error: string }
+ */
+function runClawperatorCommand(command, args, { encoding = null, throwOnNonZero = true } = {}) {
+  const resolved = resolveClawperatorBin();
+  const cmd = resolved.cmd;
+  const cmdArgs = [...resolved.args, command, ...args];
+
+  try {
+    const output = execFileSync(cmd, cmdArgs, {
+      encoding: encoding || 'buffer',
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    return { ok: true, result: output };
+  } catch (e) {
+    if (!throwOnNonZero && e.status && e.status !== 0) {
+      return { ok: false, error: e.message, exitCode: e.status };
+    }
+    let msg = e.message;
+    if (e.stderr) msg += '\nSTDERR: ' + Buffer.from(e.stderr).toString();
+    if (e.stdout) msg += '\nSTDOUT: ' + Buffer.from(e.stdout).toString();
+    return { ok: false, error: msg };
+  }
+}
+
 function findAttribute(line, attrName) {
   const regex = new RegExp(attrName + '="([^"]*)"');
   const match = line.match(regex);
@@ -200,4 +227,4 @@ function findAttribute(line, attrName) {
   return match[1] === '' ? null : match[1];
 }
 
-module.exports = { runClawperator, findAttribute, resolveClawperatorBin, resolveOperatorPackage, parseCommandSpec, logSkillProgress };
+module.exports = { runClawperator, runClawperatorCommand, findAttribute, resolveClawperatorBin, resolveOperatorPackage, parseCommandSpec, logSkillProgress };

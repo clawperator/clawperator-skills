@@ -5,12 +5,12 @@
  * Searches for a named app in the Google Play Store and navigates to its details page.
  *
  * Usage:
- *   node search_play_store.js <device_id> <query> [receiver_package] [package_id]
+ *   node search_play_store.js <device_id> <query> [operator_package] [package_id]
  *
  * Arguments:
  *   device_id       - ADB device serial
  *   query           - App name to search for (e.g. "VLC")
- *   receiver_package - Clawperator receiver package (default: com.clawperator.operator)
+ *   operator_package - Clawperator operator package (default: com.clawperator.operator)
  *   package_id      - Optional Android package ID for direct entry path (e.g. org.videolan.vlc)
  *
  * Selector notes (discovered via live exploration):
@@ -35,7 +35,7 @@ const packageId = process.argv[5] || process.env.PACKAGE_ID || '';
 const MAX_QUERY_LENGTH = 256;
 
 if (!deviceId || !query) {
-  console.error('Usage: node search_play_store.js <device_id> <query> [receiver_package] [package_id]');
+  console.error('Usage: node search_play_store.js <device_id> <query> [operator_package] [package_id]');
   process.exit(1);
 }
 

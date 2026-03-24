@@ -6,7 +6,7 @@
  * Assumes the device is already showing the app details page.
  *
  * Usage:
- *   node install_play_app.js <device_id> [receiver_package]
+ *   node install_play_app.js <device_id> [operator_package]
  *
  * Install state detection (discovered via live exploration):
  *   - Ready to install:     content-desc="Install" present, text="Open" absent
@@ -32,7 +32,7 @@ const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const operatorPkg = resolveOperatorPackage(process.argv[3]);
 
 if (!deviceId) {
-  console.error('Usage: node install_play_app.js <device_id> [receiver_package]');
+  console.error('Usage: node install_play_app.js <device_id> [operator_package]');
   process.exit(1);
 }
 

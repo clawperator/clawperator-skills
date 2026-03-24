@@ -1,23 +1,22 @@
 #!/usr/bin/env node
-const { execFileSync } = require("child_process");
 const { mkdirSync, writeFileSync } = require("fs");
 const { join, resolve } = require("path");
-const { runClawperator, resolveOperatorPackage, logSkillProgress } = require("../../utils/common");
+const { runClawperator, runClawperatorCommand, resolveOperatorPackage, logSkillProgress } = require("../../utils/common");
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const operatorPkg = resolveOperatorPackage(process.argv[3]);
 const screenshotDir = resolve(process.env.SCREENSHOT_DIR || "/tmp/clawperator-settings-screenshots");
 const settingsAppId = process.env.SETTINGS_APP_ID || "com.android.settings";
-const adbBin = process.env.ADB_BIN || "adb";
 const captureStamp = Date.now();
 
 if (!deviceId) {
-  console.error("Usage: node capture_settings_overview.js <device_id> [receiver_package]");
+  console.error("Usage: node capture_settings_overview.js <device_id> [operator_package]");
   process.exit(1);
 }
 
 const commandId = `skill-settings-overview-${Date.now()}`;
 const skillId = "com.android.settings.capture-overview";
+const snapshotPath = join(screenshotDir, `clawperator-settings-${deviceId}-${captureStamp}.txt`);
 const execution = {
   commandId,
   taskId: commandId,
@@ -28,7 +27,7 @@ const execution = {
     { id: "close", type: "close_app", params: { applicationId: settingsAppId } },
     { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
     { id: "open", type: "open_app", params: { applicationId: settingsAppId } },
-    { id: "settle", type: "sleep", params: { durationMs: 2000 } },
+    { id: "settle", type: "sleep", params: { durationMs: 3000 } },
     { id: "snap", type: "snapshot_ui" }
   ]
 };
@@ -53,19 +52,17 @@ if (!snapText) {
 
 mkdirSync(screenshotDir, { recursive: true });
 const screenshotPath = join(screenshotDir, `clawperator-settings-${deviceId}-${captureStamp}.png`);
-const snapshotPath = join(screenshotDir, `clawperator-settings-${deviceId}-${captureStamp}.txt`);
+writeFileSync(snapshotPath, `${snapText}\n`);
 
-try {
-  logSkillProgress(skillId, "Saving screenshot to disk...");
-  const image = execFileSync(adbBin, ["-s", deviceId, "exec-out", "screencap", "-p"], {
-    stdio: ["ignore", "pipe", "inherit"],
-    encoding: null,
-    maxBuffer: 20 * 1024 * 1024
-  });
-  writeFileSync(screenshotPath, image);
-  writeFileSync(snapshotPath, `${snapText}\n`);
-} catch (screenshotError) {
-  console.error(`⚠️ Screenshot capture failed: ${screenshotError.message}`);
+// Capture the actual screenshot PNG using the Clawperator CLI
+const screenshotResult = runClawperatorCommand("screenshot", [
+  "--device", deviceId,
+  "--operator-package", operatorPkg,
+  "--path", screenshotPath
+]);
+
+if (!screenshotResult.ok) {
+  console.error(`⚠️ Screenshot capture failed: ${screenshotResult.error}`);
   process.exit(2);
 }
 

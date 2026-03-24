@@ -19,12 +19,12 @@ Supports two entry paths:
 ## Usage
 
 ```bash
-./skills/com.android.vending.search-app/scripts/search_play_store.sh <device_id> <query> [receiver_package]
+./skills/com.android.vending.search-app/scripts/search_play_store.sh <device_id> <query> [operator_package]
 ```
 
 For the direct-entry path (known package ID):
 ```bash
-./skills/com.android.vending.search-app/scripts/search_play_store.sh <device_id> <query> [receiver_package] [package_id]
+./skills/com.android.vending.search-app/scripts/search_play_store.sh <device_id> <query> [operator_package] [package_id]
 ```
 
 Examples:

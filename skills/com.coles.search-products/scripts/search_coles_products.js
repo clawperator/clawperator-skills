@@ -8,7 +8,7 @@ const operatorPkg = resolveOperatorPackage(process.argv[4]);
 const MAX_QUERY_LENGTH = 256;
 
 if (!deviceId || !query) {
-  console.error('Usage: node search_coles_products.js <device_id> <query> [receiver_package]');
+  console.error('Usage: node search_coles_products.js <device_id> <query> [operator_package]');
   process.exit(1);
 }
 

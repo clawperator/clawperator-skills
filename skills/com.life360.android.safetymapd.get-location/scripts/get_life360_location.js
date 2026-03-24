@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { runClawperator, findAttribute, resolveOperatorPackage, logSkillProgress } = require('../../utils/common');
+const { runClawperator, runClawperatorCommand, findAttribute, resolveOperatorPackage, logSkillProgress } = require('../../utils/common');
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const personName = process.argv[3] || process.env.PERSON_NAME;
@@ -9,7 +9,7 @@ const requestedPersonName = (personName || "").trim();
 const skillId = "com.life360.android.safetymapd.get-location";
 
 if (!deviceId || !personName) {
-  console.error('Usage: node get_life360_location.js <device_id> <person_name> [screenshot_path] [receiver_package]');
+  console.error('Usage: node get_life360_location.js <device_id> <person_name> [screenshot_path] [operator_package]');
   process.exit(1);
 }
 
@@ -92,8 +92,7 @@ function buildSelectExecution(scrollCount, exactName, dismissOverlay) {
   actions.push(
     { id: 'click-person', type: 'click', params: { matcher: { textEquals: exactName } } },
     { id: 'wait_detail', type: 'sleep', params: { durationMs: 3000 } },
-    { id: 'snap', type: 'snapshot_ui' },
-    ...(screenshotPath ? [{ id: 'visual', type: 'take_screenshot', params: { path: screenshotPath } }] : [])
+    { id: 'snap', type: 'snapshot_ui' }
   );
 
   return {
@@ -115,20 +114,38 @@ function extractSnapshotText(stepResults, stepId) {
   return step && step.data ? step.data.text : null;
 }
 
-function extractFinalPath(stepResults) {
-  const screenStep = stepResults.find(s => s.id === 'visual');
-  return screenStep && screenStep.data ? screenStep.data.path : null;
-}
-
 function extractReadingFromSnapshot(snapText) {
   const lines = snapText.split('\n');
   let battery = 'unknown';
   let place = 'unknown';
 
-  lines.forEach(line => {
-    if (line.includes('battery_percentages_textView')) battery = findAttribute(line, 'text') || battery;
-    if (line.includes('place_textView')) place = findAttribute(line, 'text') || place;
-  });
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Battery %: TextView sibling immediately after the battery icon ImageView
+    // (content-desc is "Battery low", "Battery medium", "Battery full", etc.)
+    if (line.includes('content-desc="Battery') && line.includes('ImageView')) {
+      for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
+        const txt = findAttribute(lines[j], 'text');
+        if (txt && txt.includes('%')) {
+          battery = txt;
+          break;
+        }
+      }
+    }
+
+    // Place: the TextView immediately preceding the "Since <time>" label
+    const txt = findAttribute(line, 'text');
+    if (txt && txt.startsWith('Since ')) {
+      for (let j = i - 1; j >= Math.max(0, i - 4); j--) {
+        const prevTxt = findAttribute(lines[j], 'text');
+        if (prevTxt && prevTxt.length > 0 && !prevTxt.includes('%')) {
+          place = prevTxt;
+          break;
+        }
+      }
+    }
+  }
 
   return { battery, place };
 }
@@ -195,14 +212,25 @@ if (!selectRun.ok) {
 
 const stepResults = parseSnapshotSteps(selectRun.result);
 const snapText = extractSnapshotText(stepResults, 'snap');
-const finalPath = extractFinalPath(stepResults);
 
 if (snapText) {
   logSkillProgress(skillId, "Capturing location snapshot...");
+  if (screenshotPath) {
+    logSkillProgress(skillId, "Capturing screenshot...");
+    const screenshotResult = runClawperatorCommand("screenshot", [
+      "--device", deviceId,
+      "--operator-package", operatorPkg,
+      "--path", screenshotPath
+    ]);
+    if (!screenshotResult.ok) {
+      console.error(`⚠️ Screenshot capture failed: ${screenshotResult.error}`);
+      process.exit(2);
+    }
+    console.log(`SCREENSHOT|path=${screenshotPath}`);
+  }
   logSkillProgress(skillId, "Parsing location data...");
   const { battery, place } = extractReadingFromSnapshot(snapText);
-  const screenshotSuffix = finalPath ? `, screenshot=${finalPath}` : '';
-  console.log(`✅ Life360 location for ${searchResult.resolvedName}: place=${place}, battery=${battery}${screenshotSuffix}`);
+  console.log(`✅ Life360 location for ${searchResult.resolvedName}: place=${place}, battery=${battery}`);
 } else {
   console.error('⚠️ Could not capture Life360 location snapshot');
   process.exit(2);

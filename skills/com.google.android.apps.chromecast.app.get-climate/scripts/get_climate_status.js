@@ -6,7 +6,7 @@ const climateTileName = process.argv[3] || process.env.CLIMATE_TILE_NAME || proc
 const operatorPkg = resolveOperatorPackage(process.argv[4]);
 
 if (!deviceId || !climateTileName) {
-  console.error("Usage: node get_climate_status.js <device_id> <tile_name> [receiver_package]");
+  console.error("Usage: node get_climate_status.js <device_id> <tile_name> [operator_package]");
   process.exit(1);
 }
 
