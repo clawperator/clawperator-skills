@@ -119,10 +119,33 @@ function extractReadingFromSnapshot(snapText) {
   let battery = 'unknown';
   let place = 'unknown';
 
-  lines.forEach(line => {
-    if (line.includes('battery_percentages_textView')) battery = findAttribute(line, 'text') || battery;
-    if (line.includes('place_textView')) place = findAttribute(line, 'text') || place;
-  });
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Battery %: TextView sibling immediately after the battery icon ImageView
+    // (content-desc is "Battery low", "Battery medium", "Battery full", etc.)
+    if (line.includes('content-desc="Battery') && line.includes('ImageView')) {
+      for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
+        const txt = findAttribute(lines[j], 'text');
+        if (txt && txt.includes('%')) {
+          battery = txt;
+          break;
+        }
+      }
+    }
+
+    // Place: the TextView immediately preceding the "Since <time>" label
+    const txt = findAttribute(line, 'text');
+    if (txt && txt.startsWith('Since ')) {
+      for (let j = i - 1; j >= Math.max(0, i - 4); j--) {
+        const prevTxt = findAttribute(lines[j], 'text');
+        if (prevTxt && prevTxt.length > 0 && !prevTxt.includes('%')) {
+          place = prevTxt;
+          break;
+        }
+      }
+    }
+  }
 
   return { battery, place };
 }
