@@ -103,7 +103,7 @@ function parseCommandSpec(commandSpec) {
 }
 
 /**
- * Resolve the receiver package for skill execution.
+ * Resolve the operator package for skill execution.
  *
  * Preference order:
  *   1. Explicit operatorPkg parameter passed to runClawperator()
@@ -131,9 +131,10 @@ function resolveOperatorPackage(explicitPkg) {
  * binaries that predate the contract change.
  */
 function warnOnSnapshotExtractionFailure(result) {
-  if (!result || !Array.isArray(result.stepResults)) return;
+  const envelope = result && result.envelope;
+  if (!envelope || !Array.isArray(envelope.stepResults)) return;
 
-  for (const step of result.stepResults) {
+  for (const step of envelope.stepResults) {
     if (step.actionType !== 'snapshot_ui') continue;
 
     const isNewContractFailure = !step.success && step.data && step.data.error === 'SNAPSHOT_EXTRACTION_FAILED';
@@ -170,10 +171,10 @@ function runClawperator(execution, deviceId, operatorPkg, clawBinOverride) {
     extraArgs = resolved.args;
   }
 
-  // Resolve receiver package using the new precedence rules.
+  // Resolve operator package using the new precedence rules.
   const effectiveOperatorPkg = resolveOperatorPackage(operatorPkg);
 
-  const args = [...extraArgs, 'execute', '--execution', tmpFile, '--device', deviceId, '--operator-package', effectiveOperatorPkg];
+  const args = [...extraArgs, 'exec', tmpFile, '--device', deviceId, '--operator-package', effectiveOperatorPkg];
 
   try {
     const output = execFileSync(cmd, args, { encoding: 'utf-8' });
