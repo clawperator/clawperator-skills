@@ -62,8 +62,8 @@ const screenshotResult = runClawperatorCommand("screenshot", [
 ]);
 
 if (!screenshotResult.ok) {
-  console.error(`⚠️ Warning: Could not capture screenshot PNG: ${screenshotResult.error}`);
-  console.error("The text snapshot will still be available.");
+  console.error(`⚠️ Screenshot capture failed: ${screenshotResult.error}`);
+  process.exit(2);
 }
 
 console.log("TEXT_BEGIN");

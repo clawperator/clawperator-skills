@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { runClawperator, findAttribute, resolveOperatorPackage, logSkillProgress } = require('../../utils/common');
+const { runClawperator, runClawperatorCommand, findAttribute, resolveOperatorPackage, logSkillProgress } = require('../../utils/common');
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const personName = process.argv[3] || process.env.PERSON_NAME;
@@ -192,6 +192,19 @@ const snapText = extractSnapshotText(stepResults, 'snap');
 
 if (snapText) {
   logSkillProgress(skillId, "Capturing location snapshot...");
+  if (screenshotPath) {
+    logSkillProgress(skillId, "Capturing screenshot...");
+    const screenshotResult = runClawperatorCommand("screenshot", [
+      "--device", deviceId,
+      "--operator-package", operatorPkg,
+      "--path", screenshotPath
+    ]);
+    if (!screenshotResult.ok) {
+      console.error(`⚠️ Screenshot capture failed: ${screenshotResult.error}`);
+      process.exit(2);
+    }
+    console.log(`SCREENSHOT|path=${screenshotPath}`);
+  }
   logSkillProgress(skillId, "Parsing location data...");
   const { battery, place } = extractReadingFromSnapshot(snapText);
   console.log(`✅ Life360 location for ${searchResult.resolvedName}: place=${place}, battery=${battery}`);
