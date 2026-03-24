@@ -26,7 +26,7 @@ Validation commonly targets `com.actionlauncher.playstore` as the sample app to 
 ## Usage
 
 ```bash
-./skills/com.android.vending.install-app/scripts/install_play_app.sh <device_id> [receiver_package]
+./skills/com.android.vending.install-app/scripts/install_play_app.sh <device_id> [operator_package]
 ```
 
 Example:
