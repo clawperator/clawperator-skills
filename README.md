@@ -6,10 +6,10 @@ Related runtime/API repository: [clawperator](https://github.com/clawperator/cla
 
 Canonical skills docs in the main repo:
 
-- https://github.com/clawperator/clawperator/blob/main/docs/skills/overview.md
-- https://github.com/clawperator/clawperator/blob/main/docs/skills/runtime.md
-- https://github.com/clawperator/clawperator/blob/main/docs/skills/authoring.md
-- https://github.com/clawperator/clawperator/blob/main/docs/skills/development.md
+- https://github.com/clawperator/clawperator/docs/skills/overview.md
+- https://github.com/clawperator/clawperator/docs/skills/runtime.md
+- https://github.com/clawperator/clawperator/docs/skills/authoring.md
+- https://github.com/clawperator/clawperator/docs/skills/development.md
 
 ## What This Repo Is
 
@@ -75,12 +75,12 @@ Not intended:
 
 ## Main Repo Docs Cross-Reference
 
-- API overview: https://github.com/clawperator/clawperator/blob/main/docs/api/overview.md
-- API actions: https://github.com/clawperator/clawperator/blob/main/docs/api/actions.md
-- API devices: https://github.com/clawperator/clawperator/blob/main/docs/api/devices.md
-- API snapshot: https://github.com/clawperator/clawperator/blob/main/docs/api/snapshot.md
-- Setup guide: https://github.com/clawperator/clawperator/blob/main/docs/setup.md
-- Troubleshooting: https://github.com/clawperator/clawperator/blob/main/docs/troubleshooting/operator.md
+- API overview: https://github.com/clawperator/clawperator/docs/api/overview.md
+- API actions: https://github.com/clawperator/clawperator/docs/api/actions.md
+- API devices: https://github.com/clawperator/clawperator/docs/api/devices.md
+- API snapshot: https://github.com/clawperator/clawperator/docs/api/snapshot.md
+- Setup guide: https://github.com/clawperator/clawperator/docs/setup.md
+- Troubleshooting: https://github.com/clawperator/clawperator/docs/troubleshooting/operator.md
 
 ## Common Commands
 

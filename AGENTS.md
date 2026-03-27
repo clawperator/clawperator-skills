@@ -6,12 +6,12 @@ This repository stores reusable Clawperator skill packages consumed by the Clawp
 
 Canonical runtime, API, and public skills docs live in the main repo:
 
-- https://github.com/clawperator/clawperator/blob/main/docs/skills/overview.md
-- https://github.com/clawperator/clawperator/blob/main/docs/skills/runtime.md
-- https://github.com/clawperator/clawperator/blob/main/docs/skills/authoring.md
-- https://github.com/clawperator/clawperator/blob/main/docs/skills/development.md
-- https://github.com/clawperator/clawperator/blob/main/docs/api/overview.md
-- https://github.com/clawperator/clawperator/blob/main/docs/api/actions.md
+- https://github.com/clawperator/clawperator/docs/skills/overview.md
+- https://github.com/clawperator/clawperator/docs/skills/runtime.md
+- https://github.com/clawperator/clawperator/docs/skills/authoring.md
+- https://github.com/clawperator/clawperator/docs/skills/development.md
+- https://github.com/clawperator/clawperator/docs/api/overview.md
+- https://github.com/clawperator/clawperator/docs/api/actions.md
 
 Use those pages as source of truth when behavior, contracts, or terminology are in question.
 
