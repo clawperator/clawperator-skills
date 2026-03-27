@@ -2,7 +2,14 @@
 
 Skills repository for the Clawperator ecosystem.
 
-Related runtime/API repository: [clawperator](https://github.com/clawperator/clawperator.git)
+Related runtime/API repository: [clawperator](https://github.com/clawperator/clawperator)
+
+Canonical skills docs in the main repo:
+
+- https://github.com/clawperator/clawperator/docs/skills/overview.md
+- https://github.com/clawperator/clawperator/docs/skills/runtime.md
+- https://github.com/clawperator/clawperator/docs/skills/authoring.md
+- https://github.com/clawperator/clawperator/docs/skills/development.md
 
 ## What This Repo Is
 
@@ -15,7 +22,7 @@ This repository contains reusable skill packages for Android app workflows:
 
 These skills are designed to be used by an LLM/agent through Clawperator, not by humans manually clicking through UI.
 
-## The Two-Handed Model (Critical)
+## Brain and Hand Model
 
 Clawperator workflows are intentionally split into two roles:
 
@@ -58,7 +65,7 @@ Not intended:
 - `scripts/install_blocked_terms_hook.sh` install local PII/device-term pre-commit hook.
 - `docs/` supporting guidance for agent operators and skill authors.
 
-## Authoring and Operations Docs
+## Docs in This Repo
 
 - `docs/usage-model.md` - how agents should use skills with Clawperator.
 - `docs/skill-development-workflow.md` - shortest path from exploration to a reusable skill.
@@ -66,63 +73,14 @@ Not intended:
 - `docs/device-prep-and-runtime-tips.md` - practical device/app prep and runtime reliability tips.
 - `docs/blocked-terms-policy.md` - shared blocked-terms hook and scan policy.
 
-## First-Time Agent Quickstart (Settings App)
+## Main Repo Docs Cross-Reference
 
-This demo is intentionally bare-bones and OEM-agnostic. It does not depend on any specific app UI beyond Android Settings (`com.android.settings`).
-
-From this repo (direct skill run):
-
-```bash
-DEVICE_ID="$(adb devices | awk 'NR>1 && $2==\"device\" {print $1; exit}')"
-./skills/com.android.settings.capture-overview/scripts/capture_settings_overview.sh "$DEVICE_ID" com.clawperator.operator.dev
-```
-
-Or from the `clawperator` repo (manual JSON execution + screenshot):
-
-```bash
-cd <clawperator_repo>
-npm --prefix apps/node run build
-
-DEVICE_ID="$(adb devices | awk 'NR>1 && $2==\"device\" {print $1; exit}')"
-cat > /tmp/clawperator-settings-snapshot.json <<'JSON'
-{
-  "commandId": "settings-snapshot-001",
-  "taskId": "settings-snapshot-001",
-  "source": "quickstart",
-  "timeoutMs": 90000,
-  "actions": [
-    { "id": "close", "type": "close_app", "params": { "applicationId": "com.android.settings" } },
-    { "id": "open", "type": "open_app", "params": { "applicationId": "com.android.settings" } },
-    { "id": "settle", "type": "sleep", "params": { "durationMs": 1800 } },
-    { "id": "snap", "type": "snapshot_ui" }
-  ]
-}
-JSON
-
-node apps/node/dist/cli/index.js execute \
-  --device "$DEVICE_ID" \
-  --operator-package com.clawperator.operator.dev \
-  --execution /tmp/clawperator-settings-snapshot.json \
-  --output pretty
-
-SCREENSHOT_PATH="/tmp/clawperator-settings-${DEVICE_ID}-$(date +%Y%m%d-%H%M%S).png"
-adb -s "$DEVICE_ID" exec-out screencap -p > "$SCREENSHOT_PATH"
-echo "SCREENSHOT_PATH=$SCREENSHOT_PATH"
-```
-
-What to expect:
-
-- Command succeeds with canonical terminal source (`clawperator_result`).
-- Output includes Settings UI text/headings as seen on that device.
-- ADB screenshot is captured and returned as an absolute path for multimodal interpretation.
-- The LLM/agent should interpret this output and decide next command(s).
-
-## Extra LLM Training Signals (Recommended)
-
-- Correlate `commandId`/`taskId` with outputs so retries stay deterministic.
-- Treat non-zero exits and warning lines as first-class signals.
-- Prefer bounded retries with observation between attempts over blind repetition.
-- Return both extracted text and screenshot path in user-facing responses when confidence is low.
+- API overview: https://github.com/clawperator/clawperator/docs/api/overview.md
+- API actions: https://github.com/clawperator/clawperator/docs/api/actions.md
+- API devices: https://github.com/clawperator/clawperator/docs/api/devices.md
+- API snapshot: https://github.com/clawperator/clawperator/docs/api/snapshot.md
+- Setup guide: https://github.com/clawperator/clawperator/docs/setup.md
+- Troubleshooting: https://github.com/clawperator/clawperator/docs/troubleshooting/operator.md
 
 ## Common Commands
 
@@ -136,7 +94,7 @@ find skills -type f -path '*/scripts/*.sh' -print0 | xargs -0 -n1 bash -n
 
 ## Local Privacy Pre-Commit Hook
 
-This repo shares a user-scoped blocked-terms file with `clawperator`:
+This repo shares a user-scoped blocked-terms file with `clawperator`.
 
 1. Optional: populate `~/.clawperator/blocked-terms.txt` with one forbidden term per line.
 2. Install hook:
@@ -160,8 +118,5 @@ Details: `docs/blocked-terms-policy.md`
 ## License
 
 Apache 2.0
-
-Built with human claws by [@chrismlacy](https://x.com/chrismlacy), with a scrappy crew of bots.  
-GitHub: [chrislacy](https://github.com/chrislacy) · X: [@chrismlacy](https://x.com/chrismlacy) · Email: [chris@actionlauncher.com](mailto:chris@actionlauncher.com)
 
 Copyright (c) 2026 Action Launcher Pty Ltd
