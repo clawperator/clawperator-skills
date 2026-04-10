@@ -1,0 +1,13 @@
+{
+  "id": "com.solaxcloud.starter.set-discharge-to-limit-replay",
+  "applicationId": "com.solaxcloud.starter",
+  "intent": "set-discharge-to-limit",
+  "summary": "Replay baseline skill for setting the discharge-to-limit value in the SolaX Cloud app.",
+  "path": "skills/com.solaxcloud.starter.set-discharge-to-limit-replay",
+  "skillFile": "skills/com.solaxcloud.starter.set-discharge-to-limit-replay/SKILL.md",
+  "scripts": [
+    "skills/com.solaxcloud.starter.set-discharge-to-limit-replay/scripts/run.js",
+    "skills/com.solaxcloud.starter.set-discharge-to-limit-replay/scripts/run.sh"
+  ],
+  "artifacts": []
+}

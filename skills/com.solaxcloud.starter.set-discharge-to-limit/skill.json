@@ -2,7 +2,7 @@
   "id": "com.solaxcloud.starter.set-discharge-to-limit",
   "applicationId": "com.solaxcloud.starter",
   "intent": "set-discharge-to-limit",
-  "summary": "Set the discharge-to-limit value in the SolaX Cloud app.",
+  "summary": "Deprecated compatibility shim for the replay discharge-to-limit skill.",
   "path": "skills/com.solaxcloud.starter.set-discharge-to-limit",
   "skillFile": "skills/com.solaxcloud.starter.set-discharge-to-limit/SKILL.md",
   "scripts": [
