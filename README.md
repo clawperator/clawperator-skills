@@ -22,6 +22,23 @@ This repository contains reusable skill packages for Android app workflows:
 
 These skills are designed to be used by an LLM/agent through Clawperator, not by humans manually clicking through UI.
 
+## Skill Categories
+
+This repo now recognizes two categories of skills:
+
+- `-replay`
+  - replay-oriented or recording-derived skills
+  - useful as deterministic baselines on known flows
+- `-orchestrated`
+  - agent-controlled skills intended to better reflect the Clawperator brain/hand model
+  - these are the longer-term destination for richer checkpoints and verification behavior
+
+Important current caveats:
+
+- this split is a naming and authoring convention, not yet a machine-enforced runtime field
+- some older skills predate the convention and still have unsuffixed ids
+- an unsuffixed legacy skill should not be assumed to already be orchestrated
+
 ## Brain and Hand Model
 
 Clawperator workflows are intentionally split into two roles:

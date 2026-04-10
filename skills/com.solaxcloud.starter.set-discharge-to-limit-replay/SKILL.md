@@ -1,5 +1,6 @@
 ---
 name: com.solaxcloud.starter.set-discharge-to-limit-replay
+clawperator-skill-type: replay
 description: |-
   Replay baseline skill for setting the discharge-to-limit percentage in the SolaX Cloud app.
 ---

@@ -24,6 +24,23 @@ Skills are deterministic execution aids, not reasoning engines.
 
 Do not put autonomous business logic into skill wrappers.
 
+## Skill Categories
+
+Current authoring work distinguishes two categories of skills:
+
+- `-replay`:
+  - replay-oriented or recording-derived skills
+  - acceptable as deterministic baselines, especially for known stable UI paths
+- `-orchestrated`:
+  - agent-controlled skills intended to align more closely with the Clawperator brain/hand model
+  - expected to grow stronger checkpoint, verification, and result-shaping behavior over time
+
+Notes:
+
+- this is currently a naming and documentation convention, not a registry-enforced type field
+- legacy skills may still be unsuffixed
+- do not infer that an unsuffixed legacy skill is already orchestrated
+
 ## Scope and Structure
 
 - Metadata: `skills/**/skill.json`
