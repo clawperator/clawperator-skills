@@ -26,7 +26,37 @@ const operatorPackage = process.env.CLAWPERATOR_OPERATOR_PACKAGE || "com.clawper
 const skillId = "com.solaxcloud.starter.set-discharge-to-limit";
 const targetText = String(percent);
 
-const execution = {
+function runClawperatorExecution(execution) {
+  return execFileSync(
+    clawperatorCmd,
+    [
+      ...clawperatorPrefixArgs,
+      "exec",
+      "--device",
+      deviceId,
+      "--operator-package",
+      operatorPackage,
+      "--execution",
+      JSON.stringify(execution),
+      "--json",
+    ],
+    {
+      encoding: "utf8",
+      timeout: 120000,
+      stdio: ["ignore", "pipe", "pipe"],
+    }
+  );
+}
+
+function runAdb(args) {
+  execFileSync("adb", ["-s", deviceId, ...args], {
+    encoding: "utf8",
+    timeout: 30000,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+}
+
+const navigateToInputExecution = {
   commandId: `${skillId}-${Date.now()}`,
   taskId: skillId,
   source: skillId,
@@ -107,16 +137,16 @@ const execution = {
       },
     },
     { id: "wait_keyboard", type: "sleep", params: { durationMs: 1000 } },
-    {
-      id: "enter_limit",
-      type: "enter_text",
-      params: {
-        matcher: { resourceId: "van-field-1-input" },
-        text: targetText,
-        submit: false,
-      },
-    },
-    { id: "wait_text", type: "sleep", params: { durationMs: 1000 } },
+  ],
+};
+
+const saveExecution = {
+  commandId: `${skillId}-save-${Date.now()}`,
+  taskId: skillId,
+  source: skillId,
+  expectedFormat: "android-ui-automator",
+  timeoutMs: 90000,
+  actions: [
     {
       id: "confirm_dialog",
       type: "click",
@@ -141,31 +171,17 @@ const execution = {
       },
     },
     { id: "wait_after_final_save", type: "sleep", params: { durationMs: 4000 } },
-    { id: "snap", type: "snapshot_ui" },
   ],
 };
 
 try {
-  const stdout = execFileSync(
-    clawperatorCmd,
-    [
-      ...clawperatorPrefixArgs,
-      "exec",
-      "--device",
-      deviceId,
-      "--operator-package",
-      operatorPackage,
-      "--execution",
-      JSON.stringify(execution),
-      "--json",
-    ],
-    {
-      encoding: "utf8",
-      timeout: 120000,
-      stdio: ["ignore", "pipe", "pipe"],
-    }
-  );
+  runClawperatorExecution(navigateToInputExecution);
+  runAdb(["shell", "input", "keyevent", "67"]);
+  runAdb(["shell", "input", "keyevent", "67"]);
+  runAdb(["shell", "input", "text", targetText]);
+  runAdb(["shell", "input", "keyevent", "66"]);
 
+  const stdout = runClawperatorExecution(saveExecution);
   process.stdout.write(stdout);
 } catch (err) {
   const stdout = err?.stdout?.toString?.("utf8") ?? "";
