@@ -47,6 +47,15 @@ Known caveats:
 - the first two taps are implemented as device-specific coordinate clicks on
   this Samsung layout because the visible text nodes are not the actual
   clickable containers
+- the current Samsung coordinates used by the script are the recorded container
+  taps for `Peak Export` and `Device Discharging (By percentage)`, not generic
+  text-node clicks
+- the `Discharge to` dialog input is persisted reliably only when the script
+  uses real key events (`DEL`, `DEL`, text entry, then `Enter`) before
+  `Confirm`; plain text-set behavior was not sufficient for this app flow
+- this version has been validated live on the target Galaxy device by setting
+  the value to `40` and then back to `39`, with the persisted row verified in
+  the Solax UI after each run
 - the script assumes the account is already signed in and the app opens to the
   expected home flow
 - if the Solax UI text or dialog structure changes, capture a new recording and
