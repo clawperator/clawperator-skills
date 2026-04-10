@@ -27,8 +27,9 @@ Current behavior:
 
 - opens SolaX Cloud from a fresh app session
 - switches to the `Intelligence` tab
-- opens the `Peak Export` automation
-- opens the `Discharge to ...` row on the `Peak Export` detail screen
+- opens the `Peak Export` automation card
+- opens the `Device Discharging (By percentage)` action card
+- opens the `Discharge to ...` row
 - enters the requested percentage
 - clicks `Confirm`
 - clicks the two observed `Save` buttons from the recorded flow
@@ -40,9 +41,12 @@ Known caveats:
   to omit, so the selectors are intentionally conservative
 - the current UI dump shows `Peak Export` as the automation card on the
   `Intelligence` tab that leads to the discharge setting screen
-- the current UI dump on the detail screen shows the next actionable control as
-  a clickable `Discharge to 40%`-style row, so the script matches that row with
-  `textContains: "Discharge to"`
+- the current UI dump on the detail screen shows a clickable
+  `Device Discharging (By percentage)` card first, and only then a
+  `Discharge to 40%`-style row one level deeper
+- the first two taps are implemented as device-specific coordinate clicks on
+  this Samsung layout because the visible text nodes are not the actual
+  clickable containers
 - the script assumes the account is already signed in and the app opens to the
   expected home flow
 - if the Solax UI text or dialog structure changes, capture a new recording and

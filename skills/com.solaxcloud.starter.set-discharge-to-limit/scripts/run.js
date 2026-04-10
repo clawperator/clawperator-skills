@@ -56,16 +56,32 @@ const execution = {
       id: "open_peak_export",
       type: "click",
       params: {
-        matcher: { textEquals: "Peak Export" },
+        coordinate: { x: 860, y: 1399 },
       },
     },
     { id: "wait_peak_export", type: "sleep", params: { durationMs: 3000 } },
+    {
+      id: "wait_discharge_action",
+      type: "wait_for_node",
+      params: {
+        matcher: { textContains: "Device Discharging" },
+        timeoutMs: 15000,
+      },
+    },
+    {
+      id: "open_discharge_action",
+      type: "click",
+      params: {
+        coordinate: { x: 875, y: 1548 },
+      },
+    },
+    { id: "wait_discharge_action_open", type: "sleep", params: { durationMs: 2500 } },
     {
       id: "wait_discharge_row",
       type: "wait_for_node",
       params: {
         matcher: { textContains: "Discharge to" },
-        timeoutMs: 15000,
+        timeoutMs: 10000,
       },
     },
     {
