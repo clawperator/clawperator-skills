@@ -118,6 +118,19 @@
       ]
     },
     {
+      "id": "com.solaxcloud.starter.set-discharge-to-limit",
+      "applicationId": "com.solaxcloud.starter",
+      "intent": "set-discharge-to-limit",
+      "summary": "Set the discharge-to-limit value in the SolaX Cloud app.",
+      "path": "skills/com.solaxcloud.starter.set-discharge-to-limit",
+      "skillFile": "skills/com.solaxcloud.starter.set-discharge-to-limit/SKILL.md",
+      "scripts": [
+        "skills/com.solaxcloud.starter.set-discharge-to-limit/scripts/run.js",
+        "skills/com.solaxcloud.starter.set-discharge-to-limit/scripts/run.sh"
+      ],
+      "artifacts": []
+    },
+    {
       "id": "com.theswitchbot.switchbot.get-bedroom-temperature",
       "applicationId": "com.theswitchbot.switchbot",
       "intent": "get-bedroom-temperature",
