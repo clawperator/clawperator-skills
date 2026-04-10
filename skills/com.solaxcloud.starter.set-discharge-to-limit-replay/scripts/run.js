@@ -7,10 +7,24 @@ function parseCommand(command) {
   return parts.map(part => part.replace(/^"(.*)"$/, "$1"));
 }
 
-const [, , deviceId, percentArg] = process.argv;
+function parsePercentArg(argv) {
+  const [, , deviceId, firstArg, secondArg] = argv;
+  if (!deviceId) {
+    return { deviceId: undefined, percentArg: undefined };
+  }
+  if (firstArg === "--limit") {
+    return { deviceId, percentArg: secondArg };
+  }
+  if (typeof firstArg === "string" && firstArg.startsWith("--limit=")) {
+    return { deviceId, percentArg: firstArg.slice("--limit=".length) };
+  }
+  return { deviceId, percentArg: firstArg };
+}
+
+const { deviceId, percentArg } = parsePercentArg(process.argv);
 
 if (!deviceId || !percentArg) {
-  console.error("Usage: node run.js <device_id> <percent>");
+  console.error("Usage: node run.js <device_id> [--limit <percent>|<percent>]");
   process.exit(1);
 }
 
