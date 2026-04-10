@@ -14,7 +14,7 @@ const { tmpdir } = require('os');
  * in sync with the Android Operator APK. The global binary may lag behind due
  * to npm publish delays.
  *
- * CLAW_CLI_PATH env var overrides the sibling build path lookup.
+ * CLAWPERATOR_CLI_PATH env var overrides the sibling build path lookup.
  */
 function resolveClawperatorBin() {
   // 1. Explicit override via CLAWPERATOR_BIN (new canonical name)
@@ -34,7 +34,7 @@ function resolveClawperatorBin() {
   }
 
   // 2. Local sibling build (preferred over global when present)
-  const siblingCli = process.env.CLAW_CLI_PATH ||
+  const siblingCli = process.env.CLAWPERATOR_CLI_PATH ||
     resolve(__dirname, '..', '..', '..', 'clawperator', 'apps', 'node', 'dist', 'cli', 'index.js');
   if (existsSync(siblingCli)) {
     process.stderr.write(`[clawperator-skills] INFO: using local sibling build: ${siblingCli}\n`);

@@ -112,13 +112,11 @@ test('resolveClawperatorBin launches a .js entrypoint through node when set expl
   }
 });
 
-test('resolveClawperatorBin ignores legacy CLAW_BIN', () => {
+test('resolveClawperatorBin falls back to the global binary when canonical overrides are absent', () => {
   const originalBin = process.env.CLAWPERATOR_BIN;
-  const originalLegacyBin = process.env.CLAW_BIN;
-  const originalCliPath = process.env.CLAW_CLI_PATH;
+  const originalCliPath = process.env.CLAWPERATOR_CLI_PATH;
   delete process.env.CLAWPERATOR_BIN;
-  process.env.CLAW_BIN = '/legacy/claw/bin';
-  process.env.CLAW_CLI_PATH = '/definitely/missing/sibling-build.js';
+  process.env.CLAWPERATOR_CLI_PATH = '/definitely/missing/sibling-build.js';
 
   try {
     assert.deepStrictEqual(resolveClawperatorBin(), {
@@ -131,15 +129,10 @@ test('resolveClawperatorBin ignores legacy CLAW_BIN', () => {
     } else {
       process.env.CLAWPERATOR_BIN = originalBin;
     }
-    if (originalLegacyBin === undefined) {
-      delete process.env.CLAW_BIN;
-    } else {
-      process.env.CLAW_BIN = originalLegacyBin;
-    }
     if (originalCliPath === undefined) {
-      delete process.env.CLAW_CLI_PATH;
+      delete process.env.CLAWPERATOR_CLI_PATH;
     } else {
-      process.env.CLAW_CLI_PATH = originalCliPath;
+      process.env.CLAWPERATOR_CLI_PATH = originalCliPath;
     }
   }
 });
