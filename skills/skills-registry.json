@@ -1,7 +1,7 @@
 {
   "$schema": "./skills-registry.schema.json",
   "schemaVersion": "1.0",
-  "generatedAt": "2026-04-11T01:40:48Z",
+  "generatedAt": "2026-04-11T01:52:03Z",
   "skills": [
     {
       "id": "com.android.settings.capture-overview",
@@ -116,19 +116,6 @@
       "artifacts": [
         "skills/com.solaxcloud.starter.get-battery/artifacts/battery.recipe.json"
       ]
-    },
-    {
-      "id": "com.solaxcloud.starter.set-discharge-to-limit",
-      "applicationId": "com.solaxcloud.starter",
-      "intent": "set-discharge-to-limit",
-      "summary": "Deprecated compatibility shim that delegates to the replay baseline discharge-limit skill.",
-      "path": "skills/com.solaxcloud.starter.set-discharge-to-limit",
-      "skillFile": "skills/com.solaxcloud.starter.set-discharge-to-limit/SKILL.md",
-      "scripts": [
-        "skills/com.solaxcloud.starter.set-discharge-to-limit/scripts/run.js",
-        "skills/com.solaxcloud.starter.set-discharge-to-limit/scripts/run.sh"
-      ],
-      "artifacts": []
     },
     {
       "id": "com.solaxcloud.starter.set-discharge-to-limit-replay",

@@ -10,8 +10,8 @@ Replay baseline skill for setting the discharge-to-limit percentage in the SolaX
 Compatibility:
 
 - `com.solaxcloud.starter.set-discharge-to-limit-replay` is the canonical replay baseline id
-- the old unsuffixed id `com.solaxcloud.starter.set-discharge-to-limit` remains available temporarily as a deprecated compatibility shim that delegates to this replay skill
-- new callers should use the explicit `-replay` id
+- the old unsuffixed id `com.solaxcloud.starter.set-discharge-to-limit` has been retired
+- callers should use the explicit `-replay` id
 
 Arguments:
 
