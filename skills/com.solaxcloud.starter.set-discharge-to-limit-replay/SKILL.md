@@ -23,7 +23,7 @@ Arguments:
 Run through the wrapper:
 
 ```bash
-clawperator skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> --operator-package com.clawperator.operator.dev --limit 40
+clawperator skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> --operator-package com.clawperator.operator.dev -- --limit 40
 ```
 
 Direct local invocation:

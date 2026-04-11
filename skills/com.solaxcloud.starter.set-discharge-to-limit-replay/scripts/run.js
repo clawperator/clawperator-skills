@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 
 const { execFileSync } = require("node:child_process");
-const { extname } = require("node:path");
-const { parseCommandSpec } = require("../../utils/common.js");
+const { resolveClawperatorBin, resolveOperatorPackage } = require("../../utils/common.js");
 
 function parsePercentArg(argv) {
   const [, , deviceId, firstArg, secondArg] = argv;
@@ -37,19 +36,8 @@ if (!Number.isInteger(percent) || percent < 0 || percent > 100) {
   process.exit(1);
 }
 
-const parsedClawperatorBin = parseCommandSpec(process.env.CLAWPERATOR_BIN || "clawperator") || {
-  cmd: "clawperator",
-  args: [],
-};
-const clawperatorCmd =
-  parsedClawperatorBin.cmd === "node" || extname(parsedClawperatorBin.cmd) === ".js"
-    ? process.execPath
-    : parsedClawperatorBin.cmd;
-const clawperatorPrefixArgs =
-  extname(parsedClawperatorBin.cmd) === ".js"
-    ? [parsedClawperatorBin.cmd, ...parsedClawperatorBin.args]
-    : parsedClawperatorBin.args;
-const operatorPackage = process.env.CLAWPERATOR_OPERATOR_PACKAGE || "com.clawperator.operator";
+const resolvedClawperatorBin = resolveClawperatorBin();
+const operatorPackage = resolveOperatorPackage();
 const skillId = "com.solaxcloud.starter.set-discharge-to-limit-replay";
 const targetText = String(percent);
 const forceFailure = process.env.CLAWPERATOR_SOLAX_REPLAY_FORCE_FAILURE === "1";
@@ -65,9 +53,9 @@ function tryParseJson(raw) {
 function runClawperatorExecution(execution) {
   try {
     const stdout = execFileSync(
-      clawperatorCmd,
+      resolvedClawperatorBin.cmd,
       [
-        ...clawperatorPrefixArgs,
+        ...resolvedClawperatorBin.args,
         "exec",
         "--device",
         deviceId,
@@ -83,11 +71,22 @@ function runClawperatorExecution(execution) {
         stdio: ["ignore", "pipe", "pipe"],
       }
     );
+    const envelope = tryParseJson(stdout);
+    if (!envelope) {
+      return {
+        ok: false,
+        stdout,
+        stderr: "",
+        envelope: null,
+        exitCode: 1,
+        message: "clawperator exec returned non-JSON output",
+      };
+    }
     return {
       ok: true,
       stdout,
       stderr: "",
-      envelope: tryParseJson(stdout),
+      envelope,
       exitCode: 0,
     };
   } catch (err) {
