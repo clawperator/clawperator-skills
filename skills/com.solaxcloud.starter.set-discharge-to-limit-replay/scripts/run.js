@@ -1,0 +1,401 @@
+#!/usr/bin/env node
+
+const { execFileSync } = require("node:child_process");
+const { resolveClawperatorBin, resolveOperatorPackage } = require("../../utils/common.js");
+
+function parsePercentArg(argv) {
+  const [, , deviceId, firstArg, secondArg] = argv;
+  if (!deviceId) {
+    return { deviceId: undefined, percentArg: undefined };
+  }
+  if (firstArg === "--limit") {
+    return { deviceId, percentArg: secondArg };
+  }
+  if (typeof firstArg === "string" && firstArg.startsWith("--limit=")) {
+    return { deviceId, percentArg: firstArg.slice("--limit=".length) };
+  }
+  return { deviceId, percentArg: firstArg };
+}
+
+const { deviceId, percentArg } = parsePercentArg(process.argv);
+
+if (!deviceId || !percentArg) {
+  console.error("Usage: node run.js <device_id> [--limit <percent>|<percent>]");
+  process.exit(1);
+}
+
+if (!/^\d+$/.test(percentArg)) {
+  console.error(`Invalid discharge-to-limit percentage: ${percentArg}. Expected an integer from 0 to 100.`);
+  process.exit(1);
+}
+
+const percent = Number.parseInt(percentArg, 10);
+
+if (!Number.isInteger(percent) || percent < 0 || percent > 100) {
+  console.error(`Invalid discharge-to-limit percentage: ${percentArg}. Expected an integer from 0 to 100.`);
+  process.exit(1);
+}
+
+const resolvedClawperatorBin = resolveClawperatorBin();
+const operatorPackage = resolveOperatorPackage();
+const skillId = "com.solaxcloud.starter.set-discharge-to-limit-replay";
+const targetText = String(percent);
+const forceFailure = process.env.CLAWPERATOR_SOLAX_REPLAY_FORCE_FAILURE === "1";
+
+function tryParseJson(raw) {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function runClawperatorExecution(execution) {
+  try {
+    const stdout = execFileSync(
+      resolvedClawperatorBin.cmd,
+      [
+        ...resolvedClawperatorBin.args,
+        "exec",
+        "--device",
+        deviceId,
+        "--operator-package",
+        operatorPackage,
+        "--execution",
+        JSON.stringify(execution),
+        "--json",
+      ],
+      {
+        encoding: "utf8",
+        timeout: 120000,
+        stdio: ["ignore", "pipe", "pipe"],
+      }
+    );
+    const envelope = tryParseJson(stdout);
+    if (!envelope) {
+      return {
+        ok: false,
+        stdout,
+        stderr: "",
+        envelope: null,
+        exitCode: 1,
+        message: "clawperator exec returned non-JSON output",
+      };
+    }
+    return {
+      ok: true,
+      stdout,
+      stderr: "",
+      envelope,
+      exitCode: 0,
+    };
+  } catch (err) {
+    const stdout = err?.stdout?.toString?.("utf8") ?? "";
+    const stderr = err?.stderr?.toString?.("utf8") ?? "";
+    return {
+      ok: false,
+      stdout,
+      stderr,
+      envelope: tryParseJson(stdout),
+      exitCode: typeof err?.status === "number" ? err.status : 1,
+      message: err?.message ?? "clawperator execution failed",
+    };
+  }
+}
+
+function exitWithExecFailure(result) {
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  if (!result.stdout && !result.stderr && result.message) {
+    console.error(result.message);
+  }
+  process.exit(typeof result.exitCode === "number" && result.exitCode !== 0 ? result.exitCode : 1);
+}
+
+function getStepResults(result) {
+  return result?.envelope?.envelope?.stepResults ?? result?.envelope?.stepResults ?? [];
+}
+
+function getStepText(result, stepId) {
+  return getStepResults(result).find(step => step.id === stepId)?.data?.text ?? "";
+}
+
+function extractPercent(text) {
+  const match = String(text).match(/Discharge to\s*(\d+)%/i);
+  return match ? match[1] : null;
+}
+
+function sleepSync(durationMs) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, durationMs);
+}
+
+function buildExecution(name, timeoutMs, actions) {
+  return {
+    commandId: `${skillId}-${name}-${Date.now()}`,
+    taskId: skillId,
+    source: skillId,
+    expectedFormat: "android-ui-automator",
+    timeoutMs,
+    actions,
+  };
+}
+
+function waitForPeakExportSurfaceAfterToolbarSave(timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const snapshotResult = runClawperatorExecution(
+      buildExecution("wait-post-toolbar-save-snapshot", 15000, [
+        { id: "snapshot", type: "snapshot_ui", params: {} },
+      ])
+    );
+    if (!snapshotResult.ok) exitWithExecFailure(snapshotResult);
+
+    const xml = getStepText(snapshotResult, "snapshot");
+    if (xml.includes('text="Peak Export"')) {
+      return;
+    }
+
+    sleepSync(750);
+  }
+
+  console.error("Timed out waiting for the post-toolbar-save Peak Export screen to appear.");
+  process.exit(1);
+}
+
+function runAdb(args) {
+  execFileSync("adb", ["-s", deviceId, ...args], {
+    encoding: "utf8",
+    timeout: 30000,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+}
+
+const navigateToInputExecution = buildExecution("navigate", 90000, [
+    { id: "close", type: "close_app", params: { applicationId: "com.solaxcloud.starter" } },
+    { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
+    { id: "open", type: "open_app", params: { applicationId: "com.solaxcloud.starter" } },
+    {
+      id: "wait_home",
+      type: "wait_for_node",
+      params: {
+        matcher: { resourceId: "com.solaxcloud.starter:id/tab_intelligent" },
+        timeoutMs: 20000,
+      },
+    },
+    {
+      id: "open_intelligence",
+      type: "click",
+      params: {
+        matcher: { resourceId: "com.solaxcloud.starter:id/tab_intelligent" },
+      },
+    },
+    { id: "wait_intelligence", type: "sleep", params: { durationMs: 3500 } },
+    {
+      id: "open_peak_export",
+      type: "click",
+      params: {
+        coordinate: { x: 860, y: 1399 },
+      },
+    },
+    { id: "wait_peak_export", type: "sleep", params: { durationMs: 3000 } },
+    {
+      id: "wait_discharge_action",
+      type: "wait_for_node",
+      params: {
+        matcher: { textContains: "Device Discharging" },
+        timeoutMs: 15000,
+      },
+    },
+    {
+      id: "open_discharge_action",
+      type: "click",
+      params: {
+        coordinate: { x: 875, y: 1548 },
+      },
+    },
+    { id: "wait_discharge_action_open", type: "sleep", params: { durationMs: 2500 } },
+    {
+      id: "wait_discharge_row",
+      type: "wait_for_node",
+      params: {
+        matcher: { textContains: "Discharge to" },
+        timeoutMs: 10000,
+      },
+    },
+    {
+      id: "read_before",
+      type: "read_text",
+      params: {
+        matcher: { textContains: "Discharge to" },
+      },
+    },
+    {
+      id: "open_discharge_dialog",
+      type: "click",
+      params: {
+        matcher: { textContains: "Discharge to" },
+      },
+    },
+    {
+      id: "wait_input",
+      type: "wait_for_node",
+      params: {
+        matcher: { resourceId: "van-field-1-input" },
+        timeoutMs: 10000,
+      },
+    },
+    {
+      id: "focus_input",
+      type: "click",
+      params: {
+        matcher: { resourceId: "van-field-1-input" },
+      },
+    },
+    { id: "wait_keyboard", type: "sleep", params: { durationMs: 1000 } },
+  ]);
+
+const toolbarSaveExecution = buildExecution("save-toolbar", 45000, [
+    {
+      id: "confirm_dialog",
+      type: "click",
+      params: {
+        matcher: { textEquals: "Confirm" },
+      },
+    },
+    { id: "wait_after_confirm", type: "sleep", params: { durationMs: 2500 } },
+    {
+      id: "wait_discharge_row_after_confirm",
+      type: "wait_for_node",
+      params: {
+        matcher: { textContains: "Discharge to" },
+        timeoutMs: 10000,
+      },
+    },
+    {
+      id: "save_toolbar",
+      type: "click",
+      params: {
+        matcher: { textEquals: "Save" },
+      },
+    },
+    { id: "wait_after_toolbar_save", type: "sleep", params: { durationMs: 1000 } },
+  ]);
+
+const finalizeSaveExecution = buildExecution("save-final", 30000, [
+    {
+      id: "save_bottom_sheet",
+      type: "click",
+      params: {
+        matcher: { textEquals: "Save" },
+      },
+    },
+    { id: "wait_after_final_save", type: "sleep", params: { durationMs: 4000 } },
+  ]);
+
+const verifyExecution = buildExecution("verify", 45000, [
+    { id: "wait_before_verify_nav", type: "sleep", params: { durationMs: 2500 } },
+    {
+      id: "reopen_peak_export",
+      type: "click",
+      params: {
+        coordinate: { x: 860, y: 1399 },
+      },
+    },
+    { id: "wait_peak_export_for_verify", type: "sleep", params: { durationMs: 3000 } },
+    {
+      id: "wait_discharge_action_for_verify",
+      type: "wait_for_node",
+      params: {
+        matcher: { textContains: "Device Discharging" },
+        timeoutMs: 15000,
+      },
+    },
+    {
+      id: "reopen_discharge_action",
+      type: "click",
+      params: {
+        coordinate: { x: 875, y: 1548 },
+      },
+    },
+    { id: "wait_discharge_action_reopened", type: "sleep", params: { durationMs: 2500 } },
+    {
+      id: "wait_discharge_row_after_save",
+      type: "wait_for_node",
+      params: {
+        matcher: { textContains: "Discharge to" },
+        timeoutMs: 10000,
+      },
+    },
+    {
+      id: "read_discharge_row_after_save",
+      type: "read_text",
+      params: {
+        matcher: { textContains: "Discharge to" },
+      },
+    },
+  ]);
+
+const forceFailureExecution = buildExecution("forced-failure", 15000, [
+    {
+      id: "force_missing_node",
+      type: "wait_for_node",
+      params: {
+        matcher: { textEquals: "__FORCED_SOLAX_REPLAY_FAILURE__" },
+        timeoutMs: 1500,
+      },
+    },
+  ]);
+
+try {
+  const navigateResult = runClawperatorExecution(navigateToInputExecution);
+  if (!navigateResult.ok) exitWithExecFailure(navigateResult);
+
+  const beforeRowText = getStepText(navigateResult, "read_before");
+  const beforePercent = extractPercent(beforeRowText);
+
+  for (let i = 0; i < 4; i += 1) {
+    runAdb(["shell", "input", "keyevent", "67"]);
+  }
+  runAdb(["shell", "input", "text", targetText]);
+  runAdb(["shell", "input", "keyevent", "66"]);
+
+  if (forceFailure) {
+    const forcedFailureResult = runClawperatorExecution(forceFailureExecution);
+    if (!forcedFailureResult.ok) exitWithExecFailure(forcedFailureResult);
+  }
+
+  const toolbarSaveResult = runClawperatorExecution(toolbarSaveExecution);
+  if (!toolbarSaveResult.ok) exitWithExecFailure(toolbarSaveResult);
+
+  waitForPeakExportSurfaceAfterToolbarSave();
+
+  const finalizeSaveResult = runClawperatorExecution(finalizeSaveExecution);
+  if (!finalizeSaveResult.ok) exitWithExecFailure(finalizeSaveResult);
+
+  const verifyResult = runClawperatorExecution(verifyExecution);
+  if (!verifyResult.ok) exitWithExecFailure(verifyResult);
+
+  const observedRowText = getStepText(verifyResult, "read_discharge_row_after_save");
+  const observedPercent = extractPercent(observedRowText);
+
+  if (observedPercent !== targetText) {
+    if (verifyResult.stdout) process.stdout.write(verifyResult.stdout);
+    console.error(
+      `Terminal verification failed: expected discharge-to-limit ${targetText}%, observed "${observedRowText || "<empty>"}".`
+    );
+    process.exit(1);
+  }
+
+  if (beforePercent === targetText) {
+    console.error(
+      `Terminal verification note: discharge-to-limit already showed ${targetText}% before the change, so this run proves final state but not that the value changed from a different starting value.`
+    );
+  }
+
+  process.stdout.write(verifyResult.stdout);
+} catch (err) {
+  const stderr = err?.stderr?.toString?.("utf8") ?? "";
+  console.error(stderr || err.message || "clawperator execution failed");
+  process.exit(1);
+}
