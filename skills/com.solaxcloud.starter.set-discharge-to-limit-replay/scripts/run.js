@@ -55,7 +55,6 @@ const checkpointOrder = [
 const checkpointState = new Map(
   checkpointOrder.map(id => [id, { id, status: "skipped" }])
 );
-const execEnvelopes = [];
 const diagnostics = {
   warnings: [],
 };
@@ -74,7 +73,7 @@ function setCheckpoint(id, status, updates = {}) {
 }
 
 function buildSkillResult(status, terminalVerification) {
-  const result = {
+  return {
     contractVersion: skillResultContractVersion,
     skillId,
     goal: {
@@ -88,20 +87,39 @@ function buildSkillResult(status, terminalVerification) {
     checkpoints: checkpointOrder.map(id => checkpointState.get(id)),
     terminalVerification,
   };
+}
 
-  if (execEnvelopes.length > 0) {
-    result.execEnvelopes = execEnvelopes;
+function writeToStream(stream, chunk) {
+  if (!chunk) {
+    return Promise.resolve();
   }
+
+  return new Promise((resolve, reject) => {
+    stream.write(chunk, error => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+function writeStdout(chunk) {
+  return writeToStream(process.stdout, chunk);
+}
+
+function writeStderr(chunk) {
+  return writeToStream(process.stderr, chunk);
+}
+
+async function emitSkillResult(status, terminalVerification) {
+  const result = buildSkillResult(status, terminalVerification);
   if (diagnostics.warnings.length > 0) {
     result.diagnostics = diagnostics;
   }
-
-  return result;
-}
-
-function emitSkillResult(status, terminalVerification) {
-  process.stdout.write(`${skillResultFramePrefix}\n`);
-  process.stdout.write(`${JSON.stringify(buildSkillResult(status, terminalVerification))}\n`);
+  await writeStdout(`${skillResultFramePrefix}\n`);
+  await writeStdout(`${JSON.stringify(result)}\n`);
 }
 
 function tryParseJson(raw) {
@@ -165,74 +183,58 @@ function runClawperatorExecution(execution) {
   }
 }
 
-function rememberExecEnvelope(result) {
-  const envelope = result?.envelope?.envelope ?? result?.envelope;
-  if (
-    envelope &&
-    typeof envelope === "object" &&
-    typeof envelope.commandId === "string" &&
-    typeof envelope.taskId === "string" &&
-    typeof envelope.status === "string" &&
-    Array.isArray(envelope.stepResults)
-  ) {
-    execEnvelopes.push(envelope);
-    return execEnvelopes.length - 1;
+function getExecFailureSummary(result) {
+  const nestedError = result?.envelope?.envelope?.error ?? result?.envelope?.error;
+  if (typeof nestedError === "string" && nestedError.length > 0) {
+    return nestedError;
   }
-  return null;
+  if (typeof result?.message === "string" && result.message.length > 0) {
+    return result.message.replace(/^Command failed:\s*/, "");
+  }
+  return "clawperator exec failed";
 }
 
-function updateNavigateCheckpoints(result, envelopeIndex) {
+function updateNavigateCheckpoints(result) {
   const stepResults = getStepResults(result);
   if (stepResults.find(step => step.id === "wait_home" && step.success)) {
-    const updates = {};
-    if (envelopeIndex !== null) {
-      updates.evidence = {
-        kind: "result_envelope_ref",
-        execEnvelopeIndex: envelopeIndex,
-        stepResultId: "wait_home",
-      };
-    }
-    setCheckpoint("app_opened", "ok", updates);
+    setCheckpoint("app_opened", "ok", {
+      evidence: {
+        kind: "text",
+        text: "Intelligence tab entrypoint became available after opening the app.",
+      },
+    });
   }
   if (
     stepResults.find(step => step.id === "wait_discharge_row" && step.success) &&
     stepResults.find(step => step.id === "read_before" && step.success)
   ) {
-    const updates = {};
-    if (envelopeIndex !== null) {
-      updates.evidence = {
-        kind: "result_envelope_ref",
-        execEnvelopeIndex: envelopeIndex,
-        stepResultId: "read_before",
-      };
-    }
-    setCheckpoint("discharge_to_row_focused", "ok", updates);
+    setCheckpoint("discharge_to_row_focused", "ok", {
+      evidence: {
+        kind: "text",
+        text: getStepText(result, "read_before") || "Discharge row became readable.",
+      },
+    });
   }
 }
 
-function exitWithExecFailure(result, failingCheckpointId, terminalVerification, options = {}) {
-  const envelopeIndex =
-    typeof options.execEnvelopeIndex === "number" ? options.execEnvelopeIndex : rememberExecEnvelope(result);
+async function exitWithExecFailure(result, failingCheckpointId, terminalVerification) {
+  const failureSummary = getExecFailureSummary(result);
   if (failingCheckpointId) {
     const updates = {};
-    if (envelopeIndex !== null) {
-      updates.evidence = {
-        kind: "result_envelope_ref",
-        execEnvelopeIndex: envelopeIndex,
-      };
-    }
-    if (result.message) {
-      updates.note = result.message;
-    }
+    updates.evidence = {
+      kind: "text",
+      text: failureSummary,
+    };
+    updates.note = failureSummary;
     setCheckpoint(failingCheckpointId, "failed", updates);
   }
-  if (result.stdout) process.stdout.write(result.stdout);
-  if (result.stderr) process.stderr.write(result.stderr);
+  if (result.stdout) await writeStdout(result.stdout);
+  if (result.stderr) await writeStderr(result.stderr);
   if (!result.stdout && !result.stderr && result.message) {
-    console.error(result.message);
+    await writeStderr(`${result.message}\n`);
   }
-  emitSkillResult("failed", terminalVerification ?? { status: "not_run", note: "Skill did not reach terminal verification." });
-  process.exit(typeof result.exitCode === "number" && result.exitCode !== 0 ? result.exitCode : 1);
+  await emitSkillResult("failed", terminalVerification ?? { status: "not_run", note: "Skill did not reach terminal verification." });
+  process.exitCode = typeof result.exitCode === "number" && result.exitCode !== 0 ? result.exitCode : 1;
 }
 
 function getStepResults(result) {
@@ -263,7 +265,7 @@ function buildExecution(name, timeoutMs, actions) {
   };
 }
 
-function waitForPeakExportSurfaceAfterToolbarSave(timeoutMs = 15000) {
+async function waitForPeakExportSurfaceAfterToolbarSave(timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
@@ -272,24 +274,34 @@ function waitForPeakExportSurfaceAfterToolbarSave(timeoutMs = 15000) {
         { id: "snapshot", type: "snapshot_ui", params: {} },
       ])
     );
-    if (!snapshotResult.ok) exitWithExecFailure(snapshotResult, "save_completed");
+    if (!snapshotResult.ok) {
+      await exitWithExecFailure(snapshotResult, "save_completed");
+      return false;
+    }
 
     const xml = getStepText(snapshotResult, "snapshot");
     if (xml.includes('text="Peak Export"')) {
-      return;
+      return true;
     }
 
     sleepSync(750);
   }
 
   const message = "Timed out waiting for the post-toolbar-save Peak Export screen to appear.";
-  setCheckpoint("save_completed", "failed", { note: message });
-  console.error(message);
-  emitSkillResult("failed", {
+  setCheckpoint("save_completed", "failed", {
+    evidence: {
+      kind: "text",
+      text: message,
+    },
+    note: message,
+  });
+  await writeStderr(`${message}\n`);
+  await emitSkillResult("failed", {
     status: "not_run",
     note: message,
   });
-  process.exit(1);
+  process.exitCode = 1;
+  return false;
 }
 
 function runAdb(args) {
@@ -476,20 +488,17 @@ const forceFailureExecution = buildExecution("forced-failure", 15000, [
     },
   ]);
 
-try {
+async function main() {
   const navigateResult = runClawperatorExecution(navigateToInputExecution);
   if (!navigateResult.ok) {
-    const navigateFailureEnvelopeIndex = rememberExecEnvelope(navigateResult);
-    updateNavigateCheckpoints(navigateResult, navigateFailureEnvelopeIndex);
-    exitWithExecFailure(
+    updateNavigateCheckpoints(navigateResult);
+    await exitWithExecFailure(
       navigateResult,
-      checkpointState.get("discharge_to_row_focused")?.status === "ok" ? "save_completed" : "discharge_to_row_focused",
-      undefined,
-      { execEnvelopeIndex: navigateFailureEnvelopeIndex }
+      checkpointState.get("discharge_to_row_focused")?.status === "ok" ? "target_text_entered" : "discharge_to_row_focused"
     );
+    return;
   }
-  const navigateEnvelopeIndex = rememberExecEnvelope(navigateResult);
-  updateNavigateCheckpoints(navigateResult, navigateEnvelopeIndex);
+  updateNavigateCheckpoints(navigateResult);
 
   const beforeRowText = getStepText(navigateResult, "read_before");
   const beforePercent = extractPercent(beforeRowText);
@@ -508,36 +517,44 @@ try {
 
   if (forceFailure) {
     const forcedFailureResult = runClawperatorExecution(forceFailureExecution);
-    if (!forcedFailureResult.ok) exitWithExecFailure(forcedFailureResult, "save_completed");
-    rememberExecEnvelope(forcedFailureResult);
+    if (!forcedFailureResult.ok) {
+      await exitWithExecFailure(forcedFailureResult, "save_completed");
+      return;
+    }
   }
 
   const toolbarSaveResult = runClawperatorExecution(toolbarSaveExecution);
-  if (!toolbarSaveResult.ok) exitWithExecFailure(toolbarSaveResult, "save_completed");
-  rememberExecEnvelope(toolbarSaveResult);
+  if (!toolbarSaveResult.ok) {
+    await exitWithExecFailure(toolbarSaveResult, "save_completed");
+    return;
+  }
 
-  waitForPeakExportSurfaceAfterToolbarSave();
+  const peakExportVisible = await waitForPeakExportSurfaceAfterToolbarSave();
+  if (!peakExportVisible) {
+    return;
+  }
 
   const finalizeSaveResult = runClawperatorExecution(finalizeSaveExecution);
-  if (!finalizeSaveResult.ok) exitWithExecFailure(finalizeSaveResult, "save_completed");
-  const finalizeSaveEnvelopeIndex = rememberExecEnvelope(finalizeSaveResult);
+  if (!finalizeSaveResult.ok) {
+    await exitWithExecFailure(finalizeSaveResult, "save_completed");
+    return;
+  }
   setCheckpoint("save_completed", "ok", {
     evidence: {
-      kind: "result_envelope_ref",
-      execEnvelopeIndex: finalizeSaveEnvelopeIndex,
-      stepResultId: "save_bottom_sheet",
+      kind: "text",
+      text: "Toolbar save and bottom-sheet save completed.",
     },
   });
 
   const verifyResult = runClawperatorExecution(verifyExecution);
   if (!verifyResult.ok) {
-    exitWithExecFailure(
+    await exitWithExecFailure(
       verifyResult,
       "terminal_state_verified",
       { status: "failed", note: "Verification exec failed before the final discharge row could be read." }
     );
+    return;
   }
-  const verifyEnvelopeIndex = rememberExecEnvelope(verifyResult);
 
   const observedRowText = getStepText(verifyResult, "read_discharge_row_after_save");
   const observedPercent = extractPercent(observedRowText);
@@ -550,11 +567,13 @@ try {
       },
       note: `Expected discharge-to-limit ${targetText}%.`,
     });
-    if (verifyResult.stdout) process.stdout.write(verifyResult.stdout);
-    console.error(
-      `Terminal verification failed: expected discharge-to-limit ${targetText}%, observed "${observedRowText || "<empty>"}".`
+    if (verifyResult.stdout) {
+      await writeStdout(verifyResult.stdout);
+    }
+    await writeStderr(
+      `Terminal verification failed: expected discharge-to-limit ${targetText}%, observed "${observedRowText || "<empty>"}".\n`
     );
-    emitSkillResult("failed", {
+    await emitSkillResult("failed", {
       status: "failed",
       expected: {
         kind: "text",
@@ -566,25 +585,25 @@ try {
       },
       note: "Final discharge row did not match the requested percentage.",
     });
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   if (beforePercent === targetText) {
     const note =
       `Terminal verification note: discharge-to-limit already showed ${targetText}% before the change, so this run proves final state but not that the value changed from a different starting value.`;
     diagnostics.warnings.push(note);
-    console.error(note);
+    await writeStderr(`${note}\n`);
   }
 
-  process.stdout.write(verifyResult.stdout);
+  await writeStdout(verifyResult.stdout);
   setCheckpoint("terminal_state_verified", "ok", {
     evidence: {
-      kind: "result_envelope_ref",
-      execEnvelopeIndex: verifyEnvelopeIndex,
-      stepResultId: "read_discharge_row_after_save",
+      kind: "text",
+      text: observedRowText || "<empty>",
     },
   });
-  emitSkillResult("success", {
+  await emitSkillResult("success", {
     status: "verified",
     expected: {
       kind: "text",
@@ -595,7 +614,9 @@ try {
       text: observedRowText || "<empty>",
     },
   });
-} catch (err) {
+}
+
+main().catch(async (err) => {
   const stderr = err?.stderr?.toString?.("utf8") ?? "";
   const message = stderr || err.message || "clawperator execution failed";
   if (checkpointState.get("target_text_entered")?.status !== "ok") {
@@ -605,10 +626,10 @@ try {
   } else {
     setCheckpoint("terminal_state_verified", "failed", { note: message });
   }
-  console.error(message);
-  emitSkillResult("failed", {
+  await writeStderr(`${message}\n`);
+  await emitSkillResult("failed", {
     status: "failed",
     note: message,
   });
-  process.exit(1);
-}
+  process.exitCode = 1;
+});

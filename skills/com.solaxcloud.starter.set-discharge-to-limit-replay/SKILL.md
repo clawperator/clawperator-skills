@@ -59,9 +59,12 @@ Current behavior:
   - `target_text_entered`
   - `save_completed`
   - `terminal_state_verified`
-- embeds any available nested `clawperator exec --json` envelopes in `skillResult.execEnvelopes`
+- keeps checkpoint evidence coarse and machine-readable; it does not embed full
+  nested `clawperator exec --json` envelopes in `skillResult`
 - uses `terminalVerification.status: "verified"` only when the final row text proves `Discharge to <percent>%`
 - preserves truthful failure: nested exec failures still exit non-zero, and verification mismatch still exits non-zero while surfacing a structured `skillResult`
+- flushes the final framed result before exiting on failure paths so
+  downstream consumers can reliably read structured failure
 
 Known caveats:
 
@@ -99,6 +102,8 @@ Known caveats:
 - no replay checkpoint identities were dropped or renamed in this retrofit;
   W2b should mirror the same coarse subset and ordering before adding any
   orchestrated-only finer-grained checkpoints
+- pre-save failures after the discharge row is focused but before any save
+  action are reported against `target_text_entered`, not `save_completed`
 
 ## Validation
 
