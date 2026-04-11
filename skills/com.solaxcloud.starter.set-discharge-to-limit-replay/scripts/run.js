@@ -177,6 +177,13 @@ const navigateToInputExecution = {
       },
     },
     {
+      id: "read_before",
+      type: "read_text",
+      params: {
+        matcher: { textContains: "Discharge to" },
+      },
+    },
+    {
       id: "open_discharge_dialog",
       type: "click",
       params: {
@@ -218,13 +225,29 @@ const saveExecution = {
     },
     { id: "wait_after_confirm", type: "sleep", params: { durationMs: 2500 } },
     {
+      id: "wait_discharge_row_after_confirm",
+      type: "wait_for_node",
+      params: {
+        matcher: { textContains: "Discharge to" },
+        timeoutMs: 10000,
+      },
+    },
+    {
       id: "save_toolbar",
       type: "click",
       params: {
         matcher: { textEquals: "Save" },
       },
     },
-    { id: "wait_after_toolbar_save", type: "sleep", params: { durationMs: 2500 } },
+    {
+      id: "wait_outer_save_context",
+      type: "wait_for_node",
+      params: {
+        matcher: { textContains: "Device Discharging" },
+        timeoutMs: 10000,
+      },
+    },
+    { id: "wait_after_toolbar_save", type: "sleep", params: { durationMs: 1000 } },
     {
       id: "save_bottom_sheet",
       type: "click",

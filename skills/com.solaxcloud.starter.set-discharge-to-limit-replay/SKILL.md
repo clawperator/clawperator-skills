@@ -7,6 +7,12 @@ description: |-
 
 Replay baseline skill for setting the discharge-to-limit percentage in the SolaX Cloud Android app.
 
+Compatibility:
+
+- `com.solaxcloud.starter.set-discharge-to-limit-replay` is the canonical replay baseline id
+- the old unsuffixed id `com.solaxcloud.starter.set-discharge-to-limit` remains available temporarily as a deprecated compatibility shim that delegates to this replay skill
+- new callers should use the explicit `-replay` id
+
 Arguments:
 
 - named wrapper arg: `--limit <percent>`
@@ -36,7 +42,8 @@ Current behavior:
 - enters the requested percentage
 - clicks `Confirm`
 - clicks the toolbar `Save`
-- clicks the recorded bottom `Save` button using its observed lower-screen position
+- waits until the outer `Device Discharging` screen is visible again after the toolbar `Save`
+- clicks the recorded bottom `Save` button using its observed lower-screen position, after that outer-screen wait proves the UI advanced past the first `Save`
 - re-reads the `Discharge to ...` row after save and only reports success when it matches the requested value
 - returns the raw verification `clawperator exec --json` output on success
 
@@ -64,9 +71,10 @@ Known caveats:
 - this replay version verifies final state itself by re-reading the row text
   after save; if the observed row does not match the requested percentage, the
   skill exits non-zero
-- if the row already showed the requested percentage before the change, the
-  skill still proves final state but cannot prove that the value changed from a
-  different starting value; the script logs that residual risk to `stderr`
+- the script reads the row once before editing and again after save; if the row
+  already showed the requested percentage before the change, the skill still
+  proves final state but cannot prove that the value changed from a different
+  starting value, so it logs that residual risk to `stderr`
 - the script assumes the account is already signed in and the app opens to the
   expected home flow
 - if the Solax UI text or dialog structure changes, capture a new recording and
@@ -77,18 +85,18 @@ Known caveats:
 Success path:
 
 ```bash
-CLAWPERATOR_SKILLS_REGISTRY="<clawperator_skills_root>/skills/skills-registry.json" \
+CLAWPERATOR_SKILLS_REGISTRY=/Users/admin/src/clawperator-skills/skills/skills-registry.json \
 CLAWPERATOR_OPERATOR_PACKAGE=com.clawperator.operator.dev \
-<node_binary> <clawperator_root>/apps/node/dist/cli/index.js skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> --json --limit 40
+node /Users/admin/src/clawperator/apps/node/dist/cli/index.js skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> --json -- 40
 ```
 
 Forced-failure repro:
 
 ```bash
-CLAWPERATOR_SKILLS_REGISTRY="<clawperator_skills_root>/skills/skills-registry.json" \
+CLAWPERATOR_SKILLS_REGISTRY=/Users/admin/src/clawperator-skills/skills/skills-registry.json \
 CLAWPERATOR_OPERATOR_PACKAGE=com.clawperator.operator.dev \
 CLAWPERATOR_SOLAX_REPLAY_FORCE_FAILURE=1 \
-<node_binary> <clawperator_root>/apps/node/dist/cli/index.js skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> --json --limit 40
+node /Users/admin/src/clawperator/apps/node/dist/cli/index.js skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> --json -- 40
 ```
 
 Expected forced-failure shape:
@@ -97,6 +105,12 @@ Expected forced-failure shape:
 - `code: "SKILL_EXECUTION_FAILED"`
 - non-zero `exitCode`
 - preserved nested `clawperator exec --json` failure output on `stdout`
+
+Expected terminal-verification failure shape:
+
+- the skill exits non-zero
+- `skills run --json` surfaces `ok: false` with `code: "SKILL_EXECUTION_FAILED"`
+- `stderr` includes `Terminal verification failed: expected discharge-to-limit ...`
 
 ## Recording Context
 
