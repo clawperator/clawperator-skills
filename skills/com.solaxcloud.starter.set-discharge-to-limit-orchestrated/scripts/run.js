@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const { spawn } = require("node:child_process");
-const { mkdtemp, readFile, rm } = require("node:fs/promises");
+const { mkdtemp, readFile, rm, access } = require("node:fs/promises");
 const { join, resolve } = require("node:path");
 const { tmpdir } = require("node:os");
 
@@ -17,6 +17,8 @@ const skillsRegistry = process.env.CLAWPERATOR_SKILLS_REGISTRY || resolve(__dirn
 const skillsRepoRoot = resolve(__dirname, "../../..");
 const clawperatorRepoRoot = resolve(skillsRepoRoot, "../clawperator");
 const targetDeviceSerial = "R5CT22AGEEF";
+const stableOutputPollIntervalMs = 1000;
+const stableOutputGracePolls = 2;
 
 if (!resolvedAgentCliPath || !skillProgramPath) {
   console.error(
@@ -65,6 +67,7 @@ function buildPrompt(skillProgram, rawArgs, skillInputs) {
     "Hard rules:",
     "- Do not edit files.",
     "- Do not inspect or modify the repository unless a command is required to operate the device.",
+    "- Do not run `--help`, `rg`, `grep`, `find`, `git`, or any repository-inspection commands.",
     "- Do not call the replay skill.",
     "- Use only branch-local Clawperator commands for device interaction.",
     "- Always target the physical Samsung with `--device R5CT22AGEEF`.",
@@ -89,6 +92,12 @@ function buildPrompt(skillProgram, rawArgs, skillInputs) {
     "5. After save, verify whether the post-save UI contains exactly `Discharge to <percent>%`.",
     "6. As soon as that verification is success, failed, or indeterminate, emit the final frame and stop.",
     "",
+    "Known command forms:",
+    `- Open app: node ${clawperatorBin} open com.solaxcloud.starter --device ${targetDeviceSerial} --operator-package ${operatorPackage} --json`,
+    `- Snapshot: node ${clawperatorBin} snapshot --device ${targetDeviceSerial} --operator-package ${operatorPackage} --json`,
+    `- Execute action payloads: node ${clawperatorBin} exec <json-file> --device ${targetDeviceSerial} --operator-package ${operatorPackage}`,
+    "- You already know the allowed surface. Do not rediscover the CLI.",
+    "",
     "Output requirements:",
     `- Use \`contractVersion: "1.0.0"\` and \`skillId: "${skillId}"\`.`,
     '- `status: "success"` only if the post-save UI proves `Discharge to <percent>%`.',
@@ -110,11 +119,36 @@ function buildPrompt(skillProgram, rawArgs, skillInputs) {
   ].join("\n");
 }
 
+async function tryReadStableFinalMessage(outputPath, previousSample) {
+  try {
+    await access(outputPath);
+    const content = await readFile(outputPath, "utf8");
+    const trimmed = content.trim();
+    if (!trimmed.startsWith("[Clawperator-Skill-Result]\n{")) {
+      return { content, stableCount: 0 };
+    }
+
+    if (previousSample && previousSample.content === content) {
+      return {
+        content,
+        stableCount: previousSample.stableCount + 1,
+      };
+    }
+
+    return { content, stableCount: 1 };
+  } catch {
+    return { content: null, stableCount: 0 };
+  }
+}
+
 async function main() {
   const skillProgram = await readFile(skillProgramPath, "utf8");
   const prompt = buildPrompt(skillProgram, forwardedArgs, declaredInputs);
   const tempDir = await mkdtemp(join(tmpdir(), "clawperator-solax-orchestrated-"));
   const outputPath = join(tempDir, "last-message.txt");
+  let settled = false;
+  let pollTimer = null;
+  let lastStableSample = null;
 
   const child = spawn(
     resolvedAgentCliPath,
@@ -147,38 +181,69 @@ async function main() {
   child.stdin.write(prompt);
   child.stdin.end();
 
+  const cleanupAndExit = async (code) => {
+    if (settled) {
+      return;
+    }
+    settled = true;
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+    await rm(tempDir, { recursive: true, force: true });
+    process.exit(code);
+  };
+
+  const emitStableOutputIfReady = async () => {
+    const sample = await tryReadStableFinalMessage(outputPath, lastStableSample);
+    lastStableSample = sample;
+    if (!sample.content || sample.stableCount < stableOutputGracePolls || settled) {
+      return;
+    }
+
+    process.stdout.write(sample.content.endsWith("\n") ? sample.content : `${sample.content}\n`);
+    child.kill("SIGTERM");
+    await cleanupAndExit(0);
+  };
+
+  pollTimer = setInterval(() => {
+    emitStableOutputIfReady().catch(async (error) => {
+      console.error(`Failed to monitor final agent message: ${error.message}`);
+      await cleanupAndExit(1);
+    });
+  }, stableOutputPollIntervalMs);
+
   child.stderr?.on("data", (chunk) => {
     process.stderr.write(chunk);
   });
 
   child.on("error", async (error) => {
-    await rm(tempDir, { recursive: true, force: true });
     console.error(`Failed to start agent CLI '${configuredAgentCli}': ${error.message}`);
-    process.exit(1);
+    await cleanupAndExit(1);
   });
 
   child.on("close", async (code, signal) => {
     try {
+      if (settled) {
+        return;
+      }
+
       if (signal) {
-        await rm(tempDir, { recursive: true, force: true });
-        process.kill(process.pid, signal);
+        await cleanupAndExit(1);
         return;
       }
 
       if (code !== 0) {
-        await rm(tempDir, { recursive: true, force: true });
-        process.exit(code ?? 1);
+        await cleanupAndExit(code ?? 1);
         return;
       }
 
       const finalMessage = await readFile(outputPath, "utf8");
       process.stdout.write(finalMessage.endsWith("\n") ? finalMessage : `${finalMessage}\n`);
-      await rm(tempDir, { recursive: true, force: true });
-      process.exit(0);
+      await cleanupAndExit(0);
     } catch (error) {
-      await rm(tempDir, { recursive: true, force: true });
       console.error(`Failed to read final agent message: ${error.message}`);
-      process.exit(1);
+      await cleanupAndExit(1);
     }
   });
 }
