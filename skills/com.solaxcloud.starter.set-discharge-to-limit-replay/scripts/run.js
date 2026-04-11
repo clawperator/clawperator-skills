@@ -28,6 +28,11 @@ if (!deviceId || !percentArg) {
   process.exit(1);
 }
 
+if (!/^\d+$/.test(percentArg)) {
+  console.error(`Invalid discharge-to-limit percentage: ${percentArg}. Expected an integer from 0 to 100.`);
+  process.exit(1);
+}
+
 const percent = Number.parseInt(percentArg, 10);
 
 if (!Number.isInteger(percent) || percent < 0 || percent > 100) {
@@ -240,10 +245,10 @@ const saveExecution = {
       },
     },
     {
-      id: "wait_outer_save_context",
+      id: "wait_peak_export_context",
       type: "wait_for_node",
       params: {
-        matcher: { textContains: "Device Discharging" },
+        matcher: { textContains: "Peak Export" },
         timeoutMs: 10000,
       },
     },

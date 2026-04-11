@@ -29,7 +29,10 @@ clawperator skills run com.solaxcloud.starter.set-discharge-to-limit-replay --de
 Direct local invocation:
 
 ```bash
-DEVICE_ID=<device_serial> CLAWPERATOR_BIN="<node_binary> <clawperator_root>/apps/node/dist/cli/index.js" CLAWPERATOR_OPERATOR_PACKAGE=com.clawperator.operator.dev <node_binary> skills/com.solaxcloud.starter.set-discharge-to-limit-replay/scripts/run.js <device_serial> --limit 40
+CLAWPERATOR_BIN="<node_binary> <clawperator_root>/apps/node/dist/cli/index.js" \
+CLAWPERATOR_OPERATOR_PACKAGE=com.clawperator.operator.dev \
+<node_binary> <skills_repo_root>/skills/com.solaxcloud.starter.set-discharge-to-limit-replay/scripts/run.js \
+<device_serial> --limit 40
 ```
 
 Current behavior:
@@ -42,8 +45,8 @@ Current behavior:
 - enters the requested percentage
 - clicks `Confirm`
 - clicks the toolbar `Save`
-- waits until the outer `Device Discharging` screen is visible again after the toolbar `Save`
-- clicks the recorded bottom `Save` button using its observed lower-screen position, after that outer-screen wait proves the UI advanced past the first `Save`
+- waits until the `Peak Export` context is visible again after the toolbar `Save`
+- clicks the recorded bottom `Save` button using its observed lower-screen position, after that post-toolbar wait proves the UI advanced past the first `Save`
 - re-reads the `Discharge to ...` row after save and only reports success when it matches the requested value
 - returns the raw verification `clawperator exec --json` output on success
 
@@ -85,18 +88,18 @@ Known caveats:
 Success path:
 
 ```bash
-CLAWPERATOR_SKILLS_REGISTRY=/Users/admin/src/clawperator-skills/skills/skills-registry.json \
+CLAWPERATOR_SKILLS_REGISTRY=<skills_repo_root>/skills/skills-registry.json \
 CLAWPERATOR_OPERATOR_PACKAGE=com.clawperator.operator.dev \
-node /Users/admin/src/clawperator/apps/node/dist/cli/index.js skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> --json -- 40
+<node_binary> <clawperator_root>/apps/node/dist/cli/index.js skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> --json -- 40
 ```
 
 Forced-failure repro:
 
 ```bash
-CLAWPERATOR_SKILLS_REGISTRY=/Users/admin/src/clawperator-skills/skills/skills-registry.json \
+CLAWPERATOR_SKILLS_REGISTRY=<skills_repo_root>/skills/skills-registry.json \
 CLAWPERATOR_OPERATOR_PACKAGE=com.clawperator.operator.dev \
 CLAWPERATOR_SOLAX_REPLAY_FORCE_FAILURE=1 \
-node /Users/admin/src/clawperator/apps/node/dist/cli/index.js skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> --json -- 40
+<node_binary> <clawperator_root>/apps/node/dist/cli/index.js skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> --json -- 40
 ```
 
 Expected forced-failure shape:
