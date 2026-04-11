@@ -131,6 +131,18 @@
       "artifacts": []
     },
     {
+      "id": "com.solaxcloud.starter.set-discharge-to-limit-orchestrated",
+      "applicationId": "com.solaxcloud.starter",
+      "intent": "set-discharge-to-limit",
+      "summary": "Agent-driven proving-case skeleton for setting the discharge-to-limit value in the SolaX Cloud app.",
+      "path": "skills/com.solaxcloud.starter.set-discharge-to-limit-orchestrated",
+      "skillFile": "skills/com.solaxcloud.starter.set-discharge-to-limit-orchestrated/SKILL.md",
+      "scripts": [
+        "skills/com.solaxcloud.starter.set-discharge-to-limit-orchestrated/scripts/run.js"
+      ],
+      "artifacts": []
+    },
+    {
       "id": "com.theswitchbot.switchbot.get-bedroom-temperature",
       "applicationId": "com.theswitchbot.switchbot",
       "intent": "get-bedroom-temperature",
