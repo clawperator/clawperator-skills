@@ -230,8 +230,8 @@ async function exitWithExecFailure(result, failingCheckpointId, terminalVerifica
   }
   if (result.stdout) await writeStdout(result.stdout);
   if (result.stderr) await writeStderr(result.stderr);
-  if (!result.stdout && !result.stderr && result.message) {
-    await writeStderr(`${result.message}\n`);
+  if (!result.stdout && !result.stderr) {
+    await writeStderr(`${failureSummary}\n`);
   }
   await emitSkillResult("failed", terminalVerification ?? { status: "not_run", note: "Skill did not reach terminal verification." });
   process.exitCode = typeof result.exitCode === "number" && result.exitCode !== 0 ? result.exitCode : 1;
