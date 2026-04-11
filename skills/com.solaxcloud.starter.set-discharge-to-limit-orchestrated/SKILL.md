@@ -13,13 +13,13 @@ This skill is intentionally a W2b skeleton:
 - `scripts/run.js` is only a harness that spawns the configured agent CLI
 - the runtime agent must use Clawperator as the hand
 - the runtime agent must emit exactly one `[Clawperator-Skill-Result]` frame
-- this file defines the runtime shape only; it does not claim reliability validation is complete
+- this file defines runtime shape only; it does not claim reliability validation is complete
 
 Inputs:
 
 - raw argv passed through by `clawperator skills run`
 - current proving-case shape is `clawperator skills run com.solaxcloud.starter.set-discharge-to-limit-orchestrated --device <device_serial> --json -- 40`
-- the runtime agent must interpret the first positional skill arg as `percent`
+- interpret the first positional skill arg as `percent`
 - valid range: integer `0` to `100`
 
 Runtime contract:
@@ -32,47 +32,70 @@ Runtime contract:
   - `target_text_entered`
   - `save_completed`
   - `terminal_state_verified`
-- do not emit `source` in the framed result; Clawperator injects it from `skill.json`
+- each checkpoint must include both `id` and `status`
+- checkpoint `status` must be one of `ok`, `failed`, `skipped`
+- terminalVerification `status` must be one of `verified`, `failed`, `not_run`
+- do not emit `source`; Clawperator injects it from `skill.json`
 - emit exactly one terminal `[Clawperator-Skill-Result]` frame on stdout
 
-Allowed Clawperator primitives:
+Operational playbook:
 
-- `clawperator snapshot`
-- `clawperator exec`
-
-Program:
-
-1. Read the forwarded skill inputs from argv and `CLAWPERATOR_SKILL_INPUTS`.
-2. Parse `percent` as an integer in the range `0` to `100`. If parsing fails, emit one framed `SkillResult` with `status: "failed"` and a checkpoint trail that truthfully reflects how far the run got.
-3. Open SolaX Cloud and navigate toward the discharge-limit row using Clawperator as the hand.
-4. Record checkpoints only from the declared set above. Do not invent checkpoint ids.
-5. Enter the requested percent and save the change.
-6. Re-read the terminal UI state and verify the row text is exactly `Discharge to <percent>%`.
-7. Emit a final `SkillResult`:
-   - `status: "success"` only when terminal verification is proved
-   - `status: "failed"` when the run encountered a concrete failure
-   - `status: "indeterminate"` when the run completed without proof of terminal verification
+1. Parse `percent`.
+2. If parsing fails, emit one framed failed `SkillResult` immediately.
+3. Open `com.solaxcloud.starter`.
+4. Use the current UI state to reach the automation screen that contains:
+   - `Peak Export`
+   - `Device Discharging (By percentage)`
+   - `Save`
+5. Focus the `Device Discharging (By percentage)` row.
+6. Enter or confirm the requested `percent`.
+7. Tap `Save`.
+8. Re-read the post-save UI state.
+9. Verify whether the post-save UI contains exact text `Discharge to <percent>%`.
+10. Emit the final framed `SkillResult` immediately and stop.
 
 Recovery branch:
 
-- if the app opens but the expected `Intelligence` entrypoint is not visible, close and reopen the app once
-- if it is still not visible after one retry, emit a final framed `SkillResult` with `status: "failed"`, mark unreached checkpoints as `skipped`, and explain the failure in checkpoint or terminal-verification notes
+- if the expected automation screen is not visible after opening the app, close and reopen once
+- if it is still not visible, emit a failed framed result and stop
 
 Terminal verification:
 
 - expected text: `Discharge to <percent>%`
-- verification must come from the post-save UI state, not from the requested input value alone
+- proof must come from the post-save UI state, not from the requested input alone
 
 Emission rules:
 
-- stdout may include ordinary progress text before the final frame
-- stderr may include agent reasoning or diagnostic notes
+- no extra prose after the final frame
 - the final non-empty stdout suffix must be:
   1. `[Clawperator-Skill-Result]`
   2. one JSON object line containing the emitted `SkillResult`
+
+Reference success shape:
+
+```json
+{
+  "contractVersion": "1.0.0",
+  "skillId": "com.solaxcloud.starter.set-discharge-to-limit-orchestrated",
+  "goal": { "kind": "set_discharge_limit", "percent": 40 },
+  "inputs": { "percent": 40 },
+  "status": "success",
+  "checkpoints": [
+    { "id": "app_opened", "status": "ok" },
+    { "id": "discharge_to_row_focused", "status": "ok" },
+    { "id": "target_text_entered", "status": "ok" },
+    { "id": "save_completed", "status": "ok" },
+    { "id": "terminal_state_verified", "status": "ok" }
+  ],
+  "terminalVerification": {
+    "status": "verified",
+    "expected": { "kind": "text", "text": "Discharge to 40%" },
+    "observed": { "kind": "text", "text": "Discharge to 40%" }
+  }
+}
+```
 
 Recording note:
 
 - the retained replay recording export is reference evidence only
 - do not treat recording export data as a runtime input
-- this runtime agent should rely only on this `SKILL.md`, current UI state, and forwarded skill inputs
