@@ -41,6 +41,68 @@ const operatorPackage = resolveOperatorPackage();
 const skillId = "com.solaxcloud.starter.set-discharge-to-limit-replay";
 const targetText = String(percent);
 const forceFailure = process.env.CLAWPERATOR_SOLAX_REPLAY_FORCE_FAILURE === "1";
+const skillResultFramePrefix = "[Clawperator-Skill-Result]";
+const skillResultContractVersion = "1.0.0";
+
+const checkpointOrder = [
+  "app_opened",
+  "discharge_to_row_focused",
+  "target_text_entered",
+  "save_completed",
+  "terminal_state_verified",
+];
+
+const checkpointState = new Map(
+  checkpointOrder.map(id => [id, { id, status: "skipped" }])
+);
+const execEnvelopes = [];
+const diagnostics = {
+  warnings: [],
+};
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function setCheckpoint(id, status, updates = {}) {
+  checkpointState.set(id, {
+    ...(checkpointState.get(id) ?? { id }),
+    status,
+    observedAt: nowIso(),
+    ...updates,
+  });
+}
+
+function buildSkillResult(status, terminalVerification) {
+  const result = {
+    contractVersion: skillResultContractVersion,
+    skillId,
+    goal: {
+      kind: "set_discharge_limit",
+      percent,
+    },
+    inputs: {
+      percent,
+    },
+    status,
+    checkpoints: checkpointOrder.map(id => checkpointState.get(id)),
+    terminalVerification,
+  };
+
+  if (execEnvelopes.length > 0) {
+    result.execEnvelopes = execEnvelopes;
+  }
+  if (diagnostics.warnings.length > 0) {
+    result.diagnostics = diagnostics;
+  }
+
+  return result;
+}
+
+function emitSkillResult(status, terminalVerification) {
+  process.stdout.write(`${skillResultFramePrefix}\n`);
+  process.stdout.write(`${JSON.stringify(buildSkillResult(status, terminalVerification))}\n`);
+}
 
 function tryParseJson(raw) {
   try {
@@ -103,12 +165,73 @@ function runClawperatorExecution(execution) {
   }
 }
 
-function exitWithExecFailure(result) {
+function rememberExecEnvelope(result) {
+  const envelope = result?.envelope?.envelope ?? result?.envelope;
+  if (
+    envelope &&
+    typeof envelope === "object" &&
+    typeof envelope.commandId === "string" &&
+    typeof envelope.taskId === "string" &&
+    typeof envelope.status === "string" &&
+    Array.isArray(envelope.stepResults)
+  ) {
+    execEnvelopes.push(envelope);
+    return execEnvelopes.length - 1;
+  }
+  return null;
+}
+
+function updateNavigateCheckpoints(result, envelopeIndex) {
+  const stepResults = getStepResults(result);
+  if (stepResults.find(step => step.id === "wait_home" && step.success)) {
+    const updates = {};
+    if (envelopeIndex !== null) {
+      updates.evidence = {
+        kind: "result_envelope_ref",
+        execEnvelopeIndex: envelopeIndex,
+        stepResultId: "wait_home",
+      };
+    }
+    setCheckpoint("app_opened", "ok", updates);
+  }
+  if (
+    stepResults.find(step => step.id === "wait_discharge_row" && step.success) &&
+    stepResults.find(step => step.id === "read_before" && step.success)
+  ) {
+    const updates = {};
+    if (envelopeIndex !== null) {
+      updates.evidence = {
+        kind: "result_envelope_ref",
+        execEnvelopeIndex: envelopeIndex,
+        stepResultId: "read_before",
+      };
+    }
+    setCheckpoint("discharge_to_row_focused", "ok", updates);
+  }
+}
+
+function exitWithExecFailure(result, failingCheckpointId, terminalVerification, options = {}) {
+  const envelopeIndex =
+    typeof options.execEnvelopeIndex === "number" ? options.execEnvelopeIndex : rememberExecEnvelope(result);
+  if (failingCheckpointId) {
+    const updates = {};
+    if (envelopeIndex !== null) {
+      updates.evidence = {
+        kind: "result_envelope_ref",
+        execEnvelopeIndex: envelopeIndex,
+      };
+    }
+    if (result.message) {
+      updates.note = result.message;
+    }
+    setCheckpoint(failingCheckpointId, "failed", updates);
+  }
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
   if (!result.stdout && !result.stderr && result.message) {
     console.error(result.message);
   }
+  emitSkillResult("failed", terminalVerification ?? { status: "not_run", note: "Skill did not reach terminal verification." });
   process.exit(typeof result.exitCode === "number" && result.exitCode !== 0 ? result.exitCode : 1);
 }
 
@@ -149,7 +272,7 @@ function waitForPeakExportSurfaceAfterToolbarSave(timeoutMs = 15000) {
         { id: "snapshot", type: "snapshot_ui", params: {} },
       ])
     );
-    if (!snapshotResult.ok) exitWithExecFailure(snapshotResult);
+    if (!snapshotResult.ok) exitWithExecFailure(snapshotResult, "save_completed");
 
     const xml = getStepText(snapshotResult, "snapshot");
     if (xml.includes('text="Peak Export"')) {
@@ -159,7 +282,13 @@ function waitForPeakExportSurfaceAfterToolbarSave(timeoutMs = 15000) {
     sleepSync(750);
   }
 
-  console.error("Timed out waiting for the post-toolbar-save Peak Export screen to appear.");
+  const message = "Timed out waiting for the post-toolbar-save Peak Export screen to appear.";
+  setCheckpoint("save_completed", "failed", { note: message });
+  console.error(message);
+  emitSkillResult("failed", {
+    status: "not_run",
+    note: message,
+  });
   process.exit(1);
 }
 
@@ -349,7 +478,18 @@ const forceFailureExecution = buildExecution("forced-failure", 15000, [
 
 try {
   const navigateResult = runClawperatorExecution(navigateToInputExecution);
-  if (!navigateResult.ok) exitWithExecFailure(navigateResult);
+  if (!navigateResult.ok) {
+    const navigateFailureEnvelopeIndex = rememberExecEnvelope(navigateResult);
+    updateNavigateCheckpoints(navigateResult, navigateFailureEnvelopeIndex);
+    exitWithExecFailure(
+      navigateResult,
+      checkpointState.get("discharge_to_row_focused")?.status === "ok" ? "save_completed" : "discharge_to_row_focused",
+      undefined,
+      { execEnvelopeIndex: navigateFailureEnvelopeIndex }
+    );
+  }
+  const navigateEnvelopeIndex = rememberExecEnvelope(navigateResult);
+  updateNavigateCheckpoints(navigateResult, navigateEnvelopeIndex);
 
   const beforeRowText = getStepText(navigateResult, "read_before");
   const beforePercent = extractPercent(beforeRowText);
@@ -359,43 +499,116 @@ try {
   }
   runAdb(["shell", "input", "text", targetText]);
   runAdb(["shell", "input", "keyevent", "66"]);
+  setCheckpoint("target_text_entered", "ok", {
+    evidence: {
+      kind: "text",
+      text: targetText,
+    },
+  });
 
   if (forceFailure) {
     const forcedFailureResult = runClawperatorExecution(forceFailureExecution);
-    if (!forcedFailureResult.ok) exitWithExecFailure(forcedFailureResult);
+    if (!forcedFailureResult.ok) exitWithExecFailure(forcedFailureResult, "save_completed");
+    rememberExecEnvelope(forcedFailureResult);
   }
 
   const toolbarSaveResult = runClawperatorExecution(toolbarSaveExecution);
-  if (!toolbarSaveResult.ok) exitWithExecFailure(toolbarSaveResult);
+  if (!toolbarSaveResult.ok) exitWithExecFailure(toolbarSaveResult, "save_completed");
+  rememberExecEnvelope(toolbarSaveResult);
 
   waitForPeakExportSurfaceAfterToolbarSave();
 
   const finalizeSaveResult = runClawperatorExecution(finalizeSaveExecution);
-  if (!finalizeSaveResult.ok) exitWithExecFailure(finalizeSaveResult);
+  if (!finalizeSaveResult.ok) exitWithExecFailure(finalizeSaveResult, "save_completed");
+  const finalizeSaveEnvelopeIndex = rememberExecEnvelope(finalizeSaveResult);
+  setCheckpoint("save_completed", "ok", {
+    evidence: {
+      kind: "result_envelope_ref",
+      execEnvelopeIndex: finalizeSaveEnvelopeIndex,
+      stepResultId: "save_bottom_sheet",
+    },
+  });
 
   const verifyResult = runClawperatorExecution(verifyExecution);
-  if (!verifyResult.ok) exitWithExecFailure(verifyResult);
+  if (!verifyResult.ok) {
+    exitWithExecFailure(
+      verifyResult,
+      "terminal_state_verified",
+      { status: "failed", note: "Verification exec failed before the final discharge row could be read." }
+    );
+  }
+  const verifyEnvelopeIndex = rememberExecEnvelope(verifyResult);
 
   const observedRowText = getStepText(verifyResult, "read_discharge_row_after_save");
   const observedPercent = extractPercent(observedRowText);
 
   if (observedPercent !== targetText) {
+    setCheckpoint("terminal_state_verified", "failed", {
+      evidence: {
+        kind: "text",
+        text: observedRowText || "<empty>",
+      },
+      note: `Expected discharge-to-limit ${targetText}%.`,
+    });
     if (verifyResult.stdout) process.stdout.write(verifyResult.stdout);
     console.error(
       `Terminal verification failed: expected discharge-to-limit ${targetText}%, observed "${observedRowText || "<empty>"}".`
     );
+    emitSkillResult("failed", {
+      status: "failed",
+      expected: {
+        kind: "text",
+        text: `Discharge to ${targetText}%`,
+      },
+      observed: {
+        kind: "text",
+        text: observedRowText || "<empty>",
+      },
+      note: "Final discharge row did not match the requested percentage.",
+    });
     process.exit(1);
   }
 
   if (beforePercent === targetText) {
-    console.error(
-      `Terminal verification note: discharge-to-limit already showed ${targetText}% before the change, so this run proves final state but not that the value changed from a different starting value.`
-    );
+    const note =
+      `Terminal verification note: discharge-to-limit already showed ${targetText}% before the change, so this run proves final state but not that the value changed from a different starting value.`;
+    diagnostics.warnings.push(note);
+    console.error(note);
   }
 
   process.stdout.write(verifyResult.stdout);
+  setCheckpoint("terminal_state_verified", "ok", {
+    evidence: {
+      kind: "result_envelope_ref",
+      execEnvelopeIndex: verifyEnvelopeIndex,
+      stepResultId: "read_discharge_row_after_save",
+    },
+  });
+  emitSkillResult("success", {
+    status: "verified",
+    expected: {
+      kind: "text",
+      text: `Discharge to ${targetText}%`,
+    },
+    observed: {
+      kind: "text",
+      text: observedRowText || "<empty>",
+    },
+  });
 } catch (err) {
   const stderr = err?.stderr?.toString?.("utf8") ?? "";
-  console.error(stderr || err.message || "clawperator execution failed");
+  const message = stderr || err.message || "clawperator execution failed";
+  if (checkpointState.get("target_text_entered")?.status !== "ok") {
+    setCheckpoint("target_text_entered", "failed", { note: message });
+  } else if (checkpointState.get("save_completed")?.status !== "ok") {
+    setCheckpoint("save_completed", "failed", { note: message });
+  } else {
+    setCheckpoint("terminal_state_verified", "failed", { note: message });
+  }
+  console.error(message);
+  emitSkillResult("failed", {
+    status: "failed",
+    note: message,
+  });
   process.exit(1);
 }

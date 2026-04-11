@@ -48,7 +48,20 @@ Current behavior:
 - polls snapshot UI until the `Peak Export` screen is visible again after the toolbar `Save`
 - clicks the remaining bottom-sheet `Save` action by label only after that post-toolbar check proves the UI advanced past the first `Save`
 - re-reads the `Discharge to ...` row after save and only reports success when it matches the requested value
-- returns the raw verification `clawperator exec --json` output on success
+- writes the raw verification `clawperator exec --json` output to `stdout` before a final structured result frame
+- emits exactly one `[Clawperator-Skill-Result]` frame at end-of-stdout with `contractVersion: "1.0.0"`
+- omits `source` from the emitted frame; `runSkill` injects `source: { "kind": "script" }`
+- emits `goal: { "kind": "set_discharge_limit", "percent": <percent> }`
+- emits `inputs: { "percent": <percent> }`
+- emits this stable replay checkpoint subset, in order:
+  - `app_opened`
+  - `discharge_to_row_focused`
+  - `target_text_entered`
+  - `save_completed`
+  - `terminal_state_verified`
+- embeds any available nested `clawperator exec --json` envelopes in `skillResult.execEnvelopes`
+- uses `terminalVerification.status: "verified"` only when the final row text proves `Discharge to <percent>%`
+- preserves truthful failure: nested exec failures still exit non-zero, and verification mismatch still exits non-zero while surfacing a structured `skillResult`
 
 Known caveats:
 
@@ -77,11 +90,15 @@ Known caveats:
 - the script reads the row once before editing and again after save; if the row
   already showed the requested percentage before the change, the skill still
   proves final state but cannot prove that the value changed from a different
-  starting value, so it logs that residual risk to `stderr`
+  starting value, so it logs that residual risk to `stderr` and records it in
+  `skillResult.diagnostics.warnings`
 - the script assumes the account is already signed in and the app opens to the
   expected home flow
 - if the Solax UI text or dialog structure changes, capture a new recording and
   refresh the selectors before broadening the skill
+- no replay checkpoint identities were dropped or renamed in this retrofit;
+  W2b should mirror the same coarse subset and ordering before adding any
+  orchestrated-only finer-grained checkpoints
 
 ## Validation
 
@@ -108,12 +125,23 @@ Expected forced-failure shape:
 - `code: "SKILL_EXECUTION_FAILED"`
 - non-zero `exitCode`
 - preserved nested `clawperator exec --json` failure output on `stdout`
+- `skillResult` is present with:
+  - `status: "failed"`
+  - `source.kind: "script"` injected by runtime, not emitted by the script
+  - `save_completed.status: "failed"`
+  - `terminalVerification.status: "not_run"`
 
 Expected terminal-verification failure shape:
 
 - the skill exits non-zero
 - `skills run --json` surfaces `ok: false` with `code: "SKILL_EXECUTION_FAILED"`
 - `stderr` includes `Terminal verification failed: expected discharge-to-limit ...`
+- `skillResult` is present with:
+  - `status: "failed"`
+  - `terminal_state_verified.status: "failed"`
+  - `terminalVerification.status: "failed"`
+  - `terminalVerification.expected.text` set to `Discharge to <percent>%`
+  - `terminalVerification.observed.text` set to the final row text actually read
 
 ## Recording Context
 
