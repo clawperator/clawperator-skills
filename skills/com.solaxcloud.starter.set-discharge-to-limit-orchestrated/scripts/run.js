@@ -16,7 +16,6 @@ const clawperatorBin = process.env.CLAWPERATOR_BIN || resolve(__dirname, "../../
 const skillsRegistry = process.env.CLAWPERATOR_SKILLS_REGISTRY || resolve(__dirname, "../../../skills-registry.json");
 const skillsRepoRoot = resolve(__dirname, "../../..");
 const clawperatorRepoRoot = resolve(skillsRepoRoot, "../clawperator");
-const targetDeviceSerial = "R5CT22AGEEF";
 const stableOutputPollIntervalMs = 1000;
 const stableOutputGracePolls = 2;
 
@@ -40,42 +39,50 @@ function parseJsonArray(rawValue) {
   }
 }
 
-function resolvePercentArg(rawArgs, skillInputs) {
-  const candidates = [...skillInputs, ...rawArgs].filter((value) => value !== targetDeviceSerial);
+function splitForwardedArgs(rawArgs) {
+  const [deviceId, ...skillArgs] = rawArgs;
+  return {
+    deviceId: deviceId || null,
+    skillArgs,
+  };
+}
+
+function resolvePercentArg(skillArgs, skillInputs) {
+  const candidates = [...skillInputs, ...skillArgs];
   return candidates.find((value) => /^-?\d+$/.test(value)) || null;
 }
 
 function buildPrompt(skillProgram, rawArgs, skillInputs) {
+  const { deviceId, skillArgs } = splitForwardedArgs(rawArgs);
   const serializedArgs = JSON.stringify(rawArgs);
   const serializedInputs = JSON.stringify(skillInputs);
-  const percentArg = resolvePercentArg(rawArgs, skillInputs);
+  const percentArg = resolvePercentArg(skillArgs, skillInputs);
 
   return [
     `You are the runtime agent for the Clawperator skill '${skillId}'.`,
     "Follow the SKILL.md program exactly and use Clawperator as the hand.",
-    "This is a live device run, not a coding task.",
     "",
     "Runtime context:",
     `- Forwarded raw argv: ${serializedArgs}`,
     `- Declared skill inputs from CLAWPERATOR_SKILL_INPUTS: ${serializedInputs}`,
+    `- Selected device serial: ${deviceId || "<missing>"}`,
     `- Resolved requested percent: ${percentArg || "<missing>"}`,
-    `- Device serial for this run: ${targetDeviceSerial}`,
     `- Operator package: ${operatorPackage}`,
     `- Branch-local Clawperator CLI: node ${clawperatorBin}`,
     `- Skills registry: ${skillsRegistry}`,
     "",
     "Hard rules:",
     "- Do not edit files.",
+    "- This is a live device run, not a coding task.",
     "- Do not inspect or modify the repository unless a command is required to operate the device.",
-    "- Do not run `--help`, `rg`, `grep`, `find`, `git`, or any repository-inspection commands.",
+    "- Do not run `--help`, `rg`, `grep`, `find`, `git`, or other repo-inspection commands.",
     "- Do not call the replay skill.",
     "- Use only branch-local Clawperator commands for device interaction.",
-    "- Always target the physical Samsung with `--device R5CT22AGEEF`.",
+    "- Always target the selected device serial shown above.",
     "- Always pass `--operator-package com.clawperator.operator.dev` on Clawperator commands.",
-    "- Prefer `node <clawperator_bin> snapshot ...` and `node <clawperator_bin> exec ...`.",
+    "- Use the flat Clawperator commands directly instead of building JSON execution files.",
+    "- Prefer `open`, `snapshot`, `click`, `type`, `read`, `press`, `scroll`, and `wait` command forms.",
     "- Keep the run focused on the minimum actions needed to complete and verify the skill.",
-    "- Do not perform extra grep, search, diff, or repo-validation steps after terminal verification.",
-    "- If a command fails, recover only when the SKILL.md recovery branch allows it.",
     "- The final response must contain exactly two lines:",
     "  1. [Clawperator-Skill-Result]",
     "  2. one single-line JSON object matching the SkillResult frame",
@@ -93,9 +100,13 @@ function buildPrompt(skillProgram, rawArgs, skillInputs) {
     "6. As soon as that verification is success, failed, or indeterminate, emit the final frame and stop.",
     "",
     "Known command forms:",
-    `- Open app: node ${clawperatorBin} open com.solaxcloud.starter --device ${targetDeviceSerial} --operator-package ${operatorPackage} --json`,
-    `- Snapshot: node ${clawperatorBin} snapshot --device ${targetDeviceSerial} --operator-package ${operatorPackage} --json`,
-    `- Execute action payloads: node ${clawperatorBin} exec <json-file> --device ${targetDeviceSerial} --operator-package ${operatorPackage}`,
+    `- Open app: node ${clawperatorBin} open com.solaxcloud.starter --device ${deviceId || "<device_serial>"} --operator-package ${operatorPackage} --json`,
+    `- Snapshot: node ${clawperatorBin} snapshot --device ${deviceId || "<device_serial>"} --operator-package ${operatorPackage} --json`,
+    `- Click by visible text: node ${clawperatorBin} click --text "<visible text>" --device ${deviceId || "<device_serial>"} --operator-package ${operatorPackage} --json`,
+    `- Type into the focused field: node ${clawperatorBin} type --text "${percentArg || "<percent>"}" --device ${deviceId || "<device_serial>"} --operator-package ${operatorPackage} --json`,
+    `- Read terminal text: node ${clawperatorBin} read --text "Discharge to ${percentArg || "<percent>"}%" --device ${deviceId || "<device_serial>"} --operator-package ${operatorPackage} --json`,
+    `- Press back if needed: node ${clawperatorBin} press --key back --device ${deviceId || "<device_serial>"} --operator-package ${operatorPackage} --json`,
+    `- Scroll if the target row is off-screen: node ${clawperatorBin} scroll down --device ${deviceId || "<device_serial>"} --operator-package ${operatorPackage} --json`,
     "- You already know the allowed surface. Do not rediscover the CLI.",
     "",
     "Output requirements:",
@@ -142,6 +153,7 @@ async function tryReadStableFinalMessage(outputPath, previousSample) {
 }
 
 async function main() {
+  const { deviceId } = splitForwardedArgs(forwardedArgs);
   const skillProgram = await readFile(skillProgramPath, "utf8");
   const prompt = buildPrompt(skillProgram, forwardedArgs, declaredInputs);
   const tempDir = await mkdtemp(join(tmpdir(), "clawperator-solax-orchestrated-"));
@@ -172,6 +184,7 @@ async function main() {
       env: {
         ...process.env,
         CLAWPERATOR_BIN: clawperatorBin,
+        CLAWPERATOR_DEVICE_ID: deviceId ?? "",
         CLAWPERATOR_OPERATOR_PACKAGE: operatorPackage,
         CLAWPERATOR_SKILLS_REGISTRY: skillsRegistry,
       },

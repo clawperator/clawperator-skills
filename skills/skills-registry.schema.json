@@ -67,7 +67,7 @@
             "minItems": 1,
             "items": {
               "type": "string",
-              "pattern": "^skills/[a-zA-Z0-9._-]+/scripts/[a-zA-Z0-9._-]+\\.sh$"
+              "pattern": "^skills/[a-zA-Z0-9._-]+/scripts/[a-zA-Z0-9._-]+\\.(sh|js)$"
             }
           },
           "artifacts": {
