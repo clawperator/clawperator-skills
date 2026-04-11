@@ -45,8 +45,8 @@ Current behavior:
 - enters the requested percentage
 - clicks `Confirm`
 - clicks the toolbar `Save`
-- waits until the `Peak Export` context is visible again after the toolbar `Save`
-- clicks the recorded bottom `Save` button using its observed lower-screen position, after that post-toolbar wait proves the UI advanced past the first `Save`
+- polls snapshot UI until the `Peak Export` screen is visible again after the toolbar `Save`
+- clicks the remaining bottom-sheet `Save` action by label only after that post-toolbar check proves the UI advanced past the first `Save`
 - re-reads the `Discharge to ...` row after save and only reports success when it matches the requested value
 - returns the raw verification `clawperator exec --json` output on success
 
@@ -65,9 +65,9 @@ Known caveats:
 - the current Samsung coordinates used by the script are the recorded container
   taps for `Peak Export` and `Device Discharging (By percentage)`, not generic
   text-node clicks
-- the final bottom-sheet `Save` tap is also implemented as a recorded
-  lower-screen coordinate click to disambiguate it from the earlier toolbar
-  `Save` action with the same label
+- the final bottom-sheet `Save` tap is matched by label only after a
+  post-toolbar snapshot poll proves the UI has returned to the `Peak Export`
+  screen, so the replay no longer races the same `Save` surface twice
 - the `Discharge to` dialog input is persisted reliably only when the script
   uses real key events (`DEL`, `DEL`, text entry, then `Enter`) before
   `Confirm`; plain text-set behavior was not sufficient for this app flow

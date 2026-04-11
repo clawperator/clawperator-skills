@@ -1,11 +1,8 @@
 #!/usr/bin/env node
 
-import { execFileSync } from "node:child_process";
-
-function parseCommand(command) {
-  const parts = (command || "clawperator").match(/(?:[^\s"]+|"[^"]*")+/g) || ["clawperator"];
-  return parts.map(part => part.replace(/^"(.*)"$/, "$1"));
-}
+const { execFileSync } = require("node:child_process");
+const { extname } = require("node:path");
+const { parseCommandSpec } = require("../../utils/common.js");
 
 function parsePercentArg(argv) {
   const [, , deviceId, firstArg, secondArg] = argv;
@@ -40,8 +37,18 @@ if (!Number.isInteger(percent) || percent < 0 || percent > 100) {
   process.exit(1);
 }
 
-const [rawClawperatorCmd, ...clawperatorPrefixArgs] = parseCommand(process.env.CLAWPERATOR_BIN || "clawperator");
-const clawperatorCmd = rawClawperatorCmd === "node" ? process.execPath : rawClawperatorCmd;
+const parsedClawperatorBin = parseCommandSpec(process.env.CLAWPERATOR_BIN || "clawperator") || {
+  cmd: "clawperator",
+  args: [],
+};
+const clawperatorCmd =
+  parsedClawperatorBin.cmd === "node" || extname(parsedClawperatorBin.cmd) === ".js"
+    ? process.execPath
+    : parsedClawperatorBin.cmd;
+const clawperatorPrefixArgs =
+  extname(parsedClawperatorBin.cmd) === ".js"
+    ? [parsedClawperatorBin.cmd, ...parsedClawperatorBin.args]
+    : parsedClawperatorBin.args;
 const operatorPackage = process.env.CLAWPERATOR_OPERATOR_PACKAGE || "com.clawperator.operator";
 const skillId = "com.solaxcloud.starter.set-discharge-to-limit-replay";
 const targetText = String(percent);
@@ -106,13 +113,55 @@ function exitWithExecFailure(result) {
   process.exit(typeof result.exitCode === "number" && result.exitCode !== 0 ? result.exitCode : 1);
 }
 
+function getStepResults(result) {
+  return result?.envelope?.envelope?.stepResults ?? result?.envelope?.stepResults ?? [];
+}
+
 function getStepText(result, stepId) {
-  return result?.envelope?.envelope?.stepResults?.find(step => step.id === stepId)?.data?.text ?? "";
+  return getStepResults(result).find(step => step.id === stepId)?.data?.text ?? "";
 }
 
 function extractPercent(text) {
   const match = String(text).match(/Discharge to\s*(\d+)%/i);
   return match ? match[1] : null;
+}
+
+function sleepSync(durationMs) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, durationMs);
+}
+
+function buildExecution(name, timeoutMs, actions) {
+  return {
+    commandId: `${skillId}-${name}-${Date.now()}`,
+    taskId: skillId,
+    source: skillId,
+    expectedFormat: "android-ui-automator",
+    timeoutMs,
+    actions,
+  };
+}
+
+function waitForPeakExportSurfaceAfterToolbarSave(timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const snapshotResult = runClawperatorExecution(
+      buildExecution("wait-post-toolbar-save-snapshot", 15000, [
+        { id: "snapshot", type: "snapshot_ui", params: {} },
+      ])
+    );
+    if (!snapshotResult.ok) exitWithExecFailure(snapshotResult);
+
+    const xml = getStepText(snapshotResult, "snapshot");
+    if (xml.includes('text="Peak Export"')) {
+      return;
+    }
+
+    sleepSync(750);
+  }
+
+  console.error("Timed out waiting for the post-toolbar-save Peak Export screen to appear.");
+  process.exit(1);
 }
 
 function runAdb(args) {
@@ -123,13 +172,7 @@ function runAdb(args) {
   });
 }
 
-const navigateToInputExecution = {
-  commandId: `${skillId}-${Date.now()}`,
-  taskId: skillId,
-  source: skillId,
-  expectedFormat: "android-ui-automator",
-  timeoutMs: 90000,
-  actions: [
+const navigateToInputExecution = buildExecution("navigate", 90000, [
     { id: "close", type: "close_app", params: { applicationId: "com.solaxcloud.starter" } },
     { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
     { id: "open", type: "open_app", params: { applicationId: "com.solaxcloud.starter" } },
@@ -211,16 +254,9 @@ const navigateToInputExecution = {
       },
     },
     { id: "wait_keyboard", type: "sleep", params: { durationMs: 1000 } },
-  ],
-};
+  ]);
 
-const saveExecution = {
-  commandId: `${skillId}-save-${Date.now()}`,
-  taskId: skillId,
-  source: skillId,
-  expectedFormat: "android-ui-automator",
-  timeoutMs: 90000,
-  actions: [
+const toolbarSaveExecution = buildExecution("save-toolbar", 45000, [
     {
       id: "confirm_dialog",
       type: "click",
@@ -244,33 +280,21 @@ const saveExecution = {
         matcher: { textEquals: "Save" },
       },
     },
-    {
-      id: "wait_peak_export_context",
-      type: "wait_for_node",
-      params: {
-        matcher: { textContains: "Peak Export" },
-        timeoutMs: 10000,
-      },
-    },
     { id: "wait_after_toolbar_save", type: "sleep", params: { durationMs: 1000 } },
+  ]);
+
+const finalizeSaveExecution = buildExecution("save-final", 30000, [
     {
       id: "save_bottom_sheet",
       type: "click",
       params: {
-        coordinate: { x: 540, y: 2133 },
+        matcher: { textEquals: "Save" },
       },
     },
     { id: "wait_after_final_save", type: "sleep", params: { durationMs: 4000 } },
-  ],
-};
+  ]);
 
-const verifyExecution = {
-  commandId: `${skillId}-verify-${Date.now()}`,
-  taskId: skillId,
-  source: skillId,
-  expectedFormat: "android-ui-automator",
-  timeoutMs: 45000,
-  actions: [
+const verifyExecution = buildExecution("verify", 45000, [
     { id: "wait_before_verify_nav", type: "sleep", params: { durationMs: 2500 } },
     {
       id: "reopen_peak_export",
@@ -311,16 +335,9 @@ const verifyExecution = {
         matcher: { textContains: "Discharge to" },
       },
     },
-  ],
-};
+  ]);
 
-const forceFailureExecution = {
-  commandId: `${skillId}-forced-failure-${Date.now()}`,
-  taskId: skillId,
-  source: skillId,
-  expectedFormat: "android-ui-automator",
-  timeoutMs: 15000,
-  actions: [
+const forceFailureExecution = buildExecution("forced-failure", 15000, [
     {
       id: "force_missing_node",
       type: "wait_for_node",
@@ -329,8 +346,7 @@ const forceFailureExecution = {
         timeoutMs: 1500,
       },
     },
-  ],
-};
+  ]);
 
 try {
   const navigateResult = runClawperatorExecution(navigateToInputExecution);
@@ -350,8 +366,13 @@ try {
     if (!forcedFailureResult.ok) exitWithExecFailure(forcedFailureResult);
   }
 
-  const saveResult = runClawperatorExecution(saveExecution);
-  if (!saveResult.ok) exitWithExecFailure(saveResult);
+  const toolbarSaveResult = runClawperatorExecution(toolbarSaveExecution);
+  if (!toolbarSaveResult.ok) exitWithExecFailure(toolbarSaveResult);
+
+  waitForPeakExportSurfaceAfterToolbarSave();
+
+  const finalizeSaveResult = runClawperatorExecution(finalizeSaveExecution);
+  if (!finalizeSaveResult.ok) exitWithExecFailure(finalizeSaveResult);
 
   const verifyResult = runClawperatorExecution(verifyExecution);
   if (!verifyResult.ok) exitWithExecFailure(verifyResult);
