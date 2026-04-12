@@ -144,6 +144,7 @@ function buildPrompt(skillProgram) {
     `- Reuse these arguments on every device command: --device ${deviceId} --operator-package ${operatorPackage}`,
     "- Prefer Clawperator CLI commands over adb for runtime evidence.",
     "- Use these runtime action types when possible: open_app, close_app, sleep, wait_for_node, click, read_text, enter_text.",
+    "- For open_app, the params key is applicationId. Do not use packageName.",
     "- If the SolaX discharge dialog does not persist a plain enter_text update reliably, you may use adb shell input keyevent/text against the already-focused van-field-1-input as the replay sibling proved for this exact dialog.",
     "- For coordinate taps, click params must use params.coordinate with nested x/y. Never emit raw params.x or params.y.",
     "- Wait for each exec result before deciding the next exec. Never pipeline two route steps at once.",
@@ -204,7 +205,7 @@ function hasRequiredCheckpointsInOrder(checkpoints) {
 }
 
 function extractObservedPercent(observedText) {
-  const match = /Discharge to\s+(\d+)%\b/.exec(observedText);
+  const match = /Discharge to\s+(\d+)%/.exec(observedText);
   if (!match) {
     return null;
   }
