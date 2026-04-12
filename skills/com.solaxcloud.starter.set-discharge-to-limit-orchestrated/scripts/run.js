@@ -496,6 +496,8 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(message);
+  emitHarnessFailureSkillResult(message);
   process.exit(1);
 });
