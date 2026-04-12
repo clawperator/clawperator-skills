@@ -26,8 +26,11 @@ Immediate execution rules:
   - tap `Peak Export` at `x=860 y=1399`
   - wait for `Device Discharging`
   - tap `Device Discharging (By percentage)` at `x=875 y=1548`
+  - if the `Device Discharging` editor is visible after the tap, issue a second
+    small exec from that current screen instead of appending a trailing
+    `read_text` to the same tap command
   - wait for `Discharge to`
-  - read the `Discharge to ...` row before editing
+  - read the `Discharge to ...` row in a separate follow-up exec before editing
   - open the dialog and focus `resourceId=van-field-1-input`
   - change the value
   - click `Confirm`
@@ -36,9 +39,10 @@ Immediate execution rules:
   - click the toolbar `Save` only if it is still visible
   - click the lower `Save` from the visible bottom action on the `Peak Export`
     editor
-  - if a prompt appears saying the save will cancel the currently executing
-    scenario, click `Confirm` and treat that confirmation as part of save
-    completion
+  - do not make the scenario-cancel prompt a required `wait_for_node` after the
+    second `Save`; if the prompt appears, click `Confirm`, but if it does not
+    appear and the route can be reopened for terminal verification, treat the
+    prompt as absent rather than failed
   - reopen the same route and read `Discharge to ...` again for terminal verification
 - If you have not produced Clawperator evidence yet, you have not made
   progress.
@@ -132,8 +136,9 @@ Known-good Samsung route on the proving device:
 - open `Peak Export` with coordinate tap `x=860 y=1399`
 - wait for text containing `Device Discharging`
 - open `Device Discharging (By percentage)` with coordinate tap `x=875 y=1548`
-- wait for text containing `Discharge to`
-- read the `Discharge to ...` row before editing
+- from the resulting current screen, use a smaller follow-up exec to wait for
+  text containing `Discharge to`
+- read the `Discharge to ...` row in its own exec before editing
 - click the `Discharge to ...` row
 - wait for `resourceId=van-field-1-input`
 - click `resourceId=van-field-1-input`
@@ -142,13 +147,36 @@ Known-good Samsung route on the proving device:
 - click the toolbar `Save` only if it is still visible
 - click the remaining lower `Save` from the visible bottom action
 - if the scenario-cancel prompt appears, click `Confirm` before leaving save
+- do not require the prompt to appear in order to treat save as complete; if
+  the route can be reopened and the final row persists the requested value, the
+  save path is acceptable without that prompt
 - reopen the same `Peak Export -> Device Discharging -> Discharge to ...` route and read the row again for terminal verification
 
 Do not invent alternative selectors or alternative app routes when this route is available.
 
+Execution discipline for this screen:
+
+- do not spend a whole exec on waiting for `Peak Export` text after tapping the
+  `Intelligence` tab; move directly into the `Peak Export` tap after a short
+  settle unless the current screen already proves a later route state
+- do not append `read_text` as the final action in the same exec that taps
+  `Device Discharging (By percentage)`; open that screen first, then perform
+  the `Discharge to` wait and read as smaller follow-up commands from the new
+  current state
+- do not bundle the second `Save` click with a required wait for the
+  scenario-cancel prompt; treat that prompt as optional recovery and rely on
+  terminal verification of the reopened route for final proof
+- if the verification tap back into `Device Discharging (By percentage)`
+  returns a timeout or no-envelope result after `Peak Export` was already
+  re-opened, immediately try the follow-up `Discharge to` wait-and-read from
+  the current screen before declaring terminal verification failed
+
 Recovery branch:
 
 - if the expected automation screen is not visible after opening the app, close and reopen once
+- if the first `Intelligence -> Peak Export` route command returns a timeout or
+  no-envelope result, spend the one allowed recovery on a close-and-reopen, then
+  retry that same route command once before failing
 - if it is still not visible, emit a failed framed result and stop
 
 Terminal verification:
