@@ -1,7 +1,7 @@
 {
   "$schema": "./skills-registry.schema.json",
   "schemaVersion": "1.0",
-  "generatedAt": "2026-04-11T01:52:03Z",
+  "generatedAt": "2026-04-12T00:58:06Z",
   "skills": [
     {
       "id": "com.android.settings.capture-overview",
@@ -116,6 +116,22 @@
       "artifacts": [
         "skills/com.solaxcloud.starter.get-battery/artifacts/battery.recipe.json"
       ]
+    },
+    {
+      "id": "com.solaxcloud.starter.set-discharge-to-limit-orchestrated",
+      "applicationId": "com.solaxcloud.starter",
+      "intent": "set-discharge-to-limit",
+      "summary": "Agent-driven proving-case skeleton for setting the discharge-to-limit value in the SolaX Cloud app.",
+      "path": "skills/com.solaxcloud.starter.set-discharge-to-limit-orchestrated",
+      "skillFile": "skills/com.solaxcloud.starter.set-discharge-to-limit-orchestrated/SKILL.md",
+      "scripts": [
+        "skills/com.solaxcloud.starter.set-discharge-to-limit-orchestrated/scripts/run.js"
+      ],
+      "artifacts": [],
+      "agent": {
+        "cli": "codex",
+        "timeoutMs": 300000
+      }
     },
     {
       "id": "com.solaxcloud.starter.set-discharge-to-limit-replay",

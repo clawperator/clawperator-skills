@@ -67,7 +67,35 @@
             "minItems": 1,
             "items": {
               "type": "string",
-              "pattern": "^skills/[a-zA-Z0-9._-]+/scripts/[a-zA-Z0-9._-]+\\.sh$"
+              "pattern": "^skills/[a-zA-Z0-9._-]+/scripts/[a-zA-Z0-9._-]+\\.(sh|js)$"
+            }
+          },
+          "agent": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "cli"
+            ],
+            "properties": {
+              "cli": {
+                "type": "string",
+                "minLength": 1
+              },
+              "cliPath": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "timeoutMs": {
+                "type": "integer",
+                "minimum": 1
+              }
             }
           },
           "artifacts": {
