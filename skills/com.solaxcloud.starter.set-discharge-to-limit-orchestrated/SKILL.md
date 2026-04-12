@@ -36,6 +36,9 @@ Immediate execution rules:
   - click the toolbar `Save` only if it is still visible
   - click the lower `Save` from the visible bottom action on the `Peak Export`
     editor
+  - if a prompt appears saying the save will cancel the currently executing
+    scenario, click `Confirm` and treat that confirmation as part of save
+    completion
   - reopen the same route and read `Discharge to ...` again for terminal verification
 - If you have not produced Clawperator evidence yet, you have not made
   progress.
@@ -104,9 +107,11 @@ Operational playbook:
 12. Continue when the `Peak Export` editor is visible, even if `Discharge to`
     does not reappear between `Confirm` and the save actions.
 13. Tap the remaining lower `Save` action near the bottom of the screen.
-14. Re-read the post-save UI state.
-15. Verify whether the post-save UI contains exact text `Discharge to <percent>%`.
-16. Emit the final framed `SkillResult` immediately and stop.
+14. If a confirmation prompt appears after the lower `Save`, click `Confirm`
+    and wait for the app shell to resume.
+15. Re-read the post-save UI state.
+16. Verify whether the post-save UI contains exact text `Discharge to <percent>%`.
+17. Emit the final framed `SkillResult` immediately and stop.
 
 Navigation policy:
 
@@ -134,6 +139,7 @@ Known-good Samsung route on the proving device:
 - expect the proving-device UI to return to the `Peak Export` editor
 - click the toolbar `Save` only if it is still visible
 - click the remaining lower `Save` from the visible bottom action
+- if the scenario-cancel prompt appears, click `Confirm` before leaving save
 - reopen the same `Peak Export -> Device Discharging -> Discharge to ...` route and read the row again for terminal verification
 
 Do not invent alternative selectors or alternative app routes when this route is available.
