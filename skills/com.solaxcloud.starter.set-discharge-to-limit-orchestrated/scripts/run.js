@@ -73,7 +73,14 @@ function buildPrompt(skillProgram) {
     timeoutMs: 45000,
     actions: [
       { id: "open", type: "open_app", params: { applicationId: "com.solaxcloud.starter" } },
-      { id: "wait_focus", type: "sleep", params: { durationMs: 2000 } },
+      {
+        id: "wait_peak_export_context",
+        type: "wait_for_node",
+        params: {
+          matcher: { textContains: "Peak Export" },
+          timeoutMs: 10000,
+        },
+      },
     ],
   };
 
@@ -132,6 +139,39 @@ function buildPrompt(skillProgram) {
   ].join("\n");
 }
 
+function isPlainObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function hasValidCheckpoint(checkpoint) {
+  return isPlainObject(checkpoint)
+    && typeof checkpoint.id === "string"
+    && ["ok", "failed", "skipped"].includes(checkpoint.status);
+}
+
+function hasValidTerminalVerification(terminalVerification) {
+  return terminalVerification === null || (
+    isPlainObject(terminalVerification)
+    && ["verified", "failed", "not_run"].includes(terminalVerification.status)
+  );
+}
+
+function hasRequiredSkillResultShape(skillResult) {
+  return isPlainObject(skillResult)
+    && typeof skillResult.contractVersion === "string"
+    && skillResult.skillId === skillId
+    && isPlainObject(skillResult.goal)
+    && isPlainObject(skillResult.inputs)
+    && ["success", "failed", "indeterminate"].includes(skillResult.status)
+    && Array.isArray(skillResult.checkpoints)
+    && skillResult.checkpoints.every(hasValidCheckpoint)
+    && hasValidTerminalVerification(
+      Object.prototype.hasOwnProperty.call(skillResult, "terminalVerification")
+        ? skillResult.terminalVerification
+        : null
+    );
+}
+
 function parseTerminalSkillResultFrame(content) {
   const nonEmptyLines = content
     .split(/\r?\n/)
@@ -156,6 +196,10 @@ function parseTerminalSkillResultFrame(content) {
 
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
     return { ok: false, message: "Agent CLI output ended with a non-object SkillResult JSON payload." };
+  }
+
+  if (!hasRequiredSkillResultShape(parsed)) {
+    return { ok: false, message: "Agent CLI output ended with a malformed SkillResult payload." };
   }
 
   return { ok: true, framedOutput: `${marker}\n${nonEmptyLines[markerIndex + 1]}\n` };
