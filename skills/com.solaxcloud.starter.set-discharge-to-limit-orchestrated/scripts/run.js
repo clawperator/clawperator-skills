@@ -106,7 +106,7 @@ async function main() {
       "--skip-git-repo-check",
       "--ephemeral",
       "--sandbox",
-      "workspace-write",
+      "danger-full-access",
       "--color",
       "never",
       "-C",
