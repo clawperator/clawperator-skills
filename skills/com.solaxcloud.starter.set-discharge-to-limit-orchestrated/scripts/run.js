@@ -14,6 +14,7 @@ const configuredAgentTimeoutMs = Number.parseInt(process.env.CLAWPERATOR_SKILL_A
 const skillProgramPath = process.env.CLAWPERATOR_SKILL_PROGRAM;
 const skillId = process.env.CLAWPERATOR_SKILL_ID || "com.solaxcloud.starter.set-discharge-to-limit-orchestrated";
 const forwardedArgs = process.argv.slice(2);
+const selectedDeviceId = process.env.CLAWPERATOR_DEVICE_ID || null;
 const declaredInputs = parseJsonArray(process.env.CLAWPERATOR_SKILL_INPUTS);
 const operatorPackage = process.env.CLAWPERATOR_OPERATOR_PACKAGE || "com.clawperator.operator.dev";
 const skillsRegistry = process.env.CLAWPERATOR_SKILLS_REGISTRY || resolve(__dirname, "../../../skills-registry.json");
@@ -81,6 +82,13 @@ function parseJsonArray(rawValue) {
 }
 
 function splitForwardedArgs(rawArgs) {
+  if (selectedDeviceId) {
+    return {
+      deviceId: selectedDeviceId,
+      skillArgs: rawArgs,
+    };
+  }
+
   const [deviceId, ...skillArgs] = rawArgs;
   return {
     deviceId: deviceId || null,
@@ -92,13 +100,13 @@ function parsePercentInput(rawArgs, skillInputs) {
   const { deviceId, skillArgs } = splitForwardedArgs(rawArgs);
 
   if (!deviceId) {
-    return { ok: false, message: "Missing device_id. Expected argv shape: <device_id> <percent>." };
+    return { ok: false, message: "Missing device_id. Expected CLAWPERATOR_DEVICE_ID or argv shape <device_id> <percent>." };
   }
 
   if (skillArgs.length !== 1) {
     return {
       ok: false,
-      message: `Expected exactly one positional skill arg after device_id, got ${skillArgs.length}.`,
+      message: `Expected exactly one positional skill arg after device selection, got ${skillArgs.length}.`,
     };
   }
 
