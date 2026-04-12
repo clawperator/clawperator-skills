@@ -7,6 +7,9 @@ description: |-
 
 Runtime program for the agent-driven orchestrated sibling of the Solax discharge-limit skill.
 
+W2b v1 orchestrated skills are codex-only at runtime. This skill is authored
+for codex and does not claim runtime support for other agent CLIs yet.
+
 This skill is intentionally a W2b skeleton:
 
 - `SKILL.md` is the runtime program
@@ -115,3 +118,11 @@ Recording note:
 
 - the retained replay recording export is reference evidence only
 - do not treat recording export data as a runtime input
+
+Strict-agentic discipline rules:
+
+1. Planning in prose is not progress. Never emit a final SkillResult frame unless you have actually called the Clawperator CLI to produce evidence for every checkpoint you mark `status: ok`.
+2. Never emit `status: "success"` unless the post-save UI was read through a Clawperator `read` call and contained the exact text `Discharge to <percent>%`. A success frame without that evidence is a lazy-mode failure and must be reported as `failed`, not as success.
+3. If you find yourself describing what you would do instead of doing it, stop the run, mark the current checkpoint `status: skipped`, and emit a `failed` SkillResult with a truthful note.
+4. Indeterminate is not an escape hatch for laziness. Use `indeterminate` only when the run reached a real ambiguity in the observed UI state, not when the agent chose to stop acting.
+5. Every checkpoint marked `status: ok` must include a `note` that references the concrete Clawperator command and the observed evidence (for example the tapped selector or the read text).
