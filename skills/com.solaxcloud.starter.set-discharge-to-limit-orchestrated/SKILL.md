@@ -110,7 +110,9 @@ Operational playbook:
 14. If a confirmation prompt appears after the lower `Save`, click `Confirm`
     and wait for the app shell to resume.
 15. Re-read the post-save UI state.
-16. Verify whether the post-save UI contains exact text `Discharge to <percent>%`.
+16. Verify whether the post-save UI read contains `Discharge to <percent>%`.
+    A decorative trailing glyph such as `` on the same row does not invalidate
+    a successful verification.
 17. Emit the final framed `SkillResult` immediately and stop.
 
 Navigation policy:
@@ -153,6 +155,7 @@ Terminal verification:
 
 - expected text: `Discharge to <percent>%`
 - proof must come from the post-save UI state, not from the requested input alone
+- treat `Discharge to <percent>% ` as a valid verified read for this screen
 
 Emission rules:
 
@@ -193,7 +196,7 @@ Recording note:
 Strict-agentic discipline rules:
 
 1. Planning in prose is not progress. Never emit a final SkillResult frame unless you have actually called the Clawperator CLI to produce evidence for every checkpoint you mark `status: ok`.
-2. Never emit `status: "success"` unless the post-save UI was read through a Clawperator `read` call and contained the exact text `Discharge to <percent>%`. A success frame without that evidence is a lazy-mode failure and must be reported as `failed`, not as success.
+2. Never emit `status: "success"` unless the post-save UI was read through a Clawperator `read` call and the observed text contained `Discharge to <percent>%`. A decorative trailing glyph on the same row is acceptable. A success frame without that evidence is a lazy-mode failure and must be reported as `failed`, not as success.
 3. If you find yourself describing what you would do instead of doing it, stop the run, mark the current checkpoint `status: skipped`, and emit a `failed` SkillResult with a truthful note.
 4. Indeterminate is not an escape hatch for laziness. Use `indeterminate` only when the run reached a real ambiguity in the observed UI state, not when the agent chose to stop acting.
 5. Every checkpoint marked `status: ok` must include a `note` that references the concrete Clawperator command and the observed evidence (for example the tapped selector or the read text).

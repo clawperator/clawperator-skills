@@ -121,6 +121,7 @@ function buildPrompt(skillProgram) {
     "- You already have the route and selectors you need in this prompt. Do not search the repo for examples.",
     "- Prefer several small exec payloads over one oversized execution when moving between Peak Export, Device Discharging, set-value, save, and verify phases.",
     "- If a wait for Device Discharging times out after opening Peak Export, probe whether Peak Export is already visible and then continue with the next recorded step instead of repeating the same failed wait blindly.",
+    "- For terminal verification, treat a read_text result that contains 'Discharge to <percent>%' as valid even if the row also includes a decorative trailing glyph such as ''.",
     "",
     "Known-good execution decomposition from a successful live run:",
     `1. Focus Intelligence: ${clawperatorBin} exec --device ${deviceId} --operator-package ${operatorPackage} --execution '{"commandId":"${skillId}-focus-intelligence","taskId":"${skillId}","source":"${skillId}","expectedFormat":"android-ui-automator","timeoutMs":30000,"actions":[{"id":"open_intelligence","type":"click","params":{"matcher":{"resourceId":"com.solaxcloud.starter:id/tab_intelligent"}}},{"id":"wait_after_tab","type":"sleep","params":{"durationMs":1500}},{"id":"wait_peak_export_text","type":"wait_for_node","params":{"matcher":{"textContains":"Peak Export"},"timeoutMs":15000}}]}' --json`,
