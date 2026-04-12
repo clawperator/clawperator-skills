@@ -5,7 +5,7 @@ description: |-
   Agent-driven proving-case skeleton for setting the discharge-to-limit percentage in the SolaX Cloud app.
 ---
 
-Runtime program for the agent-driven orchestrated sibling of the Solax discharge-limit skill.
+Runtime program for the agent-driven orchestrated sibling of the SolaX discharge-limit skill.
 
 The currently supported runtime agent for this skill is `codex`. This skill
 runs through codex with `danger-full-access` sandbox posture so the runtime
