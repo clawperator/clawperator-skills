@@ -326,7 +326,7 @@ async function main() {
   const parsedInputs = parsePercentInput(forwardedArgs, declaredInputs);
   if (!parsedInputs.ok) {
     await emitSkillResultFrame(buildFailureSkillResult(parsedInputs.message, null));
-    process.exit(0);
+    process.exit(1);
   }
 
   const { deviceId, percentArg } = parsedInputs;

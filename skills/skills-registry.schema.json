@@ -70,6 +70,27 @@
               "pattern": "^skills/[a-zA-Z0-9._-]+/scripts/[a-zA-Z0-9._-]+\\.(sh|js)$"
             }
           },
+          "agent": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "cli"
+            ],
+            "properties": {
+              "cli": {
+                "type": "string",
+                "minLength": 1
+              },
+              "cliPath": {
+                "type": "string",
+                "minLength": 1
+              },
+              "timeoutMs": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
           "artifacts": {
             "type": "array",
             "items": {
