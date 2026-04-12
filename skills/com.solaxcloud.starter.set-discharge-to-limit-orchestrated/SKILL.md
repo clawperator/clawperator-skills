@@ -174,11 +174,11 @@ Reference success shape:
   "inputs": { "percent": 40 },
   "status": "success",
   "checkpoints": [
-    { "id": "app_opened", "status": "ok" },
-    { "id": "discharge_to_row_focused", "status": "ok" },
-    { "id": "target_text_entered", "status": "ok" },
-    { "id": "save_completed", "status": "ok" },
-    { "id": "terminal_state_verified", "status": "ok" }
+    { "id": "app_opened", "status": "ok", "note": "Opened or resumed SolaX on the selected device and confirmed the run stayed inside com.solaxcloud.starter." },
+    { "id": "discharge_to_row_focused", "status": "ok", "note": "Reached the Discharge to row through the recorded Peak Export route and observed the expected editor state." },
+    { "id": "target_text_entered", "status": "ok", "note": "Entered the requested percent into van-field-1-input and observed the UI accept the requested value." },
+    { "id": "save_completed", "status": "ok", "note": "Completed the Save flow, including the second Save and the final Confirm prompt when it appeared." },
+    { "id": "terminal_state_verified", "status": "ok", "note": "Read the final Discharge to row and confirmed it exactly matched the requested percent." }
   ],
   "terminalVerification": {
     "status": "verified",

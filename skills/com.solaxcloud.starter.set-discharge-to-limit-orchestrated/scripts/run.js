@@ -176,6 +176,13 @@ function hasValidCheckpoint(checkpoint) {
     && ["ok", "failed", "skipped"].includes(checkpoint.status);
 }
 
+function hasRequiredCheckpointNotes(checkpoints) {
+  return checkpoints.every((checkpoint) => (
+    checkpoint.status !== "ok"
+      || (typeof checkpoint.note === "string" && checkpoint.note.trim().length > 0)
+  ));
+}
+
 function hasValidTerminalVerification(terminalVerification) {
   return terminalVerification === null || (
     isPlainObject(terminalVerification)
@@ -196,6 +203,14 @@ function hasRequiredCheckpointsInOrder(checkpoints) {
   return remainingRequiredIds.length === 0;
 }
 
+function extractObservedPercent(observedText) {
+  const match = /Discharge to\s+(\d+)%\b/.exec(observedText);
+  if (!match) {
+    return null;
+  }
+  return Number.parseInt(match[1], 10);
+}
+
 function hasRequiredSkillResultShape(skillResult) {
   return isPlainObject(skillResult)
     && typeof skillResult.contractVersion === "string"
@@ -206,6 +221,7 @@ function hasRequiredSkillResultShape(skillResult) {
     && ["success", "failed", "indeterminate"].includes(skillResult.status)
     && Array.isArray(skillResult.checkpoints)
     && hasRequiredCheckpointsInOrder(skillResult.checkpoints)
+    && hasRequiredCheckpointNotes(skillResult.checkpoints)
     && hasValidTerminalVerification(
       Object.prototype.hasOwnProperty.call(skillResult, "terminalVerification")
         ? skillResult.terminalVerification
@@ -217,6 +233,14 @@ function hasSuccessVerification(skillResult) {
   if (skillResult.status !== "success") {
     return true;
   }
+  const requiredCheckpointStatuses = new Map(
+    skillResult.checkpoints
+      .filter((checkpoint) => requiredCheckpointIds.includes(checkpoint.id))
+      .map((checkpoint) => [checkpoint.id, checkpoint.status])
+  );
+  if (!requiredCheckpointIds.every((checkpointId) => requiredCheckpointStatuses.get(checkpointId) === "ok")) {
+    return false;
+  }
   if (!isPlainObject(skillResult.terminalVerification)) {
     return false;
   }
@@ -226,7 +250,7 @@ function hasSuccessVerification(skillResult) {
   const observedText = skillResult.terminalVerification.observed?.text;
   return typeof observedText === "string"
     && requestedPercent !== null
-    && observedText.includes(`Discharge to ${requestedPercent}%`);
+    && extractObservedPercent(observedText) === requestedPercent;
 }
 
 function hasExpectedGoalAndInputs(skillResult) {
@@ -350,6 +374,12 @@ async function main() {
   if (!resolvedAgentCliPath || !skillProgramPath || !deviceId || !clawperatorBin) {
     const message =
       "Missing orchestrated skill runtime env. Run this skill through 'clawperator skills run' so the harness receives the resolved agent CLI, skill program path, selected device, and CLAWPERATOR_BIN."
+    console.error(message);
+    await emitHarnessFailureSkillResult(message);
+    process.exit(1);
+  }
+  if (requestedPercent === null) {
+    const message = "Missing or invalid percent input. Provide one integer between 0 and 100 as the first forwarded skill argument.";
     console.error(message);
     await emitHarnessFailureSkillResult(message);
     process.exit(1);
