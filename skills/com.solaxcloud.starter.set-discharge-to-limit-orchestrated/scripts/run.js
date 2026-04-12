@@ -72,17 +72,8 @@ function buildPrompt(skillProgram) {
     expectedFormat: "android-ui-automator",
     timeoutMs: 45000,
     actions: [
-      { id: "close", type: "close_app", params: { applicationId: "com.solaxcloud.starter" } },
-      { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
       { id: "open", type: "open_app", params: { applicationId: "com.solaxcloud.starter" } },
-      {
-        id: "wait_home",
-        type: "wait_for_node",
-        params: {
-          matcher: { resourceId: "com.solaxcloud.starter:id/tab_intelligent" },
-          timeoutMs: 20000,
-        },
-      },
+      { id: "wait_focus", type: "sleep", params: { durationMs: 2000 } },
     ],
   };
 
@@ -98,7 +89,8 @@ function buildPrompt(skillProgram) {
     "Run only one live device command at a time.",
     "Do not start a second Clawperator device command until the previous device command has completed and you have inspected its result.",
     "Do not issue multiple shell commands in parallel for the same live run.",
-    "Run the bootstrap command below first, then continue with the rest of the known-good route from SKILL.md.",
+    "Run the non-destructive bootstrap command below first, then continue from the current in-app state using the route in SKILL.md.",
+    "Do not close and reopen SolaX unless the route in SKILL.md says recovery is needed.",
     "If you cannot make progress with real Clawperator evidence, emit a truthful failed SkillResult instead of waiting on the launcher.",
     "Never open unrelated apps or system surfaces such as launcher search, the Google app, voice search, Assistant, Chrome, or Settings.",
     "The only target app for this run is com.solaxcloud.starter. If the flow leaves that app, recover back to SolaX immediately or fail truthfully.",
@@ -140,17 +132,50 @@ function buildPrompt(skillProgram) {
   ].join("\n");
 }
 
+function parseTerminalSkillResultFrame(content) {
+  const nonEmptyLines = content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  if (nonEmptyLines.length < 2) {
+    return { ok: false, message: "Agent CLI output did not contain a terminal SkillResult frame." };
+  }
+
+  const marker = "[Clawperator-Skill-Result]";
+  const markerIndex = nonEmptyLines.lastIndexOf(marker);
+  if (markerIndex === -1 || markerIndex !== nonEmptyLines.length - 2) {
+    return { ok: false, message: "Agent CLI output did not end with the required terminal SkillResult frame." };
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(nonEmptyLines[markerIndex + 1]);
+  } catch {
+    return { ok: false, message: "Agent CLI output ended with an invalid SkillResult JSON payload." };
+  }
+
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { ok: false, message: "Agent CLI output ended with a non-object SkillResult JSON payload." };
+  }
+
+  return { ok: true, framedOutput: `${marker}\n${nonEmptyLines[markerIndex + 1]}\n` };
+}
+
 async function flushLastMessage(outputPath) {
   try {
     const content = await readFile(outputPath, "utf8");
-    if (content.trim().length > 0) {
-      process.stdout.write(content.endsWith("\n") ? content : `${content}\n`);
-      return true;
+    if (content.trim().length === 0) {
+      return { ok: false, message: "Agent CLI did not write any final output." };
     }
+    const parsedFrame = parseTerminalSkillResultFrame(content);
+    if (!parsedFrame.ok) {
+      return parsedFrame;
+    }
+    process.stdout.write(parsedFrame.framedOutput);
+    return { ok: true };
   } catch {
-    return false;
+    return { ok: false, message: "Agent CLI did not write the final message artifact." };
   }
-  return false;
 }
 
 async function main() {
@@ -301,7 +326,7 @@ async function main() {
   child.stdin.end();
 
   child.on("close", async (code, signal) => {
-    const framePresent = await flushLastMessage(outputPath);
+    const frameResult = await flushLastMessage(outputPath);
 
     if (signal) {
       preserveTempDir = retainLogs;
@@ -312,12 +337,12 @@ async function main() {
       return;
     }
 
-    if (!framePresent) {
-      preserveTempDir = retainLogs || true;
+    if (!frameResult.ok) {
+      preserveTempDir = retainLogs;
       if (preserveTempDir) {
         console.error(`Orchestrated skill logs retained at ${tempDir}`);
       }
-      console.error("Agent CLI exited without writing a final SkillResult frame.");
+      console.error(frameResult.message);
       await cleanupAndExit(code === 0 ? 1 : (code ?? 1));
       return;
     }

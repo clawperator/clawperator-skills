@@ -68,7 +68,7 @@ Inputs:
 - current proving-case shape is `clawperator skills run com.solaxcloud.starter.set-discharge-to-limit-orchestrated --device <device_serial> --json -- 40`
 - `clawperator skills run` provides the selected device as `CLAWPERATOR_DEVICE_ID`
 - interpret the first forwarded positional skill arg as `percent`
-- for direct local invocation, the harness still accepts argv shape `<device_id> <percent>`
+- invoke this harness through `clawperator skills run`; direct local invocation is not part of the supported runtime contract
 - valid range: integer `0` to `100`
 
 Runtime contract:
