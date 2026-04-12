@@ -7,12 +7,12 @@ description: |-
 
 Runtime program for the agent-driven orchestrated sibling of the Solax discharge-limit skill.
 
-W2b v1 orchestrated skills are codex-only at runtime. This skill is authored
-for codex, runs through codex with `danger-full-access` sandbox posture so the
-runtime agent can reach the live adb target, and does not claim runtime support
-for other agent CLIs yet.
+The currently supported runtime agent for this skill is `codex`. This skill
+runs through codex with `danger-full-access` sandbox posture so the runtime
+agent can reach the live adb target, and it does not claim runtime support for
+other agent CLIs yet.
 
-This skill is intentionally a W2b skeleton:
+This skill intentionally keeps a thin-harness orchestrated shape:
 
 - `SKILL.md` is the runtime program
 - `scripts/run.js` is only a harness that spawns the configured agent CLI
