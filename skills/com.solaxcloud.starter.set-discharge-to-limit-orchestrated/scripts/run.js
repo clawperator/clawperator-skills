@@ -50,7 +50,6 @@ const SAFE_ENV_KEYS = [
   "OPENAI_PROJECT",
   "PATH",
   "SHELL",
-  "SSH_AUTH_SOCK",
   "TEMP",
   "TERM",
   "TMP",
@@ -163,9 +162,21 @@ function buildFailureSkillResult(message, percentArg = null) {
   };
 }
 
+function writeToStream(stream, chunk) {
+  return new Promise((resolve, reject) => {
+    stream.write(chunk, (error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
 async function emitSkillResultFrame(result) {
   const payload = JSON.stringify(result);
-  process.stdout.write(`${FRAME_PREFIX}\n${payload}\n`);
+  await writeToStream(process.stdout, `${FRAME_PREFIX}\n${payload}\n`);
 }
 
 function parseFinalSkillResultFrame(content) {
@@ -499,7 +510,7 @@ async function main() {
     }
 
     frameEmitted = true;
-    process.stdout.write(parsedFrame.content);
+    await writeToStream(process.stdout, parsedFrame.content);
     return { ok: true, framePresent: true };
   };
 
@@ -535,7 +546,7 @@ async function main() {
       pollTimer = null;
     }
     frameEmitted = true;
-    process.stdout.write(parsedFrame.content);
+    await writeToStream(process.stdout, parsedFrame.content);
     beginChildShutdown(0);
   };
 
@@ -604,6 +615,11 @@ async function main() {
       const flushed = await flushFinalFrameIfPresent();
       if (!flushed.ok) {
         console.error(`Failed to validate final agent message: ${flushed.message}`);
+        await cleanupAndExit(1);
+        return;
+      }
+      if (!flushed.framePresent) {
+        console.error("Agent CLI exited successfully without emitting a final SkillResult frame.");
         await cleanupAndExit(1);
         return;
       }

@@ -82,8 +82,15 @@
                 "minLength": 1
               },
               "cliPath": {
-                "type": "string",
-                "minLength": 1
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
               "timeoutMs": {
                 "type": "integer",
