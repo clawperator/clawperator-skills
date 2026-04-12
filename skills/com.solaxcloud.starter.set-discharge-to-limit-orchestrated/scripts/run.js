@@ -7,17 +7,19 @@ const { tmpdir } = require("node:os");
 
 const resolvedAgentCliPath = process.env.CLAWPERATOR_SKILL_AGENT_CLI_PATH;
 const configuredAgentCli = process.env.CLAWPERATOR_SKILL_AGENT_CLI || "codex";
+const configuredAgentTimeoutMs = Number.parseInt(process.env.CLAWPERATOR_SKILL_AGENT_TIMEOUT_MS || "", 10);
 const skillProgramPath = process.env.CLAWPERATOR_SKILL_PROGRAM;
 const skillId = process.env.CLAWPERATOR_SKILL_ID || "com.solaxcloud.starter.set-discharge-to-limit-orchestrated";
 const forwardedArgs = process.argv.slice(2);
 const declaredInputs = parseJsonArray(process.env.CLAWPERATOR_SKILL_INPUTS);
 const operatorPackage = process.env.CLAWPERATOR_OPERATOR_PACKAGE || "com.clawperator.operator.dev";
-const clawperatorBin = process.env.CLAWPERATOR_BIN || resolve(__dirname, "../../../../../clawperator/apps/node/dist/cli/index.js");
 const skillsRegistry = process.env.CLAWPERATOR_SKILLS_REGISTRY || resolve(__dirname, "../../../skills-registry.json");
 const skillsRepoRoot = resolve(__dirname, "../../..");
 const clawperatorRepoRoot = resolve(skillsRepoRoot, "../clawperator");
+const clawperatorBin = process.env.CLAWPERATOR_BIN || resolve(clawperatorRepoRoot, "apps/node/dist/cli/index.js");
 const stableOutputPollIntervalMs = 1000;
 const stableOutputGracePolls = 2;
+const childShutdownGraceMs = 5000;
 
 if (!resolvedAgentCliPath || !skillProgramPath) {
   console.error(
@@ -82,6 +84,9 @@ function buildPrompt(skillProgram, rawArgs, skillInputs) {
     "- Always pass `--operator-package com.clawperator.operator.dev` on Clawperator commands.",
     "- Use the flat Clawperator commands directly instead of building JSON execution files.",
     "- Prefer `open`, `snapshot`, `click`, `type`, `read`, `press`, `scroll`, and `wait` command forms.",
+    "- Follow the recorded Solax path exactly instead of exploring the app.",
+    "- The only allowed bottom-tab navigation is to `Intelligence`.",
+    "- Do not visit unrelated bottom tabs or sections such as `Device` or `Service`.",
     "- Keep the run focused on the minimum actions needed to complete and verify the skill.",
     "- The final response must contain exactly two lines:",
     "  1. [Clawperator-Skill-Result]",
@@ -95,12 +100,18 @@ function buildPrompt(skillProgram, rawArgs, skillInputs) {
     "1. Treat the resolved requested percent above as the skill input to parse.",
     "2. If parsing fails, emit a failed SkillResult immediately.",
     "3. Operate SolaX Cloud with Clawperator only.",
-    "4. Record only these checkpoints, in this order when reached: app_opened, discharge_to_row_focused, target_text_entered, save_completed, terminal_state_verified.",
-    "5. After save, verify whether the post-save UI contains exactly `Discharge to <percent>%`.",
-    "6. As soon as that verification is success, failed, or indeterminate, emit the final frame and stop.",
+    "4. Use this exact route: Intelligence -> Peak Export -> Device Discharging (By percentage) -> Discharge to ... -> Confirm -> toolbar Save -> lower Save.",
+    "5. If this route is unavailable after one close-and-reopen retry, emit a failed or indeterminate result instead of exploring other tabs.",
+    "6. Record only these checkpoints, in this order when reached: app_opened, discharge_to_row_focused, target_text_entered, save_completed, terminal_state_verified.",
+    "7. After save, verify whether the post-save UI contains exactly `Discharge to <percent>%`.",
+    "8. As soon as that verification is success, failed, or indeterminate, emit the final frame and stop.",
     "",
     "Known command forms:",
     `- Open app: node ${clawperatorBin} open com.solaxcloud.starter --device ${deviceId || "<device_serial>"} --operator-package ${operatorPackage} --json`,
+    `- Open the Intelligence tab: node ${clawperatorBin} click --text "Intelligence" --device ${deviceId || "<device_serial>"} --operator-package ${operatorPackage} --json`,
+    `- Open Peak Export: node ${clawperatorBin} click --text "Peak Export" --device ${deviceId || "<device_serial>"} --operator-package ${operatorPackage} --json`,
+    `- Open Device Discharging (By percentage): node ${clawperatorBin} click --text "Device Discharging (By percentage)" --device ${deviceId || "<device_serial>"} --operator-package ${operatorPackage} --json`,
+    `- Open Discharge to row: node ${clawperatorBin} click --text-contains "Discharge to" --device ${deviceId || "<device_serial>"} --operator-package ${operatorPackage} --json`,
     `- Snapshot: node ${clawperatorBin} snapshot --device ${deviceId || "<device_serial>"} --operator-package ${operatorPackage} --json`,
     `- Click by visible text: node ${clawperatorBin} click --text "<visible text>" --device ${deviceId || "<device_serial>"} --operator-package ${operatorPackage} --json`,
     `- Type into the focused field: node ${clawperatorBin} type --text "${percentArg || "<percent>"}" --device ${deviceId || "<device_serial>"} --operator-package ${operatorPackage} --json`,
@@ -161,6 +172,10 @@ async function main() {
   let settled = false;
   let pollTimer = null;
   let lastStableSample = null;
+  let agentWatchdogTimer = null;
+  let childShutdownTimer = null;
+  let shutdownRequested = false;
+  let shutdownExitCode = 1;
 
   const child = spawn(
     resolvedAgentCliPath,
@@ -180,6 +195,7 @@ async function main() {
       "-",
     ],
     {
+      detached: process.platform !== "win32",
       stdio: ["pipe", "ignore", "pipe"],
       env: {
         ...process.env,
@@ -194,6 +210,23 @@ async function main() {
   child.stdin.write(prompt);
   child.stdin.end();
 
+  const terminateAgentChild = (signal = "SIGTERM") => {
+    if (child.killed || child.exitCode !== null || child.signalCode !== null) {
+      return;
+    }
+
+    try {
+      if (process.platform !== "win32" && typeof child.pid === "number") {
+        process.kill(-child.pid, signal);
+        return;
+      }
+    } catch {
+      // Fall through to direct child kill when process-group termination is unavailable.
+    }
+
+    child.kill(signal);
+  };
+
   const cleanupAndExit = async (code) => {
     if (settled) {
       return;
@@ -203,8 +236,29 @@ async function main() {
       clearInterval(pollTimer);
       pollTimer = null;
     }
+    if (agentWatchdogTimer) {
+      clearTimeout(agentWatchdogTimer);
+      agentWatchdogTimer = null;
+    }
+    if (childShutdownTimer) {
+      clearTimeout(childShutdownTimer);
+      childShutdownTimer = null;
+    }
     await rm(tempDir, { recursive: true, force: true });
     process.exit(code);
+  };
+
+  const beginChildShutdown = (exitCode) => {
+    if (settled || shutdownRequested) {
+      return;
+    }
+    shutdownRequested = true;
+    shutdownExitCode = exitCode;
+    terminateAgentChild("SIGTERM");
+    childShutdownTimer = setTimeout(() => {
+      terminateAgentChild("SIGKILL");
+      void cleanupAndExit(exitCode);
+    }, childShutdownGraceMs);
   };
 
   const emitStableOutputIfReady = async () => {
@@ -215,8 +269,7 @@ async function main() {
     }
 
     process.stdout.write(sample.content.endsWith("\n") ? sample.content : `${sample.content}\n`);
-    child.kill("SIGTERM");
-    await cleanupAndExit(0);
+    beginChildShutdown(0);
   };
 
   pollTimer = setInterval(() => {
@@ -230,6 +283,23 @@ async function main() {
     process.stderr.write(chunk);
   });
 
+  if (Number.isInteger(configuredAgentTimeoutMs) && configuredAgentTimeoutMs > 0) {
+    agentWatchdogTimer = setTimeout(() => {
+      process.stderr.write(
+        `Agent CLI '${configuredAgentCli}' exceeded configured timeout ${configuredAgentTimeoutMs}ms; terminating child process.\n`
+      );
+      beginChildShutdown(1);
+    }, configuredAgentTimeoutMs + stableOutputPollIntervalMs);
+  }
+
+  const handleTerminationSignal = (signalName) => {
+    process.stderr.write(`Received ${signalName}; terminating orchestrated skill harness.\n`);
+    beginChildShutdown(1);
+  };
+
+  process.once("SIGTERM", () => handleTerminationSignal("SIGTERM"));
+  process.once("SIGINT", () => handleTerminationSignal("SIGINT"));
+
   child.on("error", async (error) => {
     console.error(`Failed to start agent CLI '${configuredAgentCli}': ${error.message}`);
     await cleanupAndExit(1);
@@ -238,6 +308,11 @@ async function main() {
   child.on("close", async (code, signal) => {
     try {
       if (settled) {
+        return;
+      }
+
+      if (shutdownRequested) {
+        await cleanupAndExit(shutdownExitCode);
         return;
       }
 

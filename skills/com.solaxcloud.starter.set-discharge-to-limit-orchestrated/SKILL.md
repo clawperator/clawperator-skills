@@ -44,16 +44,30 @@ Operational playbook:
 1. Parse `percent`.
 2. If parsing fails, emit one framed failed `SkillResult` immediately.
 3. Open `com.solaxcloud.starter`.
-4. Use the current UI state to reach the automation screen that contains:
-   - `Peak Export`
-   - `Device Discharging (By percentage)`
-   - `Save`
-5. Focus the `Device Discharging (By percentage)` row.
-6. Enter or confirm the requested `percent`.
-7. Tap `Save`.
-8. Re-read the post-save UI state.
-9. Verify whether the post-save UI contains exact text `Discharge to <percent>%`.
-10. Emit the final framed `SkillResult` immediately and stop.
+4. From the app home flow, use only the recorded route:
+   - bottom tab `Intelligence`
+   - automation card `Peak Export`
+   - action card `Device Discharging (By percentage)`
+   - detail row `Discharge to ...`
+5. Do not explore unrelated bottom tabs or sections such as `Device` or `Service`.
+6. If `Intelligence` is not visible, try one close-and-reopen recovery.
+7. Once on the `Peak Export` screen, open `Device Discharging (By percentage)`.
+8. Once on the detail screen, open the `Discharge to ...` row.
+9. Enter or confirm the requested `percent`.
+10. Tap `Confirm`.
+11. Tap the toolbar `Save`.
+12. Wait until the `Peak Export` screen is visible again.
+13. Tap the remaining lower `Save` action.
+14. Re-read the post-save UI state.
+15. Verify whether the post-save UI contains exact text `Discharge to <percent>%`.
+16. Emit the final framed `SkillResult` immediately and stop.
+
+Navigation policy:
+
+- the only allowed bottom-tab navigation is to `Intelligence`
+- do not browse `Device`, `Service`, profile, settings, or any unrelated tabs while searching
+- if `Peak Export` is not reachable from `Intelligence` after the one allowed reopen recovery, emit a failed result instead of exploring elsewhere
+- if the screen flow differs materially from the recorded route, emit a failed or indeterminate result truthfully instead of improvising a different in-app journey
 
 Recovery branch:
 
