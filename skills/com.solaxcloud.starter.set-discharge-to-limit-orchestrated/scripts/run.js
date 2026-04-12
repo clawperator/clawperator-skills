@@ -197,11 +197,67 @@ function parseFinalSkillResultFrame(content) {
     return { ok: false, message: "SkillResult payload contractVersion or skillId did not match the expected runtime values." };
   }
 
-  if (!Array.isArray(parsed.checkpoints)) {
-    return { ok: false, message: "SkillResult payload must include checkpoints." };
+  if (!parsed.goal || typeof parsed.goal !== "object" || Array.isArray(parsed.goal)) {
+    return { ok: false, message: "SkillResult payload must include goal." };
   }
 
-  return { ok: true, content: `${FRAME_PREFIX}\n${nonEmptyLines[1]}\n` };
+  if (parsed.goal.kind !== "set_discharge_limit" || !Number.isInteger(parsed.goal.percent)) {
+    return { ok: false, message: "SkillResult goal must be { kind: 'set_discharge_limit', percent: <integer> }." };
+  }
+
+  if (!parsed.inputs || typeof parsed.inputs !== "object" || Array.isArray(parsed.inputs)) {
+    return { ok: false, message: "SkillResult payload must include inputs." };
+  }
+
+  if (!Number.isInteger(parsed.inputs.percent)) {
+    return { ok: false, message: "SkillResult inputs.percent must be an integer." };
+  }
+
+  if (parsed.goal.percent !== parsed.inputs.percent) {
+    return { ok: false, message: "SkillResult goal.percent and inputs.percent must match." };
+  }
+
+  if (!["success", "failed", "indeterminate"].includes(parsed.status)) {
+    return { ok: false, message: "SkillResult status must be success, failed, or indeterminate." };
+  }
+
+  if (!Array.isArray(parsed.checkpoints) || parsed.checkpoints.length !== CHECKPOINT_IDS.length) {
+    return { ok: false, message: `SkillResult checkpoints must include exactly ${CHECKPOINT_IDS.length} entries.` };
+  }
+
+  for (let index = 0; index < CHECKPOINT_IDS.length; index += 1) {
+    const checkpoint = parsed.checkpoints[index];
+    if (!checkpoint || typeof checkpoint !== "object" || Array.isArray(checkpoint)) {
+      return { ok: false, message: `Checkpoint at index ${index} must be an object.` };
+    }
+
+    if (checkpoint.id !== CHECKPOINT_IDS[index]) {
+      return { ok: false, message: `Checkpoint order must be ${CHECKPOINT_IDS.join(", ")}.` };
+    }
+
+    if (!["ok", "failed", "skipped"].includes(checkpoint.status)) {
+      return { ok: false, message: `Checkpoint '${checkpoint.id}' must use status ok, failed, or skipped.` };
+    }
+  }
+
+  if (!parsed.terminalVerification || typeof parsed.terminalVerification !== "object" || Array.isArray(parsed.terminalVerification)) {
+    return { ok: false, message: "SkillResult payload must include terminalVerification." };
+  }
+
+  if (!["verified", "failed", "not_run"].includes(parsed.terminalVerification.status)) {
+    return { ok: false, message: "terminalVerification.status must be verified, failed, or not_run." };
+  }
+
+  if (parsed.terminalVerification.status !== "not_run") {
+    if (!parsed.terminalVerification.expected || parsed.terminalVerification.expected.kind !== "text" || typeof parsed.terminalVerification.expected.text !== "string") {
+      return { ok: false, message: "terminalVerification.expected must be { kind: 'text', text: <string> } when verification ran." };
+    }
+    if (!parsed.terminalVerification.observed || parsed.terminalVerification.observed.kind !== "text" || typeof parsed.terminalVerification.observed.text !== "string") {
+      return { ok: false, message: "terminalVerification.observed must be { kind: 'text', text: <string> } when verification ran." };
+    }
+  }
+
+  return { ok: true, content: `${FRAME_PREFIX}\n${JSON.stringify(parsed)}\n` };
 }
 
 function buildAgentEnv(deviceId) {
@@ -273,8 +329,9 @@ function buildPrompt(skillProgram, runtimeContext) {
     "Known command forms:",
     `- Open app: ${clawperatorBinCommand} open com.solaxcloud.starter --device ${deviceId} --operator-package ${operatorPackage} --json`,
     `- Open the Intelligence tab: ${clawperatorBinCommand} click --text "Intelligence" --device ${deviceId} --operator-package ${operatorPackage} --json`,
-    `- Open Peak Export: ${clawperatorBinCommand} click --text "Peak Export" --device ${deviceId} --operator-package ${operatorPackage} --json`,
-    `- Open Device Discharging (By percentage): ${clawperatorBinCommand} click --text "Device Discharging (By percentage)" --device ${deviceId} --operator-package ${operatorPackage} --json`,
+    `- Snapshot before Samsung-specific taps: ${clawperatorBinCommand} snapshot --device ${deviceId} --operator-package ${operatorPackage} --json`,
+    `- Open Peak Export on the recorded Samsung layout with the replay-proven container tap: ${clawperatorBinCommand} click --coordinate 860,1399 --device ${deviceId} --operator-package ${operatorPackage} --json`,
+    `- Open Device Discharging (By percentage) on the recorded Samsung layout with the replay-proven container tap: ${clawperatorBinCommand} click --coordinate 875,1548 --device ${deviceId} --operator-package ${operatorPackage} --json`,
     `- Open Discharge to row: ${clawperatorBinCommand} click --text-contains "Discharge to" --device ${deviceId} --operator-package ${operatorPackage} --json`,
     `- Snapshot: ${clawperatorBinCommand} snapshot --device ${deviceId} --operator-package ${operatorPackage} --json`,
     `- Click by visible text: ${clawperatorBinCommand} click --text "<visible text>" --device ${deviceId} --operator-package ${operatorPackage} --json`,
@@ -416,6 +473,28 @@ async function main() {
     process.exit(code);
   };
 
+  const flushFinalFrameIfPresent = async () => {
+    let finalMessage;
+    try {
+      finalMessage = await readFile(outputPath, "utf8");
+    } catch {
+      return { ok: true, framePresent: false };
+    }
+
+    if (!finalMessage || frameEmitted) {
+      return { ok: true, framePresent: Boolean(finalMessage) };
+    }
+
+    const parsedFrame = parseFinalSkillResultFrame(finalMessage);
+    if (!parsedFrame.ok) {
+      return { ok: false, message: parsedFrame.message };
+    }
+
+    frameEmitted = true;
+    process.stdout.write(parsedFrame.content);
+    return { ok: true, framePresent: true };
+  };
+
   const beginChildShutdown = (exitCode) => {
     if (settled || shutdownRequested) {
       return;
@@ -497,25 +576,28 @@ async function main() {
       }
 
       if (signal) {
+        const flushed = await flushFinalFrameIfPresent();
+        if (!flushed.ok) {
+          console.error(`Failed to validate final agent message after signal exit: ${flushed.message}`);
+        }
         await cleanupAndExit(1);
         return;
       }
 
       if (code !== 0) {
+        const flushed = await flushFinalFrameIfPresent();
+        if (!flushed.ok) {
+          console.error(`Failed to validate final agent message after non-zero exit: ${flushed.message}`);
+        }
         await cleanupAndExit(code ?? 1);
         return;
       }
 
-      const finalMessage = await readFile(outputPath, "utf8");
-      if (!frameEmitted) {
-        const parsedFrame = parseFinalSkillResultFrame(finalMessage);
-        if (!parsedFrame.ok) {
-          console.error(`Failed to validate final agent message: ${parsedFrame.message}`);
-          await cleanupAndExit(1);
-          return;
-        }
-        frameEmitted = true;
-        process.stdout.write(parsedFrame.content);
+      const flushed = await flushFinalFrameIfPresent();
+      if (!flushed.ok) {
+        console.error(`Failed to validate final agent message: ${flushed.message}`);
+        await cleanupAndExit(1);
+        return;
       }
       await cleanupAndExit(0);
     } catch (error) {
