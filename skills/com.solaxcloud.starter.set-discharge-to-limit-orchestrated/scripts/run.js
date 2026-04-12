@@ -19,6 +19,58 @@ const skillsRepoRoot = resolve(__dirname, "../../..");
 const debugMode = process.env.CLAWPERATOR_SKILL_DEBUG === "1";
 const retainLogs = debugMode || process.env.CLAWPERATOR_SKILL_RETAIN_LOGS === "1";
 const configuredLogDir = process.env.CLAWPERATOR_SKILL_LOG_DIR || "";
+const requiredCheckpointIds = [
+  "app_opened",
+  "discharge_to_row_focused",
+  "target_text_entered",
+  "save_completed",
+  "terminal_state_verified",
+];
+
+function parseRequestedPercent() {
+  const parseValue = (value) => {
+    if (typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 100) {
+      return value;
+    }
+    if (typeof value === "string" && /^[0-9]{1,3}$/.test(value)) {
+      const parsed = Number.parseInt(value, 10);
+      if (parsed >= 0 && parsed <= 100) {
+        return parsed;
+      }
+    }
+    return null;
+  };
+
+  for (const arg of forwardedArgs) {
+    const parsed = parseValue(arg);
+    if (parsed !== null) {
+      return parsed;
+    }
+  }
+
+  try {
+    const parsedInputs = JSON.parse(skillInputs);
+    if (Array.isArray(parsedInputs)) {
+      for (const entry of parsedInputs) {
+        const parsed = parseValue(entry);
+        if (parsed !== null) {
+          return parsed;
+        }
+      }
+    } else if (isPlainObject(parsedInputs)) {
+      const parsed = parseValue(parsedInputs.percent);
+      if (parsed !== null) {
+        return parsed;
+      }
+    }
+  } catch {
+    // Best-effort only.
+  }
+
+  return null;
+}
+
+const requestedPercent = parseRequestedPercent();
 
 async function createRunDirectory() {
   if (configuredLogDir.length > 0) {
@@ -27,11 +79,6 @@ async function createRunDirectory() {
   }
 
   return mkdtemp(join(tmpdir(), "clawperator-solax-orchestrated-"));
-}
-
-function fail(message) {
-  console.error(message);
-  process.exit(1);
 }
 
 function buildAgentEnv() {
@@ -65,25 +112,6 @@ function buildAgentEnv() {
 }
 
 function buildPrompt(skillProgram) {
-  const bootstrapExecution = {
-    commandId: `${skillId}-bootstrap-open`,
-    taskId: skillId,
-    source: skillId,
-    expectedFormat: "android-ui-automator",
-    timeoutMs: 45000,
-    actions: [
-      { id: "open", type: "open_app", params: { applicationId: "com.solaxcloud.starter" } },
-      {
-        id: "wait_peak_export_context",
-        type: "wait_for_node",
-        params: {
-          matcher: { textContains: "Peak Export" },
-          timeoutMs: 10000,
-        },
-      },
-    ],
-  };
-
   return [
     `You are the runtime agent for the Clawperator skill '${skillId}'.`,
     "Follow the attached SKILL.md exactly.",
@@ -96,7 +124,8 @@ function buildPrompt(skillProgram) {
     "Run only one live device command at a time.",
     "Do not start a second Clawperator device command until the previous device command has completed and you have inspected its result.",
     "Do not issue multiple shell commands in parallel for the same live run.",
-    "Run the non-destructive bootstrap command below first, then continue from the current in-app state using the route in SKILL.md.",
+    "Start from the current visible SolaX state using the route in SKILL.md.",
+    "If SolaX is not already foregrounded, your first live command should open com.solaxcloud.starter.",
     "Do not close and reopen SolaX unless the route in SKILL.md says recovery is needed.",
     "If you cannot make progress with real Clawperator evidence, emit a truthful failed SkillResult instead of waiting on the launcher.",
     "Never open unrelated apps or system surfaces such as launcher search, the Google app, voice search, Assistant, Chrome, or Settings.",
@@ -131,9 +160,6 @@ function buildPrompt(skillProgram) {
     `6. Verify by reopening the route: ${clawperatorBin} exec --device ${deviceId} --operator-package ${operatorPackage} --execution '{"commandId":"${skillId}-return-intelligence","taskId":"${skillId}","source":"${skillId}","expectedFormat":"android-ui-automator","timeoutMs":20000,"actions":[{"id":"open_intelligence_again","type":"click","params":{"matcher":{"resourceId":"com.solaxcloud.starter:id/tab_intelligent"}}},{"id":"wait_after_tab_again","type":"sleep","params":{"durationMs":1500}},{"id":"wait_peak_export_text_again","type":"wait_for_node","params":{"matcher":{"textContains":"Peak Export"},"timeoutMs":15000}}]}' --json`,
     `7. Then reopen Peak Export and Device Discharging with the same coordinate payloads, ending with read_text on matcher.textContains='Discharge to'. Do not declare save complete until the prompt confirmation has been handled.`,
     "",
-    "Bootstrap command to run first:",
-    `${clawperatorBin} exec --device ${deviceId} --operator-package ${operatorPackage} --execution '${JSON.stringify(bootstrapExecution)}' --json`,
-    "",
     "SKILL.md program:",
     skillProgram,
   ].join("\n");
@@ -160,16 +186,45 @@ function hasRequiredSkillResultShape(skillResult) {
   return isPlainObject(skillResult)
     && typeof skillResult.contractVersion === "string"
     && skillResult.skillId === skillId
+    && !Object.prototype.hasOwnProperty.call(skillResult, "source")
     && isPlainObject(skillResult.goal)
     && isPlainObject(skillResult.inputs)
     && ["success", "failed", "indeterminate"].includes(skillResult.status)
     && Array.isArray(skillResult.checkpoints)
-    && skillResult.checkpoints.every(hasValidCheckpoint)
+    && skillResult.checkpoints.length === requiredCheckpointIds.length
+    && skillResult.checkpoints.every((checkpoint, index) => (
+      hasValidCheckpoint(checkpoint) && checkpoint.id === requiredCheckpointIds[index]
+    ))
     && hasValidTerminalVerification(
       Object.prototype.hasOwnProperty.call(skillResult, "terminalVerification")
         ? skillResult.terminalVerification
         : null
     );
+}
+
+function hasSuccessVerification(skillResult) {
+  if (skillResult.status !== "success") {
+    return true;
+  }
+  if (!isPlainObject(skillResult.terminalVerification)) {
+    return false;
+  }
+  if (skillResult.terminalVerification.status !== "verified") {
+    return false;
+  }
+  const observedText = skillResult.terminalVerification.observed?.text;
+  return typeof observedText === "string"
+    && requestedPercent !== null
+    && observedText.includes(`Discharge to ${requestedPercent}%`);
+}
+
+function hasExpectedGoalAndInputs(skillResult) {
+  if (requestedPercent === null) {
+    return true;
+  }
+  return skillResult.goal.kind === "set_discharge_limit"
+    && skillResult.goal.percent === requestedPercent
+    && skillResult.inputs.percent === requestedPercent;
 }
 
 function parseTerminalSkillResultFrame(content) {
@@ -202,10 +257,18 @@ function parseTerminalSkillResultFrame(content) {
     return { ok: false, message: "Agent CLI output ended with a malformed SkillResult payload." };
   }
 
-  return { ok: true, framedOutput: `${marker}\n${nonEmptyLines[markerIndex + 1]}\n` };
+  if (!hasExpectedGoalAndInputs(parsed)) {
+    return { ok: false, message: "Agent CLI output ended with a SkillResult whose goal or inputs do not match the requested percent." };
+  }
+
+  if (!hasSuccessVerification(parsed)) {
+    return { ok: false, message: "Agent CLI output claimed success without a verified terminal read for the requested percent." };
+  }
+
+  return { ok: true, framedOutput: `${marker}\n${nonEmptyLines[markerIndex + 1]}\n`, skillResult: parsed };
 }
 
-async function flushLastMessage(outputPath) {
+async function flushLastMessage(outputPath, { emit = true } = {}) {
   try {
     const content = await readFile(outputPath, "utf8");
     if (content.trim().length === 0) {
@@ -215,18 +278,47 @@ async function flushLastMessage(outputPath) {
     if (!parsedFrame.ok) {
       return parsedFrame;
     }
-    process.stdout.write(parsedFrame.framedOutput);
-    return { ok: true };
+    if (emit) {
+      process.stdout.write(parsedFrame.framedOutput);
+    }
+    return { ok: true, framedOutput: parsedFrame.framedOutput, skillResult: parsedFrame.skillResult };
   } catch {
     return { ok: false, message: "Agent CLI did not write the final message artifact." };
   }
 }
 
+function buildHarnessFailureSkillResult(message) {
+  const percent = requestedPercent;
+  return {
+    contractVersion: "1.0.0",
+    skillId,
+    goal: { kind: "set_discharge_limit", percent },
+    inputs: { percent },
+    status: "failed",
+    checkpoints: requiredCheckpointIds.map((id) => ({ id, status: "skipped", note: message })),
+    terminalVerification: {
+      status: "not_run",
+      note: message,
+    },
+  };
+}
+
+function emitHarnessFailureSkillResult(message) {
+  process.stdout.write("[Clawperator-Skill-Result]\n");
+  process.stdout.write(`${JSON.stringify(buildHarnessFailureSkillResult(message))}\n`);
+}
+
+function exitCodeForSkillResult(skillResult) {
+  return skillResult.status === "success" ? 0 : 1;
+}
+
 async function main() {
   if (!resolvedAgentCliPath || !skillProgramPath || !deviceId || !clawperatorBin) {
-    fail(
+    const message =
       "Missing orchestrated skill runtime env. Run this skill through 'clawperator skills run' so the harness receives the resolved agent CLI, skill program path, selected device, and CLAWPERATOR_BIN."
-    );
+    console.error(message);
+    emitHarnessFailureSkillResult(message);
+    process.exit(1);
   }
 
   const skillProgram = await readFile(skillProgramPath, "utf8");
@@ -241,6 +333,7 @@ async function main() {
   let settled = false;
   let watchdogTimer = null;
   let preserveTempDir = false;
+  let terminationReason = null;
 
   await writeFile(promptPath, prompt, "utf8");
   await writeFile(
@@ -345,7 +438,9 @@ async function main() {
 
   child.on("error", async (error) => {
     preserveTempDir = retainLogs;
-    console.error(`Failed to start agent CLI: ${error.message}`);
+    terminationReason = `Failed to start agent CLI: ${error.message}`;
+    console.error(terminationReason);
+    emitHarnessFailureSkillResult(terminationReason);
     if (preserveTempDir) {
       console.error(`Orchestrated skill logs retained at ${tempDir}`);
     }
@@ -355,9 +450,8 @@ async function main() {
   if (Number.isInteger(configuredAgentTimeoutMs) && configuredAgentTimeoutMs > 0) {
     watchdogTimer = setTimeout(() => {
       preserveTempDir = retainLogs;
-      console.error(
-        `Agent CLI exceeded configured timeout ${configuredAgentTimeoutMs}ms; terminating orchestrated harness child process.`
-      );
+      terminationReason = `Agent CLI exceeded configured timeout ${configuredAgentTimeoutMs}ms; terminating orchestrated harness child process.`;
+      console.error(terminationReason);
       if (preserveTempDir) {
         console.error(`Orchestrated skill logs retained at ${tempDir}`);
       }
@@ -370,10 +464,9 @@ async function main() {
   child.stdin.end();
 
   child.on("close", async (code, signal) => {
-    const frameResult = await flushLastMessage(outputPath);
-
-    if (signal) {
+    if (signal || terminationReason !== null) {
       preserveTempDir = retainLogs;
+      emitHarnessFailureSkillResult(terminationReason ?? `Agent CLI terminated with signal ${signal}.`);
       if (preserveTempDir) {
         console.error(`Orchestrated skill logs retained at ${tempDir}`);
       }
@@ -381,8 +474,10 @@ async function main() {
       return;
     }
 
+    const frameResult = await flushLastMessage(outputPath, { emit: false });
     if (!frameResult.ok) {
       preserveTempDir = retainLogs;
+      emitHarnessFailureSkillResult(frameResult.message);
       if (preserveTempDir) {
         console.error(`Orchestrated skill logs retained at ${tempDir}`);
       }
@@ -391,11 +486,12 @@ async function main() {
       return;
     }
 
+    process.stdout.write(frameResult.framedOutput);
     if (retainLogs) {
       preserveTempDir = true;
       console.error(`Orchestrated skill logs retained at ${tempDir}`);
     }
-    await cleanupAndExit(code ?? 1);
+    await cleanupAndExit(exitCodeForSkillResult(frameResult.skillResult));
   });
 }
 
