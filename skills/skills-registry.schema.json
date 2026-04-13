@@ -98,6 +98,68 @@
               }
             }
           },
+          "contract": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "inputs",
+              "goal",
+              "verification"
+            ],
+            "properties": {
+              "inputs": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "goal": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "kind"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "additionalProperties": true
+                  }
+                ]
+              },
+              "verification": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "kind",
+                      "matcher"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "const": "node_text_matches"
+                      },
+                      "matcher": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
           "artifacts": {
             "type": "array",
             "items": {
