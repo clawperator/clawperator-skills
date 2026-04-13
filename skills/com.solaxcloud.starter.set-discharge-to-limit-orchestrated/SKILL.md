@@ -9,7 +9,7 @@ Runtime program for the agent-driven orchestrated sibling of the SolaX discharge
 
 Interpretation note for live eval watchers:
 
-- this skill is often run under the Solax cold-start eval harness
+- this skill is often run under the SolaX cold-start eval harness
 - that eval harness performs its own pre-skill probe pass to read the current
   persisted `Discharge to ...` value before launching the actual skill run
 - the probe belongs to the eval harness, not to this skill
