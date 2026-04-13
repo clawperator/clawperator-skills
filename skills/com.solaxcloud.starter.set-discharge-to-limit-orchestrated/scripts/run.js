@@ -153,6 +153,9 @@ function buildPrompt(skillProgram) {
     "- If a wait for Device Discharging times out after opening Peak Export, probe whether Peak Export is already visible and then continue with the next recorded step instead of repeating the same failed wait blindly.",
     "- Do not spend a dedicated exec waiting for 'Peak Export' text after tapping the Intelligence tab. After a short settle, proceed to the known Peak Export coordinate unless the current screen already proves a later route state.",
     "- Do not append a trailing read_text to the same exec that taps 'Device Discharging (By percentage)'. Open that screen first, then use a second exec to wait for and read the 'Discharge to' row from the new current state.",
+    "- After the pre-edit read_text succeeds, log one concise progress line that names both values, for example: 'This run will try to change Discharge to from 35 to 40.'",
+    "- Do not treat a successful click on the 'Discharge to' row as proof that the edit dialog opened. The dialog is open only after wait_for_node observes resourceId='van-field-1-input'.",
+    "- If the first attempt to open the 'Discharge to' dialog does not produce van-field-1-input, treat it as an intermittent missed tap and spend one bounded retry reopening that same row before failing the run.",
     "- Do not make the scenario-cancel confirmation prompt a required wait after the second Save. If it appears, click Confirm. If it does not appear and the route can be reopened for terminal verification, treat the save path as acceptable without the prompt.",
     "- If the first Intelligence-to-Peak-Export exec returns RESULT_ENVELOPE_TIMEOUT or another no-envelope failure, spend the one allowed recovery on closing and reopening com.solaxcloud.starter, then retry that same route command exactly once before failing.",
     "- During terminal verification, if the tap back into 'Device Discharging (By percentage)' returns RESULT_ENVELOPE_TIMEOUT after Peak Export was already re-opened, treat that as a possible partial advance and immediately attempt the separate Discharge-to wait-and-read from the current screen before failing verification.",
@@ -165,6 +168,7 @@ function buildPrompt(skillProgram) {
     `3. Open Device Discharging: ${clawperatorBin} exec --device ${deviceId} --operator-package ${operatorPackage} --execution '{"commandId":"${skillId}-open-device-discharging","taskId":"${skillId}","source":"${skillId}","expectedFormat":"android-ui-automator","timeoutMs":20000,"actions":[{"id":"open_device_discharging","type":"click","params":{"coordinate":{"x":875,"y":1548}}},{"id":"wait_after_open_device_discharging","type":"sleep","params":{"durationMs":1500}}]}' --json`,
     `4. Read the current Discharge to row from the new screen: ${clawperatorBin} exec --device ${deviceId} --operator-package ${operatorPackage} --execution '{"commandId":"${skillId}-read-discharge-row","taskId":"${skillId}","source":"${skillId}","expectedFormat":"android-ui-automator","timeoutMs":25000,"actions":[{"id":"wait_discharge_row","type":"wait_for_node","params":{"matcher":{"textContains":"Discharge to"},"timeoutMs":15000}},{"id":"read_discharge_row","type":"read_text","params":{"matcher":{"textContains":"Discharge to"}}}]}' --json`,
     `5. Set value and confirm: ${clawperatorBin} exec --device ${deviceId} --operator-package ${operatorPackage} --execution '{"commandId":"${skillId}-set-value","taskId":"${skillId}","source":"${skillId}","expectedFormat":"android-ui-automator","timeoutMs":30000,"actions":[{"id":"open_discharge_dialog","type":"click","params":{"matcher":{"textContains":"Discharge to"}}},{"id":"wait_input","type":"wait_for_node","params":{"matcher":{"resourceId":"van-field-1-input"},"timeoutMs":10000}},{"id":"focus_input","type":"click","params":{"matcher":{"resourceId":"van-field-1-input"}}},{"id":"enter_target","type":"enter_text","params":{"matcher":{"resourceId":"van-field-1-input"},"text":"<percent>"}},{"id":"confirm_value","type":"click","params":{"matcher":{"text":"Confirm"}}},{"id":"wait_after_confirm","type":"wait_for_node","params":{"matcher":{"textContains":"Save"},"timeoutMs":10000}}]}' --json`,
+    `5a. If step 5 clicks the row but wait_input does not observe resourceId='van-field-1-input', log that the first dialog-open attempt missed, rerun the same small open-and-wait command exactly once, and fail truthfully if the retry still does not open the dialog.`,
     `6. Save without assuming the prompt appears: ${clawperatorBin} exec --device ${deviceId} --operator-package ${operatorPackage} --execution '{"commandId":"${skillId}-save","taskId":"${skillId}","source":"${skillId}","expectedFormat":"android-ui-automator","timeoutMs":30000,"actions":[{"id":"click_save_first","type":"click","params":{"matcher":{"text":"Save"}}},{"id":"wait_after_first_save","type":"sleep","params":{"durationMs":1500}},{"id":"wait_save_again","type":"wait_for_node","params":{"matcher":{"text":"Save"},"timeoutMs":10000}},{"id":"click_save_second","type":"click","params":{"matcher":{"text":"Save"}}},{"id":"wait_after_second_save","type":"sleep","params":{"durationMs":3000}}]}' --json`,
     `7. If the scenario-cancel prompt is visibly blocking the screen after step 6, handle it in a separate small exec that clicks matcher.text='Confirm'. Otherwise move directly into terminal verification.`,
     `8. Verify by reopening the route with the same smaller command pattern: return to Peak Export, open Device Discharging, then run a separate wait+read exec for matcher.textContains='Discharge to'. If the Device Discharging tap times out without an envelope, still try the separate wait+read once from the current screen before deciding verification failed. Treat successful reopened-route verification as the final proof that save completed.`,
@@ -219,6 +223,28 @@ function extractObservedPercent(observedText) {
   return Number.parseInt(match[1], 10);
 }
 
+function extractInitialObservedPercentFromSkillResult(skillResult) {
+  if (!Array.isArray(skillResult?.checkpoints)) {
+    return null;
+  }
+  const checkpoint = skillResult.checkpoints.find((entry) => entry?.id === "discharge_to_row_focused");
+  if (!checkpoint || typeof checkpoint.note !== "string") {
+    return null;
+  }
+  return extractObservedPercent(checkpoint.note);
+}
+
+function buildTransitionLogLine(skillResult) {
+  if (requestedPercent === null) {
+    return null;
+  }
+  const observedPercent = extractInitialObservedPercentFromSkillResult(skillResult);
+  if (observedPercent === null) {
+    return null;
+  }
+  return `This run will try to change Discharge to from ${observedPercent} to ${requestedPercent}.`;
+}
+
 function hasRequiredSkillResultShape(skillResult) {
   return isPlainObject(skillResult)
     && typeof skillResult.contractVersion === "string"
@@ -270,26 +296,73 @@ function hasExpectedGoalAndInputs(skillResult) {
     && skillResult.inputs.percent === requestedPercent;
 }
 
-function parseTerminalSkillResultFrame(content) {
-  const nonEmptyLines = content
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  if (nonEmptyLines.length < 2) {
+function extractJsonObjectAfterMarker(content, marker) {
+  const markerIndex = content.lastIndexOf(marker);
+  if (markerIndex === -1) {
     return { ok: false, message: "Agent CLI output did not contain a terminal SkillResult frame." };
   }
 
+  const trailing = content.slice(markerIndex + marker.length).trimStart();
+  const firstBraceIndex = trailing.indexOf("{");
+  if (firstBraceIndex === -1) {
+    return { ok: false, message: "Agent CLI output did not contain a JSON payload after the terminal SkillResult frame." };
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaping = false;
+  let startIndex = -1;
+  for (let index = firstBraceIndex; index < trailing.length; index += 1) {
+    const char = trailing[index];
+    if (escaping) {
+      escaping = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaping = true;
+      continue;
+    }
+    if (char === "\"") {
+      inString = !inString;
+      continue;
+    }
+    if (inString) {
+      continue;
+    }
+    if (char === "{") {
+      if (depth === 0) {
+        startIndex = index;
+      }
+      depth += 1;
+      continue;
+    }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0 && startIndex !== -1) {
+        return {
+          ok: true,
+          jsonText: trailing.slice(startIndex, index + 1),
+          framedOutput: `${marker}\n${trailing.slice(startIndex, index + 1)}\n`,
+        };
+      }
+    }
+  }
+
+  return { ok: false, message: "Agent CLI output ended with an incomplete SkillResult JSON payload." };
+}
+
+function parseTerminalSkillResultFrame(content) {
   const marker = "[Clawperator-Skill-Result]";
-  const markerIndex = nonEmptyLines.lastIndexOf(marker);
-  if (markerIndex === -1 || markerIndex !== nonEmptyLines.length - 2) {
-    return { ok: false, message: "Agent CLI output did not end with the required terminal SkillResult frame." };
+  const extracted = extractJsonObjectAfterMarker(content, marker);
+  if (!extracted.ok) {
+    return extracted;
   }
 
   let parsed;
   try {
-    parsed = JSON.parse(nonEmptyLines[markerIndex + 1]);
+    parsed = JSON.parse(extracted.jsonText);
   } catch {
-    return { ok: false, message: "Agent CLI output ended with an invalid SkillResult JSON payload." };
+    return { ok: false, message: "Agent CLI output contained an invalid SkillResult JSON payload." };
   }
 
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -308,7 +381,7 @@ function parseTerminalSkillResultFrame(content) {
     return { ok: false, message: "Agent CLI output claimed success without a verified terminal read for the requested percent." };
   }
 
-  return { ok: true, framedOutput: `${marker}\n${nonEmptyLines[markerIndex + 1]}\n`, skillResult: parsed };
+  return { ok: true, framedOutput: extracted.framedOutput, skillResult: parsed };
 }
 
 async function flushLastMessage(outputPath, { emit = true } = {}) {
@@ -571,6 +644,10 @@ async function main() {
     }
 
     await writeStdoutAndDrain(frameResult.framedOutput);
+    const transitionLogLine = buildTransitionLogLine(frameResult.skillResult);
+    if (transitionLogLine !== null) {
+      console.error(transitionLogLine);
+    }
     if (retainLogs) {
       preserveTempDir = true;
       console.error(`Orchestrated skill logs retained at ${tempDir}`);

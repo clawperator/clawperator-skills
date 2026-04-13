@@ -7,6 +7,19 @@ description: |-
 
 Runtime program for the agent-driven orchestrated sibling of the SolaX discharge-limit skill.
 
+Interpretation note for live eval watchers:
+
+- this skill is often run under the Solax cold-start eval harness
+- that eval harness performs its own pre-skill probe pass to read the current
+  persisted `Discharge to ...` value before launching the actual skill run
+- the probe belongs to the eval harness, not to this skill
+- once this skill starts, it is allowed to continue from the current visible
+  SolaX surface when the UI already shows `Peak Export`, `Device Discharging`,
+  or the `Discharge to` dialog
+- because of that split, one watched eval run can look like a probe traversal
+  followed by a restarted skill traversal, and the skill traversal itself may
+  resume from a partially advanced in-app state
+
 The currently supported runtime agent for this skill is `codex`. This skill
 runs through codex with `danger-full-access` sandbox posture so the runtime
 agent can reach the live adb target, and it does not claim runtime support for
@@ -31,7 +44,10 @@ Immediate execution rules:
     `read_text` to the same tap command
   - wait for `Discharge to`
   - read the `Discharge to ...` row in a separate follow-up exec before editing
+  - once the current row has been read, log the intended transition in plain language, for example `This run will try to change Discharge to from 35 to 40.`
   - open the dialog and focus `resourceId=van-field-1-input`
+  - do not assume the dialog opened just because the row click returned success; only treat it as open once `resourceId=van-field-1-input` is observed
+  - if the first row tap does not open the dialog, spend one bounded retry reopening that same row before failing
   - change the value
   - click `Confirm`
   - after `Confirm`, expect the proving-device UI to return to the `Peak Export`
@@ -105,19 +121,21 @@ Operational playbook:
 6. If `Intelligence` is not visible, try one close-and-reopen recovery.
 7. Once on the `Peak Export` screen, open `Device Discharging (By percentage)`.
 8. Once on the detail screen, open the `Discharge to ...` row.
-9. Enter or confirm the requested `percent`.
-10. Tap `Confirm`.
-11. If the current UI still exposes the toolbar `Save`, tap it.
-12. Continue when the `Peak Export` editor is visible, even if `Discharge to`
+9. After reading the current row, log the intended `Discharge to` transition from the observed value to the requested `percent`.
+10. Enter or confirm the requested `percent`.
+11. If the first row tap does not produce `resourceId=van-field-1-input`, retry that same row-open step once, then fail truthfully if the dialog still does not appear.
+12. Tap `Confirm`.
+13. If the current UI still exposes the toolbar `Save`, tap it.
+14. Continue when the `Peak Export` editor is visible, even if `Discharge to`
     does not reappear between `Confirm` and the save actions.
-13. Tap the remaining lower `Save` action near the bottom of the screen.
-14. If a confirmation prompt appears after the lower `Save`, click `Confirm`
+15. Tap the remaining lower `Save` action near the bottom of the screen.
+16. If a confirmation prompt appears after the lower `Save`, click `Confirm`
     and wait for the app shell to resume.
-15. Re-read the post-save UI state.
-16. Verify whether the post-save UI read contains `Discharge to <percent>%`.
+17. Re-read the post-save UI state.
+18. Verify whether the post-save UI read contains `Discharge to <percent>%`.
     A decorative trailing glyph such as `` on the same row does not invalidate
     a successful verification.
-17. Emit the final framed `SkillResult` immediately and stop.
+19. Emit the final framed `SkillResult` immediately and stop.
 
 Navigation policy:
 
@@ -139,8 +157,12 @@ Known-good Samsung route on the proving device:
 - from the resulting current screen, use a smaller follow-up exec to wait for
   text containing `Discharge to`
 - read the `Discharge to ...` row in its own exec before editing
+- after that read succeeds, log the intended transition from the observed value
+  to the requested target before opening the dialog
 - click the `Discharge to ...` row
 - wait for `resourceId=van-field-1-input`
+- if the first row click does not produce `resourceId=van-field-1-input`,
+  repeat that same row-open step once before failing
 - click `resourceId=van-field-1-input`
 - after dialog input, click `Confirm`
 - expect the proving-device UI to return to the `Peak Export` editor
@@ -166,6 +188,9 @@ Execution discipline for this screen:
 - do not bundle the second `Save` click with a required wait for the
   scenario-cancel prompt; treat that prompt as optional recovery and rely on
   terminal verification of the reopened route for final proof
+- do not treat a successful `click` on the `Discharge to ...` row as sufficient
+  evidence that the dialog opened; the required proof is the follow-up
+  `wait_for_node` on `resourceId=van-field-1-input`
 - if the verification tap back into `Device Discharging (By percentage)`
   returns a timeout or no-envelope result after `Peak Export` was already
   re-opened, immediately try the follow-up `Discharge to` wait-and-read from
