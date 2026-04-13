@@ -128,6 +128,18 @@
         "skills/com.solaxcloud.starter.set-discharge-to-limit-orchestrated/scripts/run.js"
       ],
       "artifacts": [],
+      "contract": {
+        "inputs": {
+          "percent": "integer[0,100]"
+        },
+        "goal": {
+          "kind": "set_discharge_limit"
+        },
+        "verification": {
+          "kind": "node_text_matches",
+          "matcher": "Discharge to {percent}%"
+        }
+      },
       "agent": {
         "cli": "codex",
         "timeoutMs": 300000
@@ -144,7 +156,19 @@
         "skills/com.solaxcloud.starter.set-discharge-to-limit-replay/scripts/run.js",
         "skills/com.solaxcloud.starter.set-discharge-to-limit-replay/scripts/run.sh"
       ],
-      "artifacts": []
+      "artifacts": [],
+      "contract": {
+        "inputs": {
+          "percent": "integer[0,100]"
+        },
+        "goal": {
+          "kind": "set_discharge_limit"
+        },
+        "verification": {
+          "kind": "node_text_matches",
+          "matcher": "Discharge to {percent}%"
+        }
+      }
     },
     {
       "id": "com.theswitchbot.switchbot.get-bedroom-temperature",
