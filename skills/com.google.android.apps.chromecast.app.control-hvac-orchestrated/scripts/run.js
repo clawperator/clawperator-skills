@@ -64,7 +64,7 @@ function normalizeValue(action, raw) {
   if (action === "fan_speed") {
     const lowered = trimmed.toLowerCase();
     if (lowered === "medium" || lowered === "med") {
-      return "med";
+      return "medium";
     }
     if (["auto", "high", "low"].includes(lowered)) {
       return lowered;
@@ -72,6 +72,23 @@ function normalizeValue(action, raw) {
     return trimmed;
   }
   return trimmed;
+}
+
+function normalizeUiValue(action, raw) {
+  const trimmed = String(raw || "").trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (action === "fan_speed") {
+    const lowered = trimmed.toLowerCase();
+    if (lowered === "medium" || lowered === "med") {
+      return "med";
+    }
+    if (["auto", "high", "low"].includes(lowered)) {
+      return lowered;
+    }
+  }
+  return normalizeValue(action, raw);
 }
 
 function parseJsonInputs(raw) {
@@ -182,10 +199,12 @@ function extractRequestedConfig() {
   }
 
   const normalizedValue = action === null ? null : normalizeValue(action, value);
+  const normalizedUiValue = action === null ? null : normalizeUiValue(action, value);
   return {
     action,
     rawValue: rawValue || normalizedValue,
     value: normalizedValue,
+    uiValue: normalizedUiValue,
     unitName,
   };
 }
@@ -282,17 +301,18 @@ function buildAgentEnv() {
 }
 
 function expectedVerificationText() {
-  if (requestedConfig.action === "fan_speed") {
-    return requestedConfig.rawValue || requestedConfig.value;
-  }
   return requestedConfig.value;
 }
 
 function denormalizeObservedText(text) {
   if (requestedConfig.action === "fan_speed") {
-    const raw = String(requestedConfig.rawValue || "").trim().toLowerCase();
+    const expected = String(requestedConfig.value || "").trim().toLowerCase();
+    const uiValue = String(requestedConfig.uiValue || "").trim().toLowerCase();
     const observed = String(text || "").trim().toLowerCase();
-    if (raw === "medium" && observed === "med") {
+    if (uiValue.length > 0 && observed === uiValue) {
+      return requestedConfig.value;
+    }
+    if (expected === "medium" && observed === "med") {
       return "medium";
     }
   }
@@ -338,8 +358,9 @@ function buildPrompt(skillProgram) {
           resourceId: "com.google.android.apps.chromecast.app:id/control",
           textContains: requestedConfig.unitName,
         },
+        container: { resourceId: "com.google.android.apps.chromecast.app:id/pager_home_tab" },
         direction: "down",
-        maxSwipes: 8,
+        maxSwipes: 12,
         clickType: "long_click",
       },
     },
@@ -347,8 +368,8 @@ function buildPrompt(skillProgram) {
       id: "wait_controller",
       type: "wait_for_node",
       params: {
-        matcher: { resourceId: "com.google.android.apps.chromecast.app:id/low_value" },
-        timeoutMs: 15000,
+        matcher: { resourceId: "com.google.android.apps.chromecast.app:id/climate_power_button" },
+        timeoutMs: 20000,
       },
     },
     { id: "snap_controller", type: "snapshot_ui", params: {} },
@@ -406,7 +427,7 @@ function buildPrompt(skillProgram) {
       params: {
         matcher: {
           resourceId: "com.google.android.apps.chromecast.app:id/title",
-          textEquals: String(requestedConfig.value || "").toLowerCase(),
+          textEquals: String(requestedConfig.uiValue || requestedConfig.value || "").toLowerCase(),
         },
       },
     },
@@ -416,7 +437,7 @@ function buildPrompt(skillProgram) {
       params: {
         matcher: {
           resourceId: "com.google.android.apps.chromecast.app:id/title",
-          textEquals: String(requestedConfig.value || "").toLowerCase(),
+          textEquals: String(requestedConfig.uiValue || requestedConfig.value || "").toLowerCase(),
         },
       },
     },
