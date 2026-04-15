@@ -61,6 +61,16 @@ function normalizeValue(action, raw) {
     }
     return null;
   }
+  if (action === "fan_speed") {
+    const lowered = trimmed.toLowerCase();
+    if (lowered === "medium" || lowered === "med") {
+      return "med";
+    }
+    if (["auto", "high", "low"].includes(lowered)) {
+      return lowered;
+    }
+    return trimmed;
+  }
   return trimmed;
 }
 
@@ -77,6 +87,7 @@ function extractRequestedConfig() {
   const jsonInputs = parseJsonInputs(skillInputs);
   let action = normalizeAction(jsonInputs.action);
   let value = jsonInputs.value;
+  let rawValue = typeof jsonInputs.value === "string" ? jsonInputs.value.trim() : "";
   let unitName = typeof jsonInputs.unit_name === "string" ? jsonInputs.unit_name.trim() : "";
 
   for (let index = 0; index < forwardedArgs.length; index += 1) {
@@ -94,11 +105,13 @@ function extractRequestedConfig() {
     }
     if (arg === "--value") {
       value = next;
+      rawValue = String(next || "").trim();
       index += 1;
       continue;
     }
     if (typeof arg === "string" && arg.startsWith("--value=")) {
       value = arg.slice("--value=".length);
+      rawValue = value.trim();
       continue;
     }
     if (arg === "--unit-name") {
@@ -113,39 +126,46 @@ function extractRequestedConfig() {
     if (arg === "--temperature") {
       action = "temperature";
       value = next;
+      rawValue = String(next || "").trim();
       index += 1;
       continue;
     }
     if (typeof arg === "string" && arg.startsWith("--temperature=")) {
       action = "temperature";
       value = arg.slice("--temperature=".length);
+      rawValue = value.trim();
       continue;
     }
     if (arg === "--mode") {
       action = "mode";
       value = next;
+      rawValue = String(next || "").trim();
       index += 1;
       continue;
     }
     if (typeof arg === "string" && arg.startsWith("--mode=")) {
       action = "mode";
       value = arg.slice("--mode=".length);
+      rawValue = value.trim();
       continue;
     }
     if (arg === "--fan-speed" || arg === "--fan_speed") {
       action = "fan_speed";
       value = next;
+      rawValue = String(next || "").trim();
       index += 1;
       continue;
     }
     if (typeof arg === "string" && (arg.startsWith("--fan-speed=") || arg.startsWith("--fan_speed="))) {
       action = "fan_speed";
       value = arg.slice(arg.indexOf("=") + 1);
+      rawValue = value.trim();
       continue;
     }
     if (arg === "--climate-state" || arg === "--state") {
       action = "climate_state";
       value = next;
+      rawValue = String(next || "").trim();
       index += 1;
     }
   }
@@ -153,6 +173,7 @@ function extractRequestedConfig() {
   const normalizedValue = action === null ? null : normalizeValue(action, value);
   return {
     action,
+    rawValue: rawValue || normalizedValue,
     value: normalizedValue,
     unitName,
   };
@@ -250,7 +271,21 @@ function buildAgentEnv() {
 }
 
 function expectedVerificationText() {
+  if (requestedConfig.action === "fan_speed") {
+    return requestedConfig.rawValue || requestedConfig.value;
+  }
   return requestedConfig.value;
+}
+
+function denormalizeObservedText(text) {
+  if (requestedConfig.action === "fan_speed") {
+    const raw = String(requestedConfig.rawValue || "").trim().toLowerCase();
+    const observed = String(text || "").trim().toLowerCase();
+    if (raw === "medium" && observed === "med") {
+      return "medium";
+    }
+  }
+  return text;
 }
 
 function buildPrompt(skillProgram) {
@@ -261,6 +296,9 @@ function buildPrompt(skillProgram) {
     "Do not edit repository files.",
     "Do not inspect repository files during the live run.",
     "Use the shell tool to run Clawperator CLI commands.",
+    "Every shell command must be one physical line with no embedded newline characters.",
+    "Do not wrap shell commands in backticks or code fences when you send them to the shell tool.",
+    "Never split '--json' or any other flag onto a second line.",
     "Do not spend a turn planning in prose.",
     "Your first response must include a real Clawperator shell command for the selected device.",
     "Run only one live device command at a time.",
@@ -268,9 +306,15 @@ function buildPrompt(skillProgram) {
     "Do not use adb directly for live evidence unless SKILL.md explicitly allows it, which it does not for this skill.",
     "Do not use 'skills install', 'skills list', 'skills get', or any other skills-store management command during the live run.",
     "Do not call 'clawperator skills run' from inside this skill. That would recurse back into the wrapper and is always wrong here.",
+    "Do not run any '* --help' command during the live run.",
+    "Do not run 'clawperator exec ... --validate-only' during the live run.",
     "Do not use 'exec best-effort'.",
     "Do not use the flat 'wait' command for this skill. Use exec payloads with wait_for_node instead.",
     "The skill program is already embedded in this prompt. No additional skill package installation or lookup is required.",
+    "If you catch yourself checking the CLI surface instead of driving the device, stop and follow the concrete command templates below.",
+    "Your final response must not be a prose summary.",
+    "Your final response must be exactly two lines: first '[Clawperator-Skill-Result]', second one JSON object.",
+    "Do not include markdown fences, bullets, or any extra text before or after the final frame.",
     "",
     "Requested run:",
     `- action: ${requestedConfig.action}`,
@@ -316,17 +360,48 @@ function buildPrompt(skillProgram) {
     "- mode tile resourceId: com.google.android.apps.chromecast.app:id/action_tile and visible text starts with 'Mode '",
     "- fan speed tile resourceId: com.google.android.apps.chromecast.app:id/action_tile and visible text starts with 'Fan speed '",
     "- use Home tab text 'Home' and Climate chip text 'Climate'",
+    "- on the proving device, the fan-speed sheet options are lowercase: 'auto', 'high', 'low', 'med'",
     "",
     "Controller-entry command pattern to prefer over ad hoc probing:",
     `- Use one bounded exec that reopens Google Home, taps Home, scrolls to the Climate chip, then scrolls to the requested unit tile and opens it with long press. The key navigation actions are scroll_and_click on 'Climate' in container resourceId='com.google.android.apps.chromecast.app:id/category_chips' and scroll_and_click on the requested unit tile with clickType='long_click'.`,
     "- Do not wait for the Climate chip to appear as a separate flat command. Use scroll_and_click to bring it into view inside the same exec payload.",
     "- After opening the controller, verify the toolbar title from a snapshot or read before applying any action.",
     "",
+    "Exact command templates:",
+    `- First command: ${clawperatorBin} close com.google.android.apps.chromecast.app --device ${deviceId} --operator-package ${operatorPackage} --json`,
+    `- Second command: ${clawperatorBin} open com.google.android.apps.chromecast.app --device ${deviceId} --operator-package ${operatorPackage} --json`,
+    `- Third command for controller entry: ${clawperatorBin} exec --device ${deviceId} --operator-package ${operatorPackage} --execution '{"commandId":"${skillId}-enter-controller","taskId":"${skillId}","source":"${skillId}","expectedFormat":"android-ui-automator","timeoutMs":90000,"actions":[{"id":"wait_open","type":"sleep","params":{"durationMs":3500}},{"id":"go_home","type":"click","params":{"matcher":{"textEquals":"Home"}}},{"id":"wait_home","type":"sleep","params":{"durationMs":1500}},{"id":"open_climate","type":"scroll_and_click","params":{"matcher":{"textEquals":"Climate"},"container":{"resourceId":"com.google.android.apps.chromecast.app:id/category_chips"},"direction":"right","maxSwipes":6,"clickType":"click","findFirstScrollableChild":true}},{"id":"wait_after_climate","type":"sleep","params":{"durationMs":1500}},{"id":"open_unit_controller","type":"scroll_and_click","params":{"matcher":{"resourceId":"com.google.android.apps.chromecast.app:id/control","textContains":"${requestedConfig.unitName}"},"direction":"down","maxSwipes":8,"clickType":"long_click"}},{"id":"wait_controller","type":"wait_for_node","params":{"matcher":{"resourceId":"com.google.android.apps.chromecast.app:id/low_value"},"timeoutMs":15000}},{"id":"snap_controller","type":"snapshot_ui","params":{}}]}' --json`,
+    `- For temperature reads: ${clawperatorBin} exec --device ${deviceId} --operator-package ${operatorPackage} --execution '{"commandId":"${skillId}-read-temperature","taskId":"${skillId}","source":"${skillId}","expectedFormat":"android-ui-automator","timeoutMs":30000,"actions":[{"id":"read_low_value","type":"read_text","params":{"matcher":{"resourceId":"com.google.android.apps.chromecast.app:id/low_value"}}}]}' --json`,
+    `- For one temperature adjustment step up or down: ${clawperatorBin} exec --device ${deviceId} --operator-package ${operatorPackage} --execution '{"commandId":"${skillId}-adjust-temperature","taskId":"${skillId}","source":"${skillId}","expectedFormat":"android-ui-automator","timeoutMs":30000,"actions":[{"id":"tap_adjust","type":"click","params":{"matcher":{"contentDescEquals":"Increase temperature"}}},{"id":"wait_after_tap","type":"sleep","params":{"durationMs":1200}},{"id":"read_low_value","type":"read_text","params":{"matcher":{"resourceId":"com.google.android.apps.chromecast.app:id/low_value"}}}]}' --json`,
+    `- For fan-speed reads on the controller: ${clawperatorBin} exec --device ${deviceId} --operator-package ${operatorPackage} --execution '{"commandId":"${skillId}-read-fan","taskId":"${skillId}","source":"${skillId}","expectedFormat":"android-ui-automator","timeoutMs":30000,"actions":[{"id":"snap_controller","type":"snapshot_ui","params":{}}]}' --json`,
+    `- For fan-speed sheet selection: ${clawperatorBin} exec --device ${deviceId} --operator-package ${operatorPackage} --execution '{"commandId":"${skillId}-set-fan","taskId":"${skillId}","source":"${skillId}","expectedFormat":"android-ui-automator","timeoutMs":30000,"actions":[{"id":"open_fan_tile","type":"click","params":{"matcher":{"resourceId":"com.google.android.apps.chromecast.app:id/action_tile","textContains":"Fan speed"}}},{"id":"wait_target_option","type":"wait_for_node","params":{"matcher":{"resourceId":"com.google.android.apps.chromecast.app:id/title","textEquals":"${String(requestedConfig.value || "").toLowerCase()}"}}},{"id":"click_target_option","type":"click","params":{"matcher":{"resourceId":"com.google.android.apps.chromecast.app:id/title","textEquals":"${String(requestedConfig.value || "").toLowerCase()}"}}},{"id":"wait_return","type":"sleep","params":{"durationMs":2500}},{"id":"snap_controller","type":"snapshot_ui","params":{}}]}' --json`,
+    `- For fresh-session verification after any action: repeat the close command, repeat the open command, repeat the controller-entry exec, then run the action-specific read command from the reopened controller.`,
+    "",
     "Action-specific proof rules:",
     "- temperature: terminal observed text should be the reopened low_value integer",
     "- mode: terminal observed text should be the reopened selected mode label",
     "- fan_speed: terminal observed text should be the reopened selected fan speed label",
     "- climate_state: terminal observed text should be normalized to 'On' or 'Off' from the reopened low_value",
+    "",
+    "Exact final-frame schema:",
+    `- contractVersion must be '1.0.0'`,
+    `- skillId must be '${skillId}'`,
+    "- status must be 'success', 'failed', or 'indeterminate'",
+    "- include goal.kind='control_hvac', goal.action, goal.value, goal.unit_name",
+    "- include matching inputs.action, inputs.value, inputs.unit_name",
+    "- include checkpoints in this exact order with note on every checkpoint:",
+    "  1. app_opened",
+    "  2. controller_opened",
+    "  3. current_state_read",
+    "  4. action_applied",
+    "  5. terminal_state_verified",
+    "- include terminalVerification with status plus observed.text when verified",
+    `- if the requested value is already present, still return status 'success' and mark action_applied as ok with a note saying it was a verified no-op`,
+    `- for temperature value '${requestedConfig.value}', a valid terminalVerification example is {"status":"verified","method":"fresh-session reread","observed":{"text":"${expectedText}"}}`,
+    "",
+    "Exact final-frame example shape:",
+    `[Clawperator-Skill-Result]
+{"contractVersion":"1.0.0","skillId":"${skillId}","goal":{"kind":"control_hvac","action":"${requestedConfig.action}","value":"${requestedConfig.value}","unit_name":"${requestedConfig.unitName}"},"inputs":{"action":"${requestedConfig.action}","value":"${requestedConfig.value}","unit_name":"${requestedConfig.unitName}"},"status":"success","checkpoints":[{"id":"app_opened","status":"ok","note":"Google Home was reopened from a fresh session."},{"id":"controller_opened","status":"ok","note":"Opened the Panasonic controller through Home > Climate."},{"id":"current_state_read","status":"ok","note":"Read the current value before acting."},{"id":"action_applied","status":"ok","note":"Applied the requested action or confirmed a verified no-op."},{"id":"terminal_state_verified","status":"ok","note":"Fresh-session reread matched the requested value."}],"terminalVerification":{"status":"verified","method":"fresh-session reread","observed":{"text":"${expectedText}"}}}`,
     "",
     "SKILL.md program:",
     skillProgram,
@@ -358,6 +433,11 @@ function observedMatchesExpected(observedText) {
   }
   if (requestedConfig.action === "climate_state") {
     return normalizeStateText(observed) === requestedConfig.value;
+  }
+  if (requestedConfig.action === "fan_speed") {
+    const observedLower = observed.toLowerCase();
+    const expectedLower = String(requestedConfig.value).toLowerCase();
+    return observedLower.includes(expectedLower);
   }
   return observed.toLowerCase().includes(String(requestedConfig.value).toLowerCase());
 }
@@ -395,6 +475,95 @@ function hasRequiredCheckpointsInOrder(checkpoints) {
   return remainingRequiredIds.length === 0;
 }
 
+function hasMinimalSkillResultShape(skillResult) {
+  return isPlainObject(skillResult)
+    && isPlainObject(skillResult.goal)
+    && isPlainObject(skillResult.inputs)
+    && Array.isArray(skillResult.checkpoints)
+    && hasRequiredCheckpointsInOrder(skillResult.checkpoints)
+    && hasValidTerminalVerification(
+      Object.prototype.hasOwnProperty.call(skillResult, "terminalVerification")
+        ? skillResult.terminalVerification
+        : null
+    );
+}
+
+function buildCheckpointNote(checkpoint, index) {
+  if (typeof checkpoint.note === "string" && checkpoint.note.trim().length > 0) {
+    return checkpoint.note.trim();
+  }
+  if (checkpoint.status === "ok") {
+    return `Checkpoint '${checkpoint.id}' completed successfully.`;
+  }
+  if (checkpoint.status === "failed") {
+    return `Checkpoint '${checkpoint.id}' failed.`;
+  }
+  return `Checkpoint '${checkpoint.id}' was skipped.`;
+}
+
+function normalizeCheckpoint(checkpoint, index) {
+  return {
+    id: checkpoint.id,
+    status: checkpoint.status,
+    note: buildCheckpointNote(checkpoint, index),
+  };
+}
+
+function normalizeTerminalVerification(terminalVerification) {
+  if (!isPlainObject(terminalVerification)) {
+    return null;
+  }
+  if (
+    isPlainObject(terminalVerification.observed)
+    && typeof terminalVerification.observed.text === "string"
+  ) {
+    if (terminalVerification.observed.kind === "text") {
+      return terminalVerification;
+    }
+    return {
+      ...terminalVerification,
+      observed: {
+        kind: "text",
+        text: denormalizeObservedText(terminalVerification.observed.text),
+      },
+    };
+  }
+  if (
+    isPlainObject(terminalVerification.observed)
+    && terminalVerification.observed.kind === "text"
+    && typeof terminalVerification.observed.value === "string"
+  ) {
+    return terminalVerification;
+  }
+  if (typeof terminalVerification.text === "string") {
+    return {
+      status: terminalVerification.status,
+      method: terminalVerification.method,
+      observed: {
+        kind: "text",
+        text: denormalizeObservedText(terminalVerification.text),
+      },
+    };
+  }
+  return terminalVerification;
+}
+
+function normalizeSkillResult(skillResult) {
+  return {
+    contractVersion: typeof skillResult.contractVersion === "string" ? skillResult.contractVersion : "1.0.0",
+    skillId,
+    goal: skillResult.goal,
+    inputs: skillResult.inputs,
+    status: ["success", "failed", "indeterminate"].includes(skillResult.status) ? skillResult.status : "success",
+    checkpoints: skillResult.checkpoints.map(normalizeCheckpoint),
+    terminalVerification: normalizeTerminalVerification(
+      Object.prototype.hasOwnProperty.call(skillResult, "terminalVerification")
+        ? skillResult.terminalVerification
+        : null
+    ),
+  };
+}
+
 function hasRequiredSkillResultShape(skillResult) {
   return isPlainObject(skillResult)
     && typeof skillResult.contractVersion === "string"
@@ -414,12 +583,14 @@ function hasRequiredSkillResultShape(skillResult) {
 }
 
 function hasExpectedGoalAndInputs(skillResult) {
+  const actualGoalValue = normalizeValue(requestedConfig.action, skillResult.goal.value);
+  const actualInputValue = normalizeValue(requestedConfig.action, skillResult.inputs.value);
   return skillResult.goal.kind === "control_hvac"
     && skillResult.goal.action === requestedConfig.action
-    && skillResult.goal.value === requestedConfig.value
+    && actualGoalValue === requestedConfig.value
     && skillResult.goal.unit_name === requestedConfig.unitName
     && skillResult.inputs.action === requestedConfig.action
-    && skillResult.inputs.value === requestedConfig.value
+    && actualInputValue === requestedConfig.value
     && skillResult.inputs.unit_name === requestedConfig.unitName;
 }
 
@@ -516,16 +687,24 @@ function parseTerminalSkillResultFrame(content) {
   if (!isPlainObject(parsed)) {
     return { ok: false, message: "Agent CLI output ended with a non-object SkillResult JSON payload." };
   }
-  if (!hasRequiredSkillResultShape(parsed)) {
+  if (!hasMinimalSkillResultShape(parsed)) {
     return { ok: false, message: "Agent CLI output ended with a malformed SkillResult payload." };
   }
-  if (!hasExpectedGoalAndInputs(parsed)) {
+  const normalized = normalizeSkillResult(parsed);
+  if (!hasRequiredSkillResultShape(normalized)) {
+    return { ok: false, message: "Agent CLI output ended with a malformed SkillResult payload." };
+  }
+  if (!hasExpectedGoalAndInputs(normalized)) {
     return { ok: false, message: "Agent CLI output ended with a SkillResult whose goal or inputs do not match the requested action/value/unit." };
   }
-  if (!hasSuccessVerification(parsed)) {
+  if (!hasSuccessVerification(normalized)) {
     return { ok: false, message: "Agent CLI output claimed success without a verified terminal reread for the requested action." };
   }
-  return { ok: true, framedOutput: extracted.framedOutput, skillResult: parsed };
+  return {
+    ok: true,
+    framedOutput: `${marker}\n${JSON.stringify(normalized)}\n`,
+    skillResult: normalized,
+  };
 }
 
 async function flushLastMessage(outputPath, { emit = true } = {}) {

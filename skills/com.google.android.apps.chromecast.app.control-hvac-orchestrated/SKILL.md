@@ -46,6 +46,9 @@ Immediate execution rules:
   skills-store management command during a live run.
 - Do not call `clawperator skills run` from inside this skill. That would
   recurse back into the wrapper instead of operating the device.
+- Do not run `clawperator --help`, `clawperator exec --help`, or any other help
+  or introspection command during a live run.
+- Do not run `clawperator exec ... --validate-only` during a live run.
 - Do not use `exec best-effort`.
 - Do not use the flat `wait` command for this skill. Use bounded `exec`
   payloads with `wait_for_node` instead.
@@ -116,7 +119,9 @@ Action branches:
   - read the current fan speed from the `Fan speed` action tile
   - click the `Fan speed ...` tile
   - wait for the `Fan speed` pop-up
-  - choose the requested visible fan speed label
+  - in the bottom sheet, choose the requested visible option label exactly as
+    rendered there; on the proving device this sheet uses lowercase labels such
+    as `auto`, `high`, `low`, and `med`
   - wait until the controller view is back before moving on
 - `climate_state`
   - read the current state before acting
@@ -147,6 +152,17 @@ Verification policy:
 - for `climate_state`, verify the reopened normalized lowercase power state
   from `low_value`
 - do not trust the immediate in-place controller after a change as final proof
+
+Execution templates:
+
+- prefer the exact `exec --execution` route shown in the harness prompt over
+  inventing new exploratory commands
+- for `temperature`, use a bounded controller-entry exec, then a bounded
+  read-current-temperature exec, then one or more bounded adjustment execs, and
+  finally a fresh-session reread exec
+- for `fan_speed`, use a bounded controller-entry exec, then a bounded
+  read-current-fan-speed exec, then a bounded open-sheet-and-click-option exec,
+  and finally a fresh-session reread exec
 
 Known caveats:
 
