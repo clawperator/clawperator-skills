@@ -215,6 +215,8 @@ function normalizeObservedPower(text) {
   if (normalized === "on") return "On";
   if (normalized === "off") return "Off";
   if (/^-?\d+(?:\.\d+)?$/.test(normalized)) return "On";
+  const numericCandidate = normalized.replace(/[^\d.-]+/g, "");
+  if (/^-?\d+(?:\.\d+)?$/.test(numericCandidate)) return "On";
   return null;
 }
 

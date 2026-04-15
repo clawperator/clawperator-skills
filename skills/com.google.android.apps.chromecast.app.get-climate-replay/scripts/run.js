@@ -133,18 +133,22 @@ function normalizeTemperature(text) {
   return normalizeText(text);
 }
 
+function extractNumericLowValue(lowValue) {
+  return normalizeText(lowValue).replace(/[^0-9.-]/g, "");
+}
+
 function parsePowerStateFromLowValue(lowValue) {
-  const normalized = normalizeText(lowValue).toLowerCase();
+  const normalized = normalizeText(lowValue);
   if (!normalized) return null;
-  if (normalized === "off") return "off";
-  if (/^-?\d+(?:\.\d+)?$/.test(normalized)) return "on";
+  if (normalized.toLowerCase() === "off") return "off";
+  const numeric = extractNumericLowValue(lowValue);
+  if (/^-?\d+(?:\.\d+)?$/.test(numeric)) return "on";
   return null;
 }
 
 function parseDesiredTemperatureFromLowValue(lowValue) {
-  const normalized = normalizeText(lowValue);
-  if (!normalized) return null;
-  if (/^-?\d+(?:\.\d+)?$/.test(normalized)) return normalized;
+  const numeric = extractNumericLowValue(lowValue);
+  if (/^-?\d+(?:\.\d+)?$/.test(numeric)) return numeric;
   return null;
 }
 
