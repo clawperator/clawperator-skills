@@ -645,6 +645,7 @@ function hasMinimalSkillResultShape(skillResult) {
     && isPlainObject(skillResult.inputs)
     && Array.isArray(skillResult.checkpoints)
     && hasRequiredCheckpointsInOrder(skillResult.checkpoints)
+    && hasRequiredCheckpointNotes(skillResult.checkpoints)
     && hasValidTerminalVerification(
       Object.prototype.hasOwnProperty.call(skillResult, "terminalVerification")
         ? skillResult.terminalVerification
@@ -652,24 +653,11 @@ function hasMinimalSkillResultShape(skillResult) {
     );
 }
 
-function buildCheckpointNote(checkpoint, index) {
-  if (typeof checkpoint.note === "string" && checkpoint.note.trim().length > 0) {
-    return checkpoint.note.trim();
-  }
-  if (checkpoint.status === "ok") {
-    return `Checkpoint '${checkpoint.id}' completed successfully.`;
-  }
-  if (checkpoint.status === "failed") {
-    return `Checkpoint '${checkpoint.id}' failed.`;
-  }
-  return `Checkpoint '${checkpoint.id}' was skipped.`;
-}
-
-function normalizeCheckpoint(checkpoint, index) {
+function normalizeCheckpoint(checkpoint) {
   return {
     id: checkpoint.id,
     status: checkpoint.status,
-    note: buildCheckpointNote(checkpoint, index),
+    note: typeof checkpoint.note === "string" ? checkpoint.note.trim() : checkpoint.note,
   };
 }
 
