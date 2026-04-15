@@ -313,6 +313,9 @@ function canonicalizeFanSpeedLabel(text) {
 }
 
 function denormalizeObservedText(text) {
+  if (requestedConfig.action === "climate_state") {
+    return normalizeStateText(text);
+  }
   if (requestedConfig.action === "fan_speed") {
     const expected = canonicalizeFanSpeedLabel(requestedConfig.value);
     const uiValue = canonicalizeFanSpeedLabel(requestedConfig.uiValue);
@@ -544,7 +547,7 @@ function buildPrompt(skillProgram) {
     "- temperature: terminal observed text should be the reopened low_value integer",
     "- mode: terminal observed text should be the reopened selected mode label",
     "- fan_speed: terminal observed text should be the reopened selected fan speed label",
-    "- climate_state: terminal observed text should be normalized to 'On' or 'Off' from the reopened low_value",
+    "- climate_state: terminal observed text should be normalized to lowercase 'on' or 'off' from the reopened low_value",
     "",
     "Exact final-frame schema:",
     `- contractVersion must be '1.0.0'`,
