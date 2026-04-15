@@ -304,16 +304,24 @@ function expectedVerificationText() {
   return requestedConfig.value;
 }
 
+function canonicalizeFanSpeedLabel(text) {
+  const normalized = normalizeWhitespace(text).toLowerCase();
+  const withoutPrefix = normalized.startsWith("fan speed ")
+    ? normalized.slice("fan speed ".length).trim()
+    : normalized;
+  return withoutPrefix === "med" ? "medium" : withoutPrefix;
+}
+
 function denormalizeObservedText(text) {
   if (requestedConfig.action === "fan_speed") {
-    const expected = String(requestedConfig.value || "").trim().toLowerCase();
-    const uiValue = String(requestedConfig.uiValue || "").trim().toLowerCase();
-    const observed = String(text || "").trim().toLowerCase();
+    const expected = canonicalizeFanSpeedLabel(requestedConfig.value);
+    const uiValue = canonicalizeFanSpeedLabel(requestedConfig.uiValue);
+    const observed = canonicalizeFanSpeedLabel(text);
     if (uiValue.length > 0 && observed === uiValue) {
       return requestedConfig.value;
     }
-    if (expected === "medium" && observed === "med") {
-      return "medium";
+    if (expected.length > 0 && observed === expected) {
+      return requestedConfig.value;
     }
   }
   return text;
@@ -427,7 +435,7 @@ function buildPrompt(skillProgram) {
       params: {
         matcher: {
           resourceId: "com.google.android.apps.chromecast.app:id/title",
-          textEquals: String(requestedConfig.uiValue || requestedConfig.value || "").toLowerCase(),
+          textEquals: String(requestedConfig.uiValue || requestedConfig.value || "").trim(),
         },
       },
     },
@@ -437,7 +445,7 @@ function buildPrompt(skillProgram) {
       params: {
         matcher: {
           resourceId: "com.google.android.apps.chromecast.app:id/title",
-          textEquals: String(requestedConfig.uiValue || requestedConfig.value || "").toLowerCase(),
+          textEquals: String(requestedConfig.uiValue || requestedConfig.value || "").trim(),
         },
       },
     },
@@ -590,9 +598,7 @@ function observedMatchesExpected(observedText) {
     return normalizeStateText(observed) === requestedConfig.value;
   }
   if (requestedConfig.action === "fan_speed") {
-    const observedLower = observed.toLowerCase();
-    const expectedLower = String(requestedConfig.value).toLowerCase();
-    return observedLower.includes(expectedLower);
+    return canonicalizeFanSpeedLabel(observed) === canonicalizeFanSpeedLabel(requestedConfig.value);
   }
   return observed.toLowerCase().includes(String(requestedConfig.value).toLowerCase());
 }
@@ -672,9 +678,6 @@ function normalizeTerminalVerification(terminalVerification) {
     isPlainObject(terminalVerification.observed)
     && typeof terminalVerification.observed.text === "string"
   ) {
-    if (terminalVerification.observed.kind === "text") {
-      return terminalVerification;
-    }
     return {
       ...terminalVerification,
       observed: {
@@ -711,11 +714,11 @@ function normalizeTerminalVerification(terminalVerification) {
 
 function normalizeSkillResult(skillResult) {
   return {
-    contractVersion: typeof skillResult.contractVersion === "string" ? skillResult.contractVersion : "1.0.0",
-    skillId,
+    contractVersion: skillResult.contractVersion,
+    skillId: skillResult.skillId,
     goal: skillResult.goal,
     inputs: skillResult.inputs,
-    status: ["success", "failed", "indeterminate"].includes(skillResult.status) ? skillResult.status : "success",
+    status: skillResult.status,
     checkpoints: skillResult.checkpoints.map(normalizeCheckpoint),
     terminalVerification: normalizeTerminalVerification(
       Object.prototype.hasOwnProperty.call(skillResult, "terminalVerification")
