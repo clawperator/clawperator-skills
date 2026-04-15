@@ -1,0 +1,284 @@
+{
+  "exportVersion": 1,
+  "session": {
+    "sessionId": "gh-climate-read-20260415-001",
+    "schemaVersion": 1,
+    "startedAt": 1776222040741,
+    "operatorPackage": "com.clawperator.operator"
+  },
+  "snapshotMode": "omit",
+  "events": [
+    {
+      "seq": 0,
+      "ts": 1776222050018,
+      "deltaMsSincePrevious": null,
+      "type": "click",
+      "packageName": "com.sec.android.app.launcher",
+      "resourceId": "com.sec.android.app.launcher:id/icon",
+      "text": "Home",
+      "contentDesc": "Home",
+      "bounds": {
+        "left": 42,
+        "top": 1016,
+        "right": 291,
+        "bottom": 1311
+      },
+      "snapshot": {
+        "present": true,
+        "xml": null
+      }
+    },
+    {
+      "seq": 1,
+      "ts": 1776222050816,
+      "deltaMsSincePrevious": 798,
+      "type": "window_change",
+      "packageName": "com.google.android.apps.chromecast.app",
+      "className": "android.widget.FrameLayout",
+      "title": "Application icon",
+      "snapshot": {
+        "present": true,
+        "xml": null
+      }
+    },
+    {
+      "seq": 2,
+      "ts": 1776222050821,
+      "deltaMsSincePrevious": 5,
+      "type": "scroll",
+      "packageName": "com.google.android.apps.chromecast.app",
+      "resourceId": null,
+      "scrollX": 0,
+      "scrollY": 0,
+      "maxScrollX": 0,
+      "maxScrollY": 0,
+      "snapshot": {
+        "present": false,
+        "xml": null
+      }
+    },
+    {
+      "seq": 3,
+      "ts": 1776222051052,
+      "deltaMsSincePrevious": 231,
+      "type": "window_change",
+      "packageName": "com.google.android.apps.chromecast.app",
+      "className": "com.google.android.apps.chromecast.app.main.MainActivity",
+      "title": "Home",
+      "snapshot": {
+        "present": true,
+        "xml": null
+      }
+    },
+    {
+      "seq": 4,
+      "ts": 1776222051062,
+      "deltaMsSincePrevious": 10,
+      "type": "scroll",
+      "packageName": "com.google.android.apps.chromecast.app",
+      "resourceId": null,
+      "scrollX": 0,
+      "scrollY": 0,
+      "maxScrollX": 0,
+      "maxScrollY": 0,
+      "snapshot": {
+        "present": false,
+        "xml": null
+      }
+    },
+    {
+      "seq": 5,
+      "ts": 1776222051089,
+      "deltaMsSincePrevious": 27,
+      "type": "scroll",
+      "packageName": "com.google.android.apps.chromecast.app",
+      "resourceId": null,
+      "scrollX": 0,
+      "scrollY": 0,
+      "maxScrollX": 0,
+      "maxScrollY": 0,
+      "snapshot": {
+        "present": false,
+        "xml": null
+      }
+    },
+    {
+      "seq": 6,
+      "ts": 1776222052929,
+      "deltaMsSincePrevious": 1840,
+      "type": "scroll",
+      "packageName": "com.google.android.apps.chromecast.app",
+      "resourceId": null,
+      "scrollX": 62,
+      "scrollY": 0,
+      "maxScrollX": 162,
+      "maxScrollY": 0,
+      "snapshot": {
+        "present": false,
+        "xml": null
+      }
+    },
+    {
+      "seq": 7,
+      "ts": 1776222053130,
+      "deltaMsSincePrevious": 201,
+      "type": "scroll",
+      "packageName": "com.google.android.apps.chromecast.app",
+      "resourceId": null,
+      "scrollX": 245,
+      "scrollY": 0,
+      "maxScrollX": 345,
+      "maxScrollY": 0,
+      "snapshot": {
+        "present": false,
+        "xml": null
+      }
+    },
+    {
+      "seq": 8,
+      "ts": 1776222053333,
+      "deltaMsSincePrevious": 203,
+      "type": "scroll",
+      "packageName": "com.google.android.apps.chromecast.app",
+      "resourceId": null,
+      "scrollX": 414,
+      "scrollY": 0,
+      "maxScrollX": 514,
+      "maxScrollY": 0,
+      "snapshot": {
+        "present": false,
+        "xml": null
+      }
+    },
+    {
+      "seq": 9,
+      "ts": 1776222053433,
+      "deltaMsSincePrevious": 100,
+      "type": "scroll",
+      "packageName": "com.google.android.apps.chromecast.app",
+      "resourceId": null,
+      "scrollX": 466,
+      "scrollY": 0,
+      "maxScrollX": 466,
+      "maxScrollY": 0,
+      "snapshot": {
+        "present": false,
+        "xml": null
+      }
+    },
+    {
+      "seq": 10,
+      "ts": 1776222054472,
+      "deltaMsSincePrevious": 1039,
+      "type": "scroll",
+      "packageName": "com.google.android.apps.chromecast.app",
+      "resourceId": null,
+      "scrollX": 665,
+      "scrollY": 0,
+      "maxScrollX": 665,
+      "maxScrollY": 0,
+      "snapshot": {
+        "present": false,
+        "xml": null
+      }
+    },
+    {
+      "seq": 11,
+      "ts": 1776222054679,
+      "deltaMsSincePrevious": 207,
+      "type": "scroll",
+      "packageName": "com.google.android.apps.chromecast.app",
+      "resourceId": null,
+      "scrollX": 0,
+      "scrollY": 0,
+      "maxScrollX": 0,
+      "maxScrollY": 0,
+      "snapshot": {
+        "present": false,
+        "xml": null
+      }
+    },
+    {
+      "seq": 12,
+      "ts": 1776222054782,
+      "deltaMsSincePrevious": 103,
+      "type": "scroll",
+      "packageName": "com.google.android.apps.chromecast.app",
+      "resourceId": null,
+      "scrollX": 0,
+      "scrollY": 0,
+      "maxScrollX": 0,
+      "maxScrollY": 0,
+      "snapshot": {
+        "present": false,
+        "xml": null
+      }
+    },
+    {
+      "seq": 13,
+      "ts": 1776222055003,
+      "deltaMsSincePrevious": 221,
+      "type": "scroll",
+      "packageName": "com.google.android.apps.chromecast.app",
+      "resourceId": null,
+      "scrollX": 0,
+      "scrollY": 0,
+      "maxScrollX": 0,
+      "maxScrollY": 0,
+      "snapshot": {
+        "present": false,
+        "xml": null
+      }
+    },
+    {
+      "seq": 14,
+      "ts": 1776222058047,
+      "deltaMsSincePrevious": 3044,
+      "type": "window_change",
+      "packageName": "com.google.android.apps.chromecast.app",
+      "className": "com.google.android.apps.chromecast.app.remotecontrol.HomeAutomationControllerActivity",
+      "title": "Home",
+      "snapshot": {
+        "present": true,
+        "xml": null
+      }
+    },
+    {
+      "seq": 15,
+      "ts": 1776222059181,
+      "deltaMsSincePrevious": 1134,
+      "type": "scroll",
+      "packageName": "com.google.android.apps.chromecast.app",
+      "resourceId": null,
+      "scrollX": 0,
+      "scrollY": 0,
+      "maxScrollX": 0,
+      "maxScrollY": 0,
+      "snapshot": {
+        "present": false,
+        "xml": null
+      }
+    }
+  ],
+  "counts": {
+    "totalEvents": 16,
+    "byType": {
+      "click": 1,
+      "window_change": 3,
+      "scroll": 12
+    }
+  },
+  "packageTransitions": [
+    {
+      "seq": 1,
+      "ts": 1776222050816,
+      "fromPackageName": "com.sec.android.app.launcher",
+      "toPackageName": "com.google.android.apps.chromecast.app"
+    }
+  ],
+  "timeline": {
+    "firstEventTs": 1776222048433,
+    "lastEventTs": 1776222059181,
+    "durationMs": 10748
+  }
+}

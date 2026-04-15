@@ -1,0 +1,20 @@
+{
+  "id": "com.globird.energy.get-yesterday-usage-cost-replay",
+  "applicationId": "com.globird.energy",
+  "intent": "get-yesterday-usage-cost",
+  "summary": "Open GloBird and extract the signed dollar amount for Yesterday usage cost.",
+  "path": "skills/com.globird.energy.get-yesterday-usage-cost-replay",
+  "skillFile": "skills/com.globird.energy.get-yesterday-usage-cost-replay/SKILL.md",
+  "scripts": [
+    "skills/com.globird.energy.get-yesterday-usage-cost-replay/scripts/run.js",
+    "skills/com.globird.energy.get-yesterday-usage-cost-replay/scripts/run.sh"
+  ],
+  "artifacts": [],
+  "contract": {
+    "inputs": {},
+    "goal": {
+      "kind": "read_yesterday_usage_cost"
+    },
+    "verification": null
+  }
+}

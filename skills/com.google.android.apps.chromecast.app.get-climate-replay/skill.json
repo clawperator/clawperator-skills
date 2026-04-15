@@ -1,0 +1,22 @@
+{
+  "id": "com.google.android.apps.chromecast.app.get-climate-replay",
+  "applicationId": "com.google.android.apps.chromecast.app",
+  "intent": "get-climate",
+  "summary": "Replay baseline skill for reading a Google Home climate unit status.",
+  "path": "skills/com.google.android.apps.chromecast.app.get-climate-replay",
+  "skillFile": "skills/com.google.android.apps.chromecast.app.get-climate-replay/SKILL.md",
+  "scripts": [
+    "skills/com.google.android.apps.chromecast.app.get-climate-replay/scripts/run.js",
+    "skills/com.google.android.apps.chromecast.app.get-climate-replay/scripts/run.sh"
+  ],
+  "artifacts": [],
+  "contract": {
+    "inputs": {
+      "unit_name": "string"
+    },
+    "goal": {
+      "kind": "read_climate_status"
+    },
+    "verification": null
+  }
+}

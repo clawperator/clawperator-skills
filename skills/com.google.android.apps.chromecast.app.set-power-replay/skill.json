@@ -1,0 +1,26 @@
+{
+  "id": "com.google.android.apps.chromecast.app.set-power-replay",
+  "applicationId": "com.google.android.apps.chromecast.app",
+  "intent": "set-power",
+  "summary": "Replay baseline skill for setting a Google Home climate unit power on or off.",
+  "path": "skills/com.google.android.apps.chromecast.app.set-power-replay",
+  "skillFile": "skills/com.google.android.apps.chromecast.app.set-power-replay/SKILL.md",
+  "scripts": [
+    "skills/com.google.android.apps.chromecast.app.set-power-replay/scripts/run.js",
+    "skills/com.google.android.apps.chromecast.app.set-power-replay/scripts/run.sh"
+  ],
+  "artifacts": [],
+  "contract": {
+    "inputs": {
+      "climate_state": "string",
+      "unit_name": "string"
+    },
+    "goal": {
+      "kind": "set_climate_power"
+    },
+    "verification": {
+      "kind": "node_text_matches",
+      "matcher": "{climate_state}"
+    }
+  }
+}

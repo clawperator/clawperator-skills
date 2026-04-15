@@ -1,0 +1,26 @@
+{
+  "id": "com.google.android.apps.chromecast.app.set-temperature-replay",
+  "applicationId": "com.google.android.apps.chromecast.app",
+  "intent": "set-temperature",
+  "summary": "Replay baseline skill for setting a Google Home climate unit temperature.",
+  "path": "skills/com.google.android.apps.chromecast.app.set-temperature-replay",
+  "skillFile": "skills/com.google.android.apps.chromecast.app.set-temperature-replay/SKILL.md",
+  "scripts": [
+    "skills/com.google.android.apps.chromecast.app.set-temperature-replay/scripts/run.js",
+    "skills/com.google.android.apps.chromecast.app.set-temperature-replay/scripts/run.sh"
+  ],
+  "artifacts": [],
+  "contract": {
+    "inputs": {
+      "temperature": "integer",
+      "unit_name": "string"
+    },
+    "goal": {
+      "kind": "set_climate_temperature"
+    },
+    "verification": {
+      "kind": "node_text_matches",
+      "matcher": "{temperature}"
+    }
+  }
+}
