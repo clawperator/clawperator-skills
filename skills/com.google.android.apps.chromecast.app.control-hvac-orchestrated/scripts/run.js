@@ -360,11 +360,24 @@ function buildPrompt(skillProgram) {
       params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/low_value" } },
     },
   ]);
-  const adjustTemperatureCommand = buildExecCommand(`${skillId}-adjust-temperature`, 30000, [
+  const increaseTemperatureCommand = buildExecCommand(`${skillId}-increase-temperature`, 30000, [
     {
       id: "tap_adjust",
       type: "click",
       params: { matcher: { contentDescEquals: "Increase temperature" } },
+    },
+    { id: "wait_after_tap", type: "sleep", params: { durationMs: 1200 } },
+    {
+      id: "read_low_value",
+      type: "read_text",
+      params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/low_value" } },
+    },
+  ]);
+  const decreaseTemperatureCommand = buildExecCommand(`${skillId}-decrease-temperature`, 30000, [
+    {
+      id: "tap_adjust",
+      type: "click",
+      params: { matcher: { contentDescEquals: "Decrease temperature" } },
     },
     { id: "wait_after_tap", type: "sleep", params: { durationMs: 1200 } },
     {
@@ -492,7 +505,8 @@ function buildPrompt(skillProgram) {
     `- Second command: ${clawperatorBin} open com.google.android.apps.chromecast.app --device ${quoteShellArg(deviceId)} --operator-package ${quoteShellArg(operatorPackage)} --json`,
     `- Third command for controller entry: ${enterControllerCommand}`,
     `- For temperature reads: ${readTemperatureCommand}`,
-    `- For one temperature adjustment step up or down: ${adjustTemperatureCommand}`,
+    `- For one temperature increase step: ${increaseTemperatureCommand}`,
+    `- For one temperature decrease step: ${decreaseTemperatureCommand}`,
     `- For fan-speed reads on the controller: ${readFanCommand}`,
     `- For fan-speed sheet selection: ${setFanCommand}`,
     `- For fresh-session verification after any action: repeat the close command, repeat the open command, repeat the controller-entry exec, then run the action-specific read command from the reopened controller.`,
