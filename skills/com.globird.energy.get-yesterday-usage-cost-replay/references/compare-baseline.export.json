@@ -1,0 +1,187 @@
+{
+  "exportVersion": 1,
+  "session": {
+    "sessionId": "globird-yesterday-usage-20260415T0001",
+    "schemaVersion": 1,
+    "startedAt": 1776208037196,
+    "operatorPackage": "com.clawperator.operator.dev"
+  },
+  "snapshotMode": "omit",
+  "events": [
+    {
+      "seq": 0,
+      "ts": 1776208048771,
+      "deltaMsSincePrevious": null,
+      "type": "click",
+      "packageName": "com.sec.android.app.launcher",
+      "resourceId": null,
+      "text": "GloBird",
+      "contentDesc": "GloBird",
+      "bounds": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0
+      },
+      "snapshot": {
+        "present": true,
+        "xml": null
+      }
+    },
+    {
+      "seq": 1,
+      "ts": 1776208048968,
+      "deltaMsSincePrevious": 197,
+      "type": "window_change",
+      "packageName": "com.globird.energy",
+      "className": "com.globird.energy.MainActivity",
+      "title": "GloBird",
+      "snapshot": {
+        "present": true,
+        "xml": null
+      }
+    },
+    {
+      "seq": 2,
+      "ts": 1776208084397,
+      "deltaMsSincePrevious": 35429,
+      "type": "window_change",
+      "packageName": "com.sec.android.app.launcher",
+      "className": "com.sec.android.app.launcher.Launcher",
+      "title": "One UI Home",
+      "snapshot": {
+        "present": true,
+        "xml": null
+      }
+    },
+    {
+      "seq": 3,
+      "ts": 1776208084749,
+      "deltaMsSincePrevious": 352,
+      "type": "window_change",
+      "packageName": "com.google.android.googlequicksearchbox",
+      "className": "android.widget.FrameLayout",
+      "title": null,
+      "snapshot": {
+        "present": true,
+        "xml": null
+      }
+    },
+    {
+      "seq": 4,
+      "ts": 1776208095601,
+      "deltaMsSincePrevious": 10852,
+      "type": "click",
+      "packageName": "com.sec.android.app.launcher",
+      "resourceId": null,
+      "text": "GloBird",
+      "contentDesc": "GloBird",
+      "bounds": {
+        "left": 0,
+        "top": 0,
+        "right": 0,
+        "bottom": 0
+      },
+      "snapshot": {
+        "present": true,
+        "xml": null
+      }
+    },
+    {
+      "seq": 5,
+      "ts": 1776208095656,
+      "deltaMsSincePrevious": 55,
+      "type": "window_change",
+      "packageName": "com.globird.energy",
+      "className": "android.widget.FrameLayout",
+      "title": "Application icon",
+      "snapshot": {
+        "present": true,
+        "xml": null
+      }
+    },
+    {
+      "seq": 6,
+      "ts": 1776208095684,
+      "deltaMsSincePrevious": 28,
+      "type": "window_change",
+      "packageName": "com.globird.energy",
+      "className": "com.globird.energy.MainActivity",
+      "title": "GloBird",
+      "snapshot": {
+        "present": true,
+        "xml": null
+      }
+    },
+    {
+      "seq": 7,
+      "ts": 1776208095706,
+      "deltaMsSincePrevious": 22,
+      "type": "window_change",
+      "packageName": "com.globird.energy",
+      "className": "com.globird.energy.MainActivity",
+      "title": "GloBird",
+      "snapshot": {
+        "present": true,
+        "xml": null
+      }
+    },
+    {
+      "seq": 8,
+      "ts": 1776208096428,
+      "deltaMsSincePrevious": 722,
+      "type": "window_change",
+      "packageName": "com.globird.energy",
+      "className": "com.globird.energy.MainActivity",
+      "title": "GloBird",
+      "snapshot": {
+        "present": true,
+        "xml": null
+      }
+    }
+  ],
+  "counts": {
+    "totalEvents": 9,
+    "byType": {
+      "click": 2,
+      "window_change": 7
+    }
+  },
+  "packageTransitions": [
+    {
+      "seq": 1,
+      "ts": 1776208048968,
+      "fromPackageName": "com.sec.android.app.launcher",
+      "toPackageName": "com.globird.energy"
+    },
+    {
+      "seq": 2,
+      "ts": 1776208084397,
+      "fromPackageName": "com.globird.energy",
+      "toPackageName": "com.sec.android.app.launcher"
+    },
+    {
+      "seq": 3,
+      "ts": 1776208084749,
+      "fromPackageName": "com.sec.android.app.launcher",
+      "toPackageName": "com.google.android.googlequicksearchbox"
+    },
+    {
+      "seq": 4,
+      "ts": 1776208095601,
+      "fromPackageName": "com.google.android.googlequicksearchbox",
+      "toPackageName": "com.sec.android.app.launcher"
+    },
+    {
+      "seq": 5,
+      "ts": 1776208095656,
+      "fromPackageName": "com.sec.android.app.launcher",
+      "toPackageName": "com.globird.energy"
+    }
+  ],
+  "timeline": {
+    "firstEventTs": 1776208048771,
+    "lastEventTs": 1776208096428,
+    "durationMs": 47657
+  }
+}

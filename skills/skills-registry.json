@@ -1,7 +1,7 @@
 {
   "$schema": "./skills-registry.schema.json",
   "schemaVersion": "1.0",
-  "generatedAt": "2026-04-12T00:58:06Z",
+  "generatedAt": "2026-04-15T04:16:24Z",
   "skills": [
     {
       "id": "com.android.settings.capture-overview",
@@ -66,30 +66,98 @@
       ]
     },
     {
-      "id": "com.google.android.apps.chromecast.app.get-climate",
-      "applicationId": "com.google.android.apps.chromecast.app",
-      "intent": "get-climate",
-      "summary": "Read Google Home climate unit status (power, mode, indoor temperature).",
-      "path": "skills/com.google.android.apps.chromecast.app.get-climate",
-      "skillFile": "skills/com.google.android.apps.chromecast.app.get-climate/SKILL.md",
+      "id": "com.globird.energy.get-yesterday-usage-cost-replay",
+      "applicationId": "com.globird.energy",
+      "intent": "get-yesterday-usage-cost-replay",
+      "summary": "Open GloBird and extract the signed dollar amount for Yesterday usage cost.",
+      "path": "skills/com.globird.energy.get-yesterday-usage-cost-replay",
+      "skillFile": "skills/com.globird.energy.get-yesterday-usage-cost-replay/SKILL.md",
       "scripts": [
-        "skills/com.google.android.apps.chromecast.app.get-climate/scripts/get_climate_status.sh"
+        "skills/com.globird.energy.get-yesterday-usage-cost-replay/scripts/run.js",
+        "skills/com.globird.energy.get-yesterday-usage-cost-replay/scripts/run.sh"
       ],
-      "artifacts": [
-        "skills/com.google.android.apps.chromecast.app.get-climate/artifacts/climate-status.recipe.json"
-      ]
+      "artifacts": [],
+      "contract": {
+        "inputs": {},
+        "goal": {
+          "kind": "read_yesterday_usage_cost"
+        },
+        "verification": null
+      }
     },
     {
-      "id": "com.google.android.apps.chromecast.app.set-climate",
+      "id": "com.google.android.apps.chromecast.app.get-climate-replay",
       "applicationId": "com.google.android.apps.chromecast.app",
-      "intent": "set-climate",
-      "summary": "Precheck current Google Home climate unit ON/OFF state and verify after external state-change actions.",
-      "path": "skills/com.google.android.apps.chromecast.app.set-climate",
-      "skillFile": "skills/com.google.android.apps.chromecast.app.set-climate/SKILL.md",
+      "intent": "get-climate",
+      "summary": "Replay baseline skill for reading a Google Home climate unit status.",
+      "path": "skills/com.google.android.apps.chromecast.app.get-climate-replay",
+      "skillFile": "skills/com.google.android.apps.chromecast.app.get-climate-replay/SKILL.md",
       "scripts": [
-        "skills/com.google.android.apps.chromecast.app.set-climate/scripts/set_climate.sh"
+        "skills/com.google.android.apps.chromecast.app.get-climate-replay/scripts/run.js",
+        "skills/com.google.android.apps.chromecast.app.get-climate-replay/scripts/run.sh"
       ],
-      "artifacts": []
+      "artifacts": [],
+      "contract": {
+        "inputs": {
+          "unit_name": "string"
+        },
+        "goal": {
+          "kind": "read_climate_status"
+        },
+        "verification": null
+      }
+    },
+    {
+      "id": "com.google.android.apps.chromecast.app.set-power-replay",
+      "applicationId": "com.google.android.apps.chromecast.app",
+      "intent": "set-power",
+      "summary": "Replay baseline skill for setting a Google Home climate unit power on or off.",
+      "path": "skills/com.google.android.apps.chromecast.app.set-power-replay",
+      "skillFile": "skills/com.google.android.apps.chromecast.app.set-power-replay/SKILL.md",
+      "scripts": [
+        "skills/com.google.android.apps.chromecast.app.set-power-replay/scripts/run.js",
+        "skills/com.google.android.apps.chromecast.app.set-power-replay/scripts/run.sh"
+      ],
+      "artifacts": [],
+      "contract": {
+        "inputs": {
+          "climate_state": "string",
+          "unit_name": "string"
+        },
+        "goal": {
+          "kind": "set_climate_power"
+        },
+        "verification": {
+          "kind": "node_text_matches",
+          "matcher": "{climate_state}"
+        }
+      }
+    },
+    {
+      "id": "com.google.android.apps.chromecast.app.set-temperature-replay",
+      "applicationId": "com.google.android.apps.chromecast.app",
+      "intent": "set-temperature",
+      "summary": "Replay baseline skill for setting a Google Home climate unit temperature.",
+      "path": "skills/com.google.android.apps.chromecast.app.set-temperature-replay",
+      "skillFile": "skills/com.google.android.apps.chromecast.app.set-temperature-replay/SKILL.md",
+      "scripts": [
+        "skills/com.google.android.apps.chromecast.app.set-temperature-replay/scripts/run.js",
+        "skills/com.google.android.apps.chromecast.app.set-temperature-replay/scripts/run.sh"
+      ],
+      "artifacts": [],
+      "contract": {
+        "inputs": {
+          "temperature": "integer",
+          "unit_name": "string"
+        },
+        "goal": {
+          "kind": "set_climate_temperature"
+        },
+        "verification": {
+          "kind": "node_text_matches",
+          "matcher": "{temperature}"
+        }
+      }
     },
     {
       "id": "com.life360.android.safetymapd.get-location",
