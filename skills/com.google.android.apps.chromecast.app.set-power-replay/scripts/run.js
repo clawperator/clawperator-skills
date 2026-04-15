@@ -266,7 +266,14 @@ function buildOpenControllerActions() {
         clickType: "long_click",
       },
     },
-    { id: "wait_controller", type: "sleep", params: { durationMs: 2500 } },
+    {
+      id: "wait_controller",
+      type: "wait_for_node",
+      params: {
+        matcher: { resourceId: "com.google.android.apps.chromecast.app:id/climate_power_button" },
+        timeoutMs: 20000,
+      },
+    },
     {
       id: "read_power",
       type: "read_text",
