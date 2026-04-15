@@ -1,5 +1,6 @@
 ---
 name: com.globird.energy.get-yesterday-usage-cost-replay
+clawperator-skill-type: replay
 description: |-
   Open the GloBird Android app and extract the signed dollar amount shown for
   Yesterday usage -> Cost.

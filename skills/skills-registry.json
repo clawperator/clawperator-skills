@@ -1,7 +1,7 @@
 {
   "$schema": "./skills-registry.schema.json",
   "schemaVersion": "1.0",
-  "generatedAt": "2026-04-15T04:16:24Z",
+  "generatedAt": "2026-04-15T04:33:08Z",
   "skills": [
     {
       "id": "com.android.settings.capture-overview",
@@ -68,7 +68,7 @@
     {
       "id": "com.globird.energy.get-yesterday-usage-cost-replay",
       "applicationId": "com.globird.energy",
-      "intent": "get-yesterday-usage-cost-replay",
+      "intent": "get-yesterday-usage-cost",
       "summary": "Open GloBird and extract the signed dollar amount for Yesterday usage cost.",
       "path": "skills/com.globird.energy.get-yesterday-usage-cost-replay",
       "skillFile": "skills/com.globird.energy.get-yesterday-usage-cost-replay/SKILL.md",

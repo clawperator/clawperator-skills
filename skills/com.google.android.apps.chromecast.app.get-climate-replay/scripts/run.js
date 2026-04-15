@@ -133,6 +133,21 @@ function normalizeTemperature(text) {
   return normalizeText(text);
 }
 
+function parsePowerStateFromLowValue(lowValue) {
+  const normalized = normalizeText(lowValue).toLowerCase();
+  if (!normalized) return null;
+  if (normalized === "off") return "off";
+  if (/^-?\d+(?:\.\d+)?$/.test(normalized)) return "on";
+  return null;
+}
+
+function parseDesiredTemperatureFromLowValue(lowValue) {
+  const normalized = normalizeText(lowValue);
+  if (!normalized) return null;
+  if (/^-?\d+(?:\.\d+)?$/.test(normalized)) return normalized;
+  return null;
+}
+
 function sameLabel(left, right) {
   return normalizeText(left) === normalizeText(right);
 }
@@ -265,7 +280,7 @@ async function main() {
       },
     },
     { id: "wait_controller", type: "sleep", params: { durationMs: 5000 } },
-    { id: "read_power", type: "read_text", params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/low_value" } } },
+    { id: "read_low_value", type: "read_text", params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/low_value" } } },
     { id: "read_indoor_temp", type: "read_text", params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/first_value_title" } } },
     { id: "snap", type: "snapshot_ui" },
   ]));
@@ -281,7 +296,9 @@ async function main() {
     evidence: { kind: "text", text: `Opened the ${unitName} climate controller screen.` },
   });
 
-  const desiredTemperature = normalizeTemperature(getStepText(result, "read_power"));
+  const lowValue = normalizeTemperature(getStepText(result, "read_low_value"));
+  const desiredTemperature = parseDesiredTemperatureFromLowValue(lowValue);
+  const power = parsePowerStateFromLowValue(lowValue);
   const indoorTemperature = normalizeTemperature(getStepText(result, "read_indoor_temp"));
   const snapshotText = getStepText(result, "snap");
   const deviceName = parseDeviceName(snapshotText);
@@ -289,7 +306,7 @@ async function main() {
   const fanSpeed = parseFanSpeed(snapshotText);
   const outdoorTemperature = parseLabeledTemperature(snapshotText, "Outdoor temperature");
 
-  if (!desiredTemperature || !indoorTemperature || !deviceName) {
+  if (!lowValue || !indoorTemperature || !deviceName) {
     await exitWithFailure(result, "climate_status_read", "Could not parse one or more climate status fields from the controller screen.");
   }
 
@@ -303,6 +320,7 @@ async function main() {
 
   const climate = {
     device_name: deviceName,
+    power,
     desired_temperature: desiredTemperature,
     mode: mode || null,
     fan_speed: fanSpeed || null,
@@ -312,7 +330,7 @@ async function main() {
 
   setCheckpoint("climate_status_read", "ok", {
     evidence: { kind: "json", value: climate },
-    note: "Parsed visible device name, desired temperature, mode, fan speed, indoor temperature, and outdoor temperature values from the controller screen.",
+    note: "Parsed visible device name, low-value state, mode, fan speed, indoor temperature, and outdoor temperature values from the controller screen.",
   });
 
   await emitSkillResult("success", climate, {
