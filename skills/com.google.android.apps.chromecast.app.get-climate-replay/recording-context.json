@@ -10,28 +10,8 @@
   "events": [
     {
       "seq": 0,
-      "ts": 1776222048433,
-      "deltaMsSincePrevious": null,
-      "type": "click",
-      "packageName": "com.sec.android.app.launcher",
-      "resourceId": "com.sec.android.app.launcher:id/wsCellLayout",
-      "text": "GloBird",
-      "contentDesc": null,
-      "bounds": {
-        "left": 41,
-        "top": 131,
-        "right": 1039,
-        "bottom": 1900
-      },
-      "snapshot": {
-        "present": true,
-        "xml": null
-      }
-    },
-    {
-      "seq": 1,
       "ts": 1776222050018,
-      "deltaMsSincePrevious": 1585,
+      "deltaMsSincePrevious": null,
       "type": "click",
       "packageName": "com.sec.android.app.launcher",
       "resourceId": "com.sec.android.app.launcher:id/icon",
@@ -49,7 +29,7 @@
       }
     },
     {
-      "seq": 2,
+      "seq": 1,
       "ts": 1776222050816,
       "deltaMsSincePrevious": 798,
       "type": "window_change",
@@ -62,7 +42,7 @@
       }
     },
     {
-      "seq": 3,
+      "seq": 2,
       "ts": 1776222050821,
       "deltaMsSincePrevious": 5,
       "type": "scroll",
@@ -78,7 +58,7 @@
       }
     },
     {
-      "seq": 4,
+      "seq": 3,
       "ts": 1776222051052,
       "deltaMsSincePrevious": 231,
       "type": "window_change",
@@ -91,7 +71,7 @@
       }
     },
     {
-      "seq": 5,
+      "seq": 4,
       "ts": 1776222051062,
       "deltaMsSincePrevious": 10,
       "type": "scroll",
@@ -107,7 +87,7 @@
       }
     },
     {
-      "seq": 6,
+      "seq": 5,
       "ts": 1776222051089,
       "deltaMsSincePrevious": 27,
       "type": "scroll",
@@ -123,7 +103,7 @@
       }
     },
     {
-      "seq": 7,
+      "seq": 6,
       "ts": 1776222052929,
       "deltaMsSincePrevious": 1840,
       "type": "scroll",
@@ -139,7 +119,7 @@
       }
     },
     {
-      "seq": 8,
+      "seq": 7,
       "ts": 1776222053130,
       "deltaMsSincePrevious": 201,
       "type": "scroll",
@@ -155,7 +135,7 @@
       }
     },
     {
-      "seq": 9,
+      "seq": 8,
       "ts": 1776222053333,
       "deltaMsSincePrevious": 203,
       "type": "scroll",
@@ -171,7 +151,7 @@
       }
     },
     {
-      "seq": 10,
+      "seq": 9,
       "ts": 1776222053433,
       "deltaMsSincePrevious": 100,
       "type": "scroll",
@@ -187,7 +167,7 @@
       }
     },
     {
-      "seq": 11,
+      "seq": 10,
       "ts": 1776222054472,
       "deltaMsSincePrevious": 1039,
       "type": "scroll",
@@ -203,7 +183,7 @@
       }
     },
     {
-      "seq": 12,
+      "seq": 11,
       "ts": 1776222054679,
       "deltaMsSincePrevious": 207,
       "type": "scroll",
@@ -219,7 +199,7 @@
       }
     },
     {
-      "seq": 13,
+      "seq": 12,
       "ts": 1776222054782,
       "deltaMsSincePrevious": 103,
       "type": "scroll",
@@ -235,7 +215,7 @@
       }
     },
     {
-      "seq": 14,
+      "seq": 13,
       "ts": 1776222055003,
       "deltaMsSincePrevious": 221,
       "type": "scroll",
@@ -251,7 +231,7 @@
       }
     },
     {
-      "seq": 15,
+      "seq": 14,
       "ts": 1776222058047,
       "deltaMsSincePrevious": 3044,
       "type": "window_change",
@@ -264,7 +244,7 @@
       }
     },
     {
-      "seq": 16,
+      "seq": 15,
       "ts": 1776222059181,
       "deltaMsSincePrevious": 1134,
       "type": "scroll",
@@ -281,16 +261,16 @@
     }
   ],
   "counts": {
-    "totalEvents": 17,
+    "totalEvents": 16,
     "byType": {
-      "click": 2,
+      "click": 1,
       "window_change": 3,
       "scroll": 12
     }
   },
   "packageTransitions": [
     {
-      "seq": 2,
+      "seq": 1,
       "ts": 1776222050816,
       "fromPackageName": "com.sec.android.app.launcher",
       "toPackageName": "com.google.android.apps.chromecast.app"

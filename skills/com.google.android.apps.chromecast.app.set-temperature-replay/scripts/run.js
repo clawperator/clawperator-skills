@@ -309,6 +309,8 @@ async function main() {
     { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
     { id: "open", type: "open_app", params: { applicationId: APP_ID } },
     { id: "wait_open", type: "sleep", params: { durationMs: 3500 } },
+    { id: "go_home", type: "click", params: { matcher: { textEquals: "Home" } } },
+    { id: "wait_home", type: "sleep", params: { durationMs: 1500 } },
     {
       id: "open_climate",
       type: "scroll_and_click",
