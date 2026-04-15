@@ -5,7 +5,7 @@ const { mkdtemp, mkdir, readFile, rm, appendFile, writeFile } = require("node:fs
 const { join, resolve } = require("node:path");
 const { tmpdir } = require("node:os");
 
-const skillId = "com.google.android.apps.chromecast.app.control-hvac-orchestrated";
+const skillId = process.env.CLAWPERATOR_SKILL_ID || "com.google.android.apps.chromecast.app.control-hvac-orchestrated";
 const requiredCheckpointIds = [
   "app_opened",
   "controller_opened",
@@ -81,6 +81,10 @@ function parseJsonInputs(raw) {
   } catch {
     return {};
   }
+}
+
+function quoteShellArg(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
 }
 
 function extractRequestedConfig() {
@@ -167,6 +171,13 @@ function extractRequestedConfig() {
       value = next;
       rawValue = String(next || "").trim();
       index += 1;
+      continue;
+    }
+    if (typeof arg === "string" && (arg.startsWith("--climate-state=") || arg.startsWith("--state="))) {
+      action = "climate_state";
+      value = arg.slice(arg.indexOf("=") + 1);
+      rawValue = value.trim();
+      continue;
     }
   }
 
@@ -288,8 +299,117 @@ function denormalizeObservedText(text) {
   return text;
 }
 
+function buildExecCommand(commandId, timeoutMs, actions) {
+  const execution = JSON.stringify({
+    commandId,
+    taskId: skillId,
+    source: skillId,
+    expectedFormat: "android-ui-automator",
+    timeoutMs,
+    actions,
+  });
+  return `${clawperatorBin} exec --device ${quoteShellArg(deviceId)} --operator-package ${quoteShellArg(operatorPackage)} --execution ${quoteShellArg(execution)} --json`;
+}
+
 function buildPrompt(skillProgram) {
   const expectedText = expectedVerificationText();
+  const enterControllerCommand = buildExecCommand(`${skillId}-enter-controller`, 90000, [
+    { id: "wait_open", type: "sleep", params: { durationMs: 3500 } },
+    { id: "go_home", type: "click", params: { matcher: { textEquals: "Home" } } },
+    { id: "wait_home", type: "sleep", params: { durationMs: 1500 } },
+    {
+      id: "open_climate",
+      type: "scroll_and_click",
+      params: {
+        matcher: { textEquals: "Climate" },
+        container: { resourceId: "com.google.android.apps.chromecast.app:id/category_chips" },
+        direction: "right",
+        maxSwipes: 6,
+        clickType: "click",
+        findFirstScrollableChild: true,
+      },
+    },
+    { id: "wait_after_climate", type: "sleep", params: { durationMs: 1500 } },
+    {
+      id: "open_unit_controller",
+      type: "scroll_and_click",
+      params: {
+        matcher: {
+          resourceId: "com.google.android.apps.chromecast.app:id/control",
+          textContains: requestedConfig.unitName,
+        },
+        direction: "down",
+        maxSwipes: 8,
+        clickType: "long_click",
+      },
+    },
+    {
+      id: "wait_controller",
+      type: "wait_for_node",
+      params: {
+        matcher: { resourceId: "com.google.android.apps.chromecast.app:id/low_value" },
+        timeoutMs: 15000,
+      },
+    },
+    { id: "snap_controller", type: "snapshot_ui", params: {} },
+  ]);
+  const readTemperatureCommand = buildExecCommand(`${skillId}-read-temperature`, 30000, [
+    {
+      id: "read_low_value",
+      type: "read_text",
+      params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/low_value" } },
+    },
+  ]);
+  const adjustTemperatureCommand = buildExecCommand(`${skillId}-adjust-temperature`, 30000, [
+    {
+      id: "tap_adjust",
+      type: "click",
+      params: { matcher: { contentDescEquals: "Increase temperature" } },
+    },
+    { id: "wait_after_tap", type: "sleep", params: { durationMs: 1200 } },
+    {
+      id: "read_low_value",
+      type: "read_text",
+      params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/low_value" } },
+    },
+  ]);
+  const readFanCommand = buildExecCommand(`${skillId}-read-fan`, 30000, [
+    { id: "snap_controller", type: "snapshot_ui", params: {} },
+  ]);
+  const setFanCommand = buildExecCommand(`${skillId}-set-fan`, 30000, [
+    {
+      id: "open_fan_tile",
+      type: "click",
+      params: {
+        matcher: {
+          resourceId: "com.google.android.apps.chromecast.app:id/action_tile",
+          textContains: "Fan speed",
+        },
+      },
+    },
+    {
+      id: "wait_target_option",
+      type: "wait_for_node",
+      params: {
+        matcher: {
+          resourceId: "com.google.android.apps.chromecast.app:id/title",
+          textEquals: String(requestedConfig.value || "").toLowerCase(),
+        },
+      },
+    },
+    {
+      id: "click_target_option",
+      type: "click",
+      params: {
+        matcher: {
+          resourceId: "com.google.android.apps.chromecast.app:id/title",
+          textEquals: String(requestedConfig.value || "").toLowerCase(),
+        },
+      },
+    },
+    { id: "wait_return", type: "sleep", params: { durationMs: 2500 } },
+    { id: "snap_controller", type: "snapshot_ui", params: {} },
+  ]);
   return [
     `You are the runtime agent for the Clawperator skill '${skillId}'.`,
     "Follow the attached SKILL.md exactly.",
@@ -368,13 +488,13 @@ function buildPrompt(skillProgram) {
     "- After opening the controller, verify the toolbar title from a snapshot or read before applying any action.",
     "",
     "Exact command templates:",
-    `- First command: ${clawperatorBin} close com.google.android.apps.chromecast.app --device ${deviceId} --operator-package ${operatorPackage} --json`,
-    `- Second command: ${clawperatorBin} open com.google.android.apps.chromecast.app --device ${deviceId} --operator-package ${operatorPackage} --json`,
-    `- Third command for controller entry: ${clawperatorBin} exec --device ${deviceId} --operator-package ${operatorPackage} --execution '{"commandId":"${skillId}-enter-controller","taskId":"${skillId}","source":"${skillId}","expectedFormat":"android-ui-automator","timeoutMs":90000,"actions":[{"id":"wait_open","type":"sleep","params":{"durationMs":3500}},{"id":"go_home","type":"click","params":{"matcher":{"textEquals":"Home"}}},{"id":"wait_home","type":"sleep","params":{"durationMs":1500}},{"id":"open_climate","type":"scroll_and_click","params":{"matcher":{"textEquals":"Climate"},"container":{"resourceId":"com.google.android.apps.chromecast.app:id/category_chips"},"direction":"right","maxSwipes":6,"clickType":"click","findFirstScrollableChild":true}},{"id":"wait_after_climate","type":"sleep","params":{"durationMs":1500}},{"id":"open_unit_controller","type":"scroll_and_click","params":{"matcher":{"resourceId":"com.google.android.apps.chromecast.app:id/control","textContains":"${requestedConfig.unitName}"},"direction":"down","maxSwipes":8,"clickType":"long_click"}},{"id":"wait_controller","type":"wait_for_node","params":{"matcher":{"resourceId":"com.google.android.apps.chromecast.app:id/low_value"},"timeoutMs":15000}},{"id":"snap_controller","type":"snapshot_ui","params":{}}]}' --json`,
-    `- For temperature reads: ${clawperatorBin} exec --device ${deviceId} --operator-package ${operatorPackage} --execution '{"commandId":"${skillId}-read-temperature","taskId":"${skillId}","source":"${skillId}","expectedFormat":"android-ui-automator","timeoutMs":30000,"actions":[{"id":"read_low_value","type":"read_text","params":{"matcher":{"resourceId":"com.google.android.apps.chromecast.app:id/low_value"}}}]}' --json`,
-    `- For one temperature adjustment step up or down: ${clawperatorBin} exec --device ${deviceId} --operator-package ${operatorPackage} --execution '{"commandId":"${skillId}-adjust-temperature","taskId":"${skillId}","source":"${skillId}","expectedFormat":"android-ui-automator","timeoutMs":30000,"actions":[{"id":"tap_adjust","type":"click","params":{"matcher":{"contentDescEquals":"Increase temperature"}}},{"id":"wait_after_tap","type":"sleep","params":{"durationMs":1200}},{"id":"read_low_value","type":"read_text","params":{"matcher":{"resourceId":"com.google.android.apps.chromecast.app:id/low_value"}}}]}' --json`,
-    `- For fan-speed reads on the controller: ${clawperatorBin} exec --device ${deviceId} --operator-package ${operatorPackage} --execution '{"commandId":"${skillId}-read-fan","taskId":"${skillId}","source":"${skillId}","expectedFormat":"android-ui-automator","timeoutMs":30000,"actions":[{"id":"snap_controller","type":"snapshot_ui","params":{}}]}' --json`,
-    `- For fan-speed sheet selection: ${clawperatorBin} exec --device ${deviceId} --operator-package ${operatorPackage} --execution '{"commandId":"${skillId}-set-fan","taskId":"${skillId}","source":"${skillId}","expectedFormat":"android-ui-automator","timeoutMs":30000,"actions":[{"id":"open_fan_tile","type":"click","params":{"matcher":{"resourceId":"com.google.android.apps.chromecast.app:id/action_tile","textContains":"Fan speed"}}},{"id":"wait_target_option","type":"wait_for_node","params":{"matcher":{"resourceId":"com.google.android.apps.chromecast.app:id/title","textEquals":"${String(requestedConfig.value || "").toLowerCase()}"}}},{"id":"click_target_option","type":"click","params":{"matcher":{"resourceId":"com.google.android.apps.chromecast.app:id/title","textEquals":"${String(requestedConfig.value || "").toLowerCase()}"}}},{"id":"wait_return","type":"sleep","params":{"durationMs":2500}},{"id":"snap_controller","type":"snapshot_ui","params":{}}]}' --json`,
+    `- First command: ${clawperatorBin} close com.google.android.apps.chromecast.app --device ${quoteShellArg(deviceId)} --operator-package ${quoteShellArg(operatorPackage)} --json`,
+    `- Second command: ${clawperatorBin} open com.google.android.apps.chromecast.app --device ${quoteShellArg(deviceId)} --operator-package ${quoteShellArg(operatorPackage)} --json`,
+    `- Third command for controller entry: ${enterControllerCommand}`,
+    `- For temperature reads: ${readTemperatureCommand}`,
+    `- For one temperature adjustment step up or down: ${adjustTemperatureCommand}`,
+    `- For fan-speed reads on the controller: ${readFanCommand}`,
+    `- For fan-speed sheet selection: ${setFanCommand}`,
     `- For fresh-session verification after any action: repeat the close command, repeat the open command, repeat the controller-entry exec, then run the action-specific read command from the reopened controller.`,
     "",
     "Action-specific proof rules:",
@@ -533,7 +653,13 @@ function normalizeTerminalVerification(terminalVerification) {
     && terminalVerification.observed.kind === "text"
     && typeof terminalVerification.observed.value === "string"
   ) {
-    return terminalVerification;
+    return {
+      ...terminalVerification,
+      observed: {
+        kind: "text",
+        text: denormalizeObservedText(terminalVerification.observed.value),
+      },
+    };
   }
   if (typeof terminalVerification.text === "string") {
     return {

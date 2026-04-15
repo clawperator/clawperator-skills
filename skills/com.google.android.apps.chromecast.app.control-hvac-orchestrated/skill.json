@@ -6,7 +6,8 @@
   "path": "skills/com.google.android.apps.chromecast.app.control-hvac-orchestrated",
   "skillFile": "skills/com.google.android.apps.chromecast.app.control-hvac-orchestrated/SKILL.md",
   "scripts": [
-    "skills/com.google.android.apps.chromecast.app.control-hvac-orchestrated/scripts/run.js"
+    "skills/com.google.android.apps.chromecast.app.control-hvac-orchestrated/scripts/run.js",
+    "skills/com.google.android.apps.chromecast.app.control-hvac-orchestrated/scripts/run.sh"
   ],
   "artifacts": [],
   "contract": {

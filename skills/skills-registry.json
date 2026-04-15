@@ -1,7 +1,7 @@
 {
   "$schema": "./skills-registry.schema.json",
   "schemaVersion": "1.0",
-  "generatedAt": "2026-04-15T05:50:17Z",
+  "generatedAt": "2026-04-15T06:48:38Z",
   "skills": [
     {
       "id": "com.android.settings.capture-overview",
@@ -93,7 +93,8 @@
       "path": "skills/com.google.android.apps.chromecast.app.control-hvac-orchestrated",
       "skillFile": "skills/com.google.android.apps.chromecast.app.control-hvac-orchestrated/SKILL.md",
       "scripts": [
-        "skills/com.google.android.apps.chromecast.app.control-hvac-orchestrated/scripts/run.js"
+        "skills/com.google.android.apps.chromecast.app.control-hvac-orchestrated/scripts/run.js",
+        "skills/com.google.android.apps.chromecast.app.control-hvac-orchestrated/scripts/run.sh"
       ],
       "artifacts": [],
       "contract": {
