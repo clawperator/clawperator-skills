@@ -23,14 +23,13 @@ Arguments:
 Run through the wrapper:
 
 ```bash
-clawperator skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> --operator-package com.clawperator.operator.dev -- --limit 40
+clawperator skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> -- --limit 40
 ```
 
 Direct local invocation:
 
 ```bash
 CLAWPERATOR_BIN="<node_binary> <clawperator_root>/apps/node/dist/cli/index.js" \
-CLAWPERATOR_OPERATOR_PACKAGE=com.clawperator.operator.dev \
 <node_binary> <skills_repo_root>/skills/com.solaxcloud.starter.set-discharge-to-limit-replay/scripts/run.js \
 <device_serial> --limit 40
 ```
