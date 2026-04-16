@@ -63,7 +63,7 @@ Inputs:
 - `clawperator skills run` provides the selected device as
   `CLAWPERATOR_DEVICE_ID`
 - canonical invocation shape:
-  `clawperator skills run com.google.android.apps.chromecast.app.control-hvac-orchestrated --device <device_serial> --operator-package com.clawperator.operator.dev -- --action temperature --value 24 --unit-name "Panasonic"`
+  `clawperator skills run com.google.android.apps.chromecast.app.control-hvac-orchestrated --device <device_serial> -- --action temperature --value 24 --unit-name "Panasonic"`
 - valid actions:
   - `temperature`
   - `mode`

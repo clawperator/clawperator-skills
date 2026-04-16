@@ -44,13 +44,12 @@ Known caveats:
 Run through the wrapper:
 
 ```bash
-clawperator skills run com.google.android.apps.chromecast.app.set-temperature-replay --device <device_serial> --operator-package com.clawperator.operator.dev -- --temperature 23 --unit-name "Living Room AC"
+clawperator skills run com.google.android.apps.chromecast.app.set-temperature-replay --device <device_serial> -- --temperature 23 --unit-name "Living Room AC"
 ```
 
 Direct local invocation:
 
 ```bash
-CLAWPERATOR_OPERATOR_PACKAGE=com.clawperator.operator.dev \
 node skills/com.google.android.apps.chromecast.app.set-temperature-replay/scripts/run.js <device_serial> --temperature 23 --unit-name "Living Room AC"
 ```
 
