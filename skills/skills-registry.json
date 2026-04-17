@@ -1,7 +1,7 @@
 {
   "$schema": "./skills-registry.schema.json",
   "schemaVersion": "1.0",
-  "generatedAt": "2026-04-15T06:48:38Z",
+  "generatedAt": "2026-04-17T00:45:39Z",
   "skills": [
     {
       "id": "com.android.settings.capture-overview",
