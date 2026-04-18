@@ -3,6 +3,9 @@ name: Pull Request Checks
 on:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   node-tests:
     name: Run Node Tests
@@ -12,10 +15,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 24.14.1
+      - name: Set up Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: "24.14.1"
+          node-version: "24"
 
       - name: Make test script executable
         run: chmod +x ./scripts/test_all.sh
