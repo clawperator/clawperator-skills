@@ -2,7 +2,7 @@
   "id": "com.amazon.mShop.android.shopping.search-products",
   "applicationId": "com.amazon.mShop.android.shopping",
   "intent": "search-products",
-  "summary": "Search Amazon Shopping for a product query and return the first accessible result titles.",
+  "summary": "Search Amazon Shopping for a product query and return accessible result titles with sponsored state and price when available.",
   "path": "skills/com.amazon.mShop.android.shopping.search-products",
   "skillFile": "skills/com.amazon.mShop.android.shopping.search-products/SKILL.md",
   "scripts": [

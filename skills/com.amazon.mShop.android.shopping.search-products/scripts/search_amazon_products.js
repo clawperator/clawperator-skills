@@ -94,13 +94,17 @@ function decodeXmlEntities(value) {
     .replace(/&amp;/g, '&');
 }
 
+function normalizeWhitespace(value) {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
 function hasExactSuggestion(snapshotText, searchQuery) {
   const encodedQuery = escapeXmlAttribute(searchQuery);
   return snapshotText.includes(`content-desc="${encodedQuery}"`);
 }
 
 function looksLikeProductTitle(value, searchQuery) {
-  const normalized = value.replace(/\s+/g, ' ').trim();
+  const normalized = normalizeWhitespace(value);
   if (normalized.length < 12 || normalized.length > 220) {
     return false;
   }
@@ -134,7 +138,9 @@ function looksLikeProductTitle(value, searchQuery) {
     'more like this',
     'add to cart',
     'out of 5 stars',
-    'bought in past month'
+    'bought in past month',
+    'unbeatably smooth shave',
+    'shop gillette'
   ];
 
   if (normalized === searchQuery) {
@@ -172,46 +178,128 @@ function looksLikeProductTitle(value, searchQuery) {
   return /[a-z]/i.test(normalized);
 }
 
-function extractProductTitles(snapshotText, searchQuery) {
+function extractLineValue(line) {
+  return normalizeWhitespace(
+    decodeXmlEntities(findAttribute(line, 'content-desc') || findAttribute(line, 'text') || '')
+  );
+}
+
+function isTitleCandidateLine(line, searchQuery) {
+  if (!line.includes('clickable="true"')) {
+    return false;
+  }
+
+  if (line.includes('class="android.widget.Button"') || line.includes('class="android.widget.ToggleButton"')) {
+    return false;
+  }
+
+  const value = extractLineValue(line);
+  if (!value) {
+    return false;
+  }
+
+  return looksLikeProductTitle(value, searchQuery);
+}
+
+function extractPriceFromWindow(lines, startIndex, endIndex) {
+  for (let i = startIndex; i < endIndex; i += 1) {
+    const value = extractLineValue(lines[i]);
+    if (!value) {
+      continue;
+    }
+
+    if (value.startsWith('$')) {
+      const match = value.match(/\$[0-9]+(?:\.[0-9]{2})?/);
+      if (match) {
+        return match[0];
+      }
+    }
+  }
+
+  for (let i = startIndex; i < endIndex; i += 1) {
+    const value = extractLineValue(lines[i]);
+    if (!value || !value.includes('$') || /\bRRP:/i.test(value)) {
+      continue;
+    }
+
+    const match = value.match(/\$[0-9]+(?:\.[0-9]{2})?/);
+    if (match) {
+      return match[0];
+    }
+  }
+
+  return null;
+}
+
+function cleanTitle(rawTitle) {
+  const detailPageMatch = rawTitle.match(/^Go to detail page for\s+"([^"]+)"/i);
+  if (detailPageMatch) {
+    return detailPageMatch[1].trim();
+  }
+
+  return rawTitle
+    .replace(/^Sponsored Ad\s+[–-]\s+/i, '')
+    .replace(/^Sponsored ad from\s+/i, '')
+    .trim();
+}
+
+function extractProducts(snapshotText, searchQuery) {
   const allLines = snapshotText.split('\n');
   const resultsStartIndex = allLines.findIndex((line) => line.includes('text="Results"'));
   const lines = resultsStartIndex >= 0 ? allLines.slice(resultsStartIndex) : allLines;
-  const titles = [];
+  const titleCandidates = [];
   const seen = new Set();
 
-  for (const line of lines) {
-    if (!line.includes('clickable="true"')) {
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (!isTitleCandidateLine(line, searchQuery)) {
       continue;
     }
-
-    if (line.includes('class="android.widget.Button"') || line.includes('class="android.widget.ToggleButton"')) {
-      continue;
-    }
-
-    const content = decodeXmlEntities(findAttribute(line, 'content-desc') || '');
-    if (!content) {
-      continue;
-    }
-
-    const normalized = content.replace(/\s+/g, ' ').trim();
-    if (!looksLikeProductTitle(normalized, searchQuery)) {
-      continue;
-    }
-
+    const normalized = extractLineValue(line);
+    const cleaned = cleanTitle(normalized);
     const dedupeKey = normalized.toLowerCase();
     if (seen.has(dedupeKey)) {
       continue;
     }
-
     seen.add(dedupeKey);
-    titles.push(normalized);
-
-    if (titles.length >= MAX_RESULTS) {
+    titleCandidates.push({ index: i, title: normalized, cleanedTitle: cleaned });
+    if (titleCandidates.length >= MAX_RESULTS) {
       break;
     }
   }
 
-  return titles;
+  const merged = [];
+  const byTitle = new Map();
+
+  for (let idx = 0; idx < titleCandidates.length; idx += 1) {
+    const candidate = titleCandidates[idx];
+    const nextIndex = idx + 1 < titleCandidates.length ? titleCandidates[idx + 1].index : lines.length;
+    const price = extractPriceFromWindow(lines, candidate.index + 1, nextIndex);
+    const sponsored = /^Sponsored Ad\s+[–-]\s+/i.test(candidate.title) || /^Sponsored ad from\s+/i.test(candidate.title);
+    const normalizedTitle = normalizeWhitespace(candidate.cleanedTitle);
+
+    if (!normalizedTitle || !looksLikeProductTitle(normalizedTitle, searchQuery)) {
+      continue;
+    }
+
+    const key = normalizedTitle.toLowerCase();
+    const existing = byTitle.get(key);
+    if (existing) {
+      existing.sponsored = existing.sponsored || sponsored;
+      existing.price = existing.price || price;
+      continue;
+    }
+
+    const product = {
+      title: normalizedTitle,
+      sponsored,
+      price
+    };
+    byTitle.set(key, product);
+    merged.push(product);
+  }
+
+  return merged.slice(0, MAX_RESULTS);
 }
 
 function runExecution(execution) {
@@ -254,8 +342,8 @@ if (!finalSnapshot) {
   process.exit(2);
 }
 
-const titles = extractProductTitles(finalSnapshot, query);
-const reachedResults = finalSnapshot.includes('text="Results"') || titles.length > 0;
+const products = extractProducts(finalSnapshot, query);
+const reachedResults = finalSnapshot.includes('text="Results"') || products.length > 0;
 
 if (!reachedResults) {
   console.error('Amazon search did not reach a readable results page.');
@@ -265,11 +353,13 @@ if (!reachedResults) {
 logSkillProgress(skillId, `Reached results using ${useSuggestion ? 'exact suggestion click' : 'IME submit'}.`);
 console.log(`✅ Amazon search results for '${query}':`);
 
-if (titles.length === 0) {
+if (products.length === 0) {
   console.log('- Results page opened, but no product titles were parsed from the current accessibility snapshot.');
   process.exit(0);
 }
 
-for (const title of titles) {
-  console.log(`- ${title}`);
+for (const product of products) {
+  console.log(`- ${product.title}`);
+  console.log(`  sponsored: ${product.sponsored ? 'YES' : 'NO'}`);
+  console.log(`  price: ${product.price || 'UNKNOWN'}`);
 }
