@@ -104,7 +104,7 @@ function appendCheckpoint(result, id, status, note, evidence) {
   result.checkpoints.push(checkpoint);
 }
 
-function failAndExit(result, id, note, diagnostics = {}) {
+function failResult(result, id, note, diagnostics = {}) {
   appendCheckpoint(result, id, "failed", note);
   result.status = "failed";
   result.diagnostics = {
@@ -113,7 +113,7 @@ function failAndExit(result, id, note, diagnostics = {}) {
     ...diagnostics,
   };
   emitSkillResult(result);
-  process.exit(1);
+  return 1;
 }
 
 async function cleanupRunDirectory(runDir, shouldRetain) {
@@ -121,6 +121,17 @@ async function cleanupRunDirectory(runDir, shouldRetain) {
     return;
   }
   await rm(runDir, { recursive: true, force: true });
+}
+
+async function cleanupRunDirectoryBestEffort(result, runDir, shouldRetain) {
+  try {
+    await cleanupRunDirectory(runDir, shouldRetain);
+  } catch (cleanupError) {
+    result.diagnostics = {
+      ...(result.diagnostics || {}),
+      cleanupError: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+    };
+  }
 }
 
 function decodeEntities(value) {
@@ -443,27 +454,29 @@ async function main() {
   const requestedState = parseRequestedState(rawArgs);
   const targetZone = parseRequestedZoneName(rawArgs);
   const result = buildBaseSkillResult(targetZone, requestedState);
+  let runDir = null;
 
   if (!deviceId) {
-    failAndExit(result, "device_selected", "No device id was provided to the skill.");
+    return failResult(result, "device_selected", "No device id was provided to the skill.");
   }
   if (requestedState !== "on" && requestedState !== "off") {
-    failAndExit(result, "input_validated", "Pass --state on or --state off.");
+    return failResult(result, "input_validated", "Pass --state on or --state off.");
   }
   if (!targetZone) {
-    failAndExit(result, "input_validated", "Pass --zone-name <label>.");
+    return failResult(result, "input_validated", "Pass --zone-name <label>.");
   }
 
-  const runDir = await mkdtemp(join(tmpdir(), "clawperator-airtouch-zone-"));
-  result.diagnostics = {
-    runtimeState: "healthy",
-    runDir,
-    targetPackage,
-    operatorPackage,
-    deviceId,
-  };
-
   try {
+    runDir = await mkdtemp(join(tmpdir(), "clawperator-airtouch-zone-"));
+    result.diagnostics = {
+      runtimeState: "healthy",
+      targetPackage,
+      operatorPackage,
+      deviceId,
+      artifactsRetained: retainRunArtifacts,
+      ...(retainRunArtifacts ? { runDir } : {}),
+    };
+
     openApp();
     await sleep(2000);
     appendCheckpoint(result, "app_opened", "ok", `Opened ${targetPackage} on ${deviceId}.`);
@@ -477,7 +490,8 @@ async function main() {
     const nodes = parseXmlNodes(zonesXml);
     const zoneLabel = findZoneLabelNode(nodes, targetZone);
     if (!zoneLabel) {
-      failAndExit(result, "zone_row_located", `${targetZone} row was not found in the Zones snapshot.`);
+      await cleanupRunDirectoryBestEffort(result, runDir, retainRunArtifacts);
+      return failResult(result, "zone_row_located", `${targetZone} row was not found in the Zones snapshot.`);
     }
     const powerBounds = derivePowerBounds(nodes, zoneLabel);
     appendCheckpoint(
@@ -542,7 +556,8 @@ async function main() {
     };
 
     if (afterState.state !== requestedState) {
-      failAndExit(
+      await cleanupRunDirectoryBestEffort(result, runDir, retainRunArtifacts);
+      return failResult(
         result,
         "terminal_state_verified",
         `Requested ${targetZone}=${requestedState} but screenshot classifier still observed ${afterState.state}.`,
@@ -558,10 +573,12 @@ async function main() {
       { kind: "json", value: afterState.metrics },
     );
     result.status = "success";
-    await cleanupRunDirectory(runDir, retainRunArtifacts);
+    await cleanupRunDirectoryBestEffort(result, runDir, retainRunArtifacts);
     emitSkillResult(result);
+    return 0;
   } catch (error) {
-    failAndExit(
+    await cleanupRunDirectoryBestEffort(result, runDir, retainRunArtifacts);
+    return failResult(
       result,
       "runtime_execution",
       error instanceof Error ? error.message : String(error),
@@ -570,4 +587,6 @@ async function main() {
   }
 }
 
-main();
+main().then((exitCode) => {
+  process.exitCode = typeof exitCode === "number" ? exitCode : 0;
+});
