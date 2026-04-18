@@ -40,6 +40,15 @@ function parseRequestedState(args) {
         return value;
       }
     }
+  }
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = String(args[index] || "").trim().toLowerCase();
+    const previous = String(args[index - 1] || "").trim().toLowerCase();
+
+    if (previous.startsWith("--") && !previous.includes("=")) {
+      continue;
+    }
     if (arg === "on" || arg === "off") {
       return arg;
     }
@@ -306,6 +315,7 @@ async function readPngRgba(path) {
   let offset = 8;
   let width = 0;
   let height = 0;
+  let sawIhdr = false;
   const idatChunks = [];
 
   while (offset < data.length) {
@@ -317,8 +327,12 @@ async function readPngRgba(path) {
     offset += length + 4;
 
     if (type === "IHDR") {
+      if (chunk.length < 13) {
+        throw new Error(`png IHDR chunk too short: ${path}`);
+      }
       width = chunk.readUInt32BE(0);
       height = chunk.readUInt32BE(4);
+      sawIhdr = true;
       const bitDepth = chunk[8];
       const colorType = chunk[9];
       if (bitDepth !== 8 || colorType !== 6) {
@@ -329,6 +343,13 @@ async function readPngRgba(path) {
     } else if (type === "IEND") {
       break;
     }
+  }
+
+  if (!sawIhdr || width <= 0 || height <= 0) {
+    throw new Error(`png missing valid IHDR dimensions: ${path}`);
+  }
+  if (idatChunks.length === 0) {
+    throw new Error(`png missing IDAT data: ${path}`);
   }
 
   const raw = zlib.inflateSync(Buffer.concat(idatChunks));
@@ -387,6 +408,9 @@ function clampBounds(bounds, width, height) {
 
 function averageRgba(image, bounds) {
   const region = clampBounds(bounds, image.width, image.height);
+  if (region.left >= region.right || region.top >= region.bottom) {
+    throw new Error(`empty screenshot region after clamping: ${JSON.stringify(region)}`);
+  }
   let red = 0;
   let green = 0;
   let blue = 0;
@@ -402,6 +426,9 @@ function averageRgba(image, bounds) {
       alpha += image.rgba[index + 3];
       count += 1;
     }
+  }
+  if (count === 0) {
+    throw new Error(`screenshot region contained no pixels: ${JSON.stringify(region)}`);
   }
   return {
     region,

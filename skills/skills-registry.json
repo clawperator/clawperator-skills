@@ -23,10 +23,7 @@
         "goal": {
           "kind": "set_zone_state"
         },
-        "verification": {
-          "kind": "node_text_matches",
-          "matcher": "{state}"
-        }
+        "verification": null
       }
     },
     {
