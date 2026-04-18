@@ -28,7 +28,7 @@ if (query.length > MAX_QUERY_LENGTH) {
   process.exit(1);
 }
 
-function buildExecution({ submit, clickSuggestion, commandId }) {
+function buildExecution({ submit, clickSuggestion, suggestionLabel, commandId }) {
   const actions = [
     { id: 'close', type: 'close_app', params: { applicationId: APPLICATION_ID } },
     { id: 'wait_close', type: 'sleep', params: { durationMs: 1500 } },
@@ -51,7 +51,7 @@ function buildExecution({ submit, clickSuggestion, commandId }) {
 
   if (clickSuggestion) {
     actions.push(
-      { id: 'click_exact_suggestion', type: 'click', params: { matcher: { contentDescEquals: query } } },
+      { id: 'click_exact_suggestion', type: 'click', params: { matcher: { contentDescEquals: suggestionLabel || query } } },
       { id: 'wait_results', type: 'sleep', params: { durationMs: 5000 } }
     );
   } else if (submit) {
@@ -98,9 +98,31 @@ function normalizeWhitespace(value) {
   return value.replace(/\s+/g, ' ').trim();
 }
 
-function hasExactSuggestion(snapshotText, searchQuery) {
+function findExactSuggestionLabel(snapshotText, searchQuery) {
+  const queryLower = normalizeWhitespace(searchQuery).toLowerCase();
+  const lines = snapshotText.split('\n');
+
+  for (const line of lines) {
+    if (!line.includes('class="android.widget.Button"')) {
+      continue;
+    }
+
+    const contentDesc = decodeXmlEntities(findAttribute(line, 'content-desc') || '');
+    if (!contentDesc) {
+      continue;
+    }
+
+    if (normalizeWhitespace(contentDesc).toLowerCase() === queryLower) {
+      return contentDesc;
+    }
+  }
+
   const encodedQuery = escapeXmlAttribute(searchQuery);
-  return snapshotText.includes(`content-desc="${encodedQuery}"`);
+  if (snapshotText.includes(`content-desc="${encodedQuery}"`)) {
+    return searchQuery;
+  }
+
+  return null;
 }
 
 function looksLikeProductTitle(value, searchQuery) {
@@ -318,10 +340,12 @@ const probeCommandId = `skill-amazon-search-probe-${Date.now()}`;
 const probeResult = runExecution(buildExecution({
   submit: false,
   clickSuggestion: false,
+  suggestionLabel: null,
   commandId: probeCommandId
 }));
 const probeSnapshot = getSnapshotText(probeResult);
-const useSuggestion = hasExactSuggestion(probeSnapshot, query);
+const exactSuggestionLabel = findExactSuggestionLabel(probeSnapshot, query);
+const useSuggestion = exactSuggestionLabel !== null;
 
 logSkillProgress(
   skillId,
@@ -334,6 +358,7 @@ const finalCommandId = `skill-amazon-search-${Date.now()}`;
 const finalResult = runExecution(buildExecution({
   submit: !useSuggestion,
   clickSuggestion: useSuggestion,
+  suggestionLabel: exactSuggestionLabel,
   commandId: finalCommandId
 }));
 const finalSnapshot = getSnapshotText(finalResult);
