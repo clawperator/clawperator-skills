@@ -92,3 +92,46 @@ test('mergeProductsFromSnapshots backfills missing price from a later snapshot w
     }
   ]);
 });
+
+test('mergeProductsFromSnapshots backfills existing rows after the first twenty are filled', () => {
+  const firstSnapshot = ['<hierarchy>', '<node text="Results" content-desc="Results" clickable="false" />'];
+  const secondSnapshot = ['<hierarchy>', '<node text="Results" content-desc="Results" clickable="false" />'];
+
+  for (let index = 1; index <= 20; index += 1) {
+    firstSnapshot.push(
+      `<node text="Test Product ${index}" content-desc="Test Product ${index}" clickable="true" class="android.view.View" />`
+    );
+    if (index !== 1) {
+      firstSnapshot.push(
+        `<node text="$${index}.00" content-desc="$${index}.00" clickable="false" class="android.view.View" />`
+      );
+    }
+
+    secondSnapshot.push(
+      `<node text="Test Product ${index}" content-desc="Test Product ${index}" clickable="true" class="android.view.View" />`
+    );
+    if (index === 1) {
+      secondSnapshot.push(
+        '<node text="$1.00" content-desc="$1.00" clickable="false" class="android.view.View" />'
+      );
+    }
+  }
+
+  secondSnapshot.push(
+    '<node text="Test Product 21" content-desc="Test Product 21" clickable="true" class="android.view.View" />',
+    '<node text="$21.00" content-desc="$21.00" clickable="false" class="android.view.View" />',
+    '</hierarchy>'
+  );
+
+  firstSnapshot.push('</hierarchy>');
+
+  const results = mergeProductsFromSnapshots([firstSnapshot.join('\n'), secondSnapshot.join('\n')], 'Test Product');
+
+  assert.strictEqual(results.length, 20);
+  assert.deepStrictEqual(results[0], {
+    title: 'Test Product 1',
+    sponsored: false,
+    price: '$1.00'
+  });
+  assert.strictEqual(results[19].title, 'Test Product 20');
+});

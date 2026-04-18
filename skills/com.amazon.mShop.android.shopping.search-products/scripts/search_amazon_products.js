@@ -38,15 +38,6 @@ if (query.length > MAX_QUERY_LENGTH) {
   process.exit(1);
 }
 
-function escapeXmlAttribute(value) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
 function buildOpenProbeExecution(commandId) {
   return {
     commandId,
@@ -238,11 +229,6 @@ function findExactSuggestionLabel(snapshotText, searchQuery) {
     if (normalizeWhitespace(contentDesc).toLowerCase() === queryLower) {
       return contentDesc;
     }
-  }
-
-  const encodedQuery = escapeXmlAttribute(searchQuery);
-  if (snapshotText.includes(`content-desc="${encodedQuery}"`)) {
-    return searchQuery;
   }
 
   return null;
@@ -520,8 +506,13 @@ if (!finalSnapshot) {
 let finalSnapshotText = finalSnapshot;
 let suggestionStrategy = useSuggestion ? 'exact_suggestion_click' : 'enter_key_submit';
 
-if (!useSuggestion && isAutocompleteSurface(finalSnapshotText)) {
-  logSkillProgress(skillId, 'Autocomplete remained open after typing. Sending Enter key to submit the query.');
+if (!useSuggestion && !isResultsSurface(finalSnapshotText)) {
+  logSkillProgress(
+    skillId,
+    isAutocompleteSurface(finalSnapshotText)
+      ? 'Autocomplete remained open after typing. Sending Enter key to submit the query.'
+      : 'Results were not reached after typing. Sending Enter key to submit the query.'
+  );
 
   try {
     pressEnterKey();
@@ -578,7 +569,11 @@ if (!useSuggestion && isAutocompleteSurface(finalSnapshotText)) {
 }
 
 if (!isResultsSurface(finalSnapshotText)) {
-  emitFailureAndExit('Amazon search did not leave the autocomplete surface for a readable results page.', {
+  emitFailureAndExit(
+    isAutocompleteSurface(finalSnapshotText)
+      ? 'Amazon search did not leave the autocomplete surface for a readable results page.'
+      : 'Amazon search did not reach a readable results page.',
+    {
     inputs,
     checkpoints,
     execEnvelopes,

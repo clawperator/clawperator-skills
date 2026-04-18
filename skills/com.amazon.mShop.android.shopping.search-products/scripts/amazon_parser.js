@@ -237,13 +237,13 @@ function mergeProductsFromSnapshots(snapshotTexts, searchQuery) {
         continue;
       }
 
+      if (ordered.length >= MAX_RESULTS) {
+        continue;
+      }
+
       const mergedProduct = { ...product };
       byTitle.set(key, mergedProduct);
       ordered.push(mergedProduct);
-
-      if (ordered.length >= MAX_RESULTS) {
-        return ordered;
-      }
     }
   }
 
