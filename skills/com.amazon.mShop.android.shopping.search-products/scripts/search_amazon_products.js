@@ -674,20 +674,6 @@ for (let scrollIndex = 0; scrollIndex < MAX_SCROLLS; scrollIndex += 1) {
 
 const snapshotSeries = [finalSnapshotText, ...additionalSnapshots];
 const products = mergeProductsFromSnapshots(snapshotSeries, query);
-const reachedResults = isResultsSurface(finalSnapshotText);
-
-if (!reachedResults) {
-  emitFailureAndExit('Amazon search did not reach a readable results page.', {
-    inputs,
-    checkpoints,
-    execEnvelopes,
-    diagnostics: {
-      runtimeState: 'unknown',
-      landingSurface: searchSurface,
-      suggestionStrategy
-    }
-  });
-}
 
 checkpoints.push({
   id: 'results_collected',
