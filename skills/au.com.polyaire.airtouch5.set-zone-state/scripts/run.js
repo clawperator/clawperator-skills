@@ -157,7 +157,9 @@ function decodeEntities(value) {
   return String(value || "")
     .replace(/&amp;/g, "&")
     .replace(/&quot;/g, "\"")
+    .replace(/&apos;/g, "'")
     .replace(/&#39;/g, "'")
+    .replace(/&#x27;/gi, "'")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">");
 }
@@ -593,16 +595,15 @@ async function main() {
     };
 
     if (afterState.state !== requestedState) {
-      const { runtimeState, ...failureDiagnostics } = result.diagnostics || {};
+      result.diagnostics = {
+        ...(result.diagnostics || {}),
+        runtimeState: (result.diagnostics && result.diagnostics.runtimeState) || "healthy",
+      };
       await cleanupRunDirectoryBestEffort(result, runDir, retainRunArtifacts);
       return failResult(
         result,
         "terminal_state_verified",
         `Requested ${targetZone}=${requestedState} but screenshot classifier still observed ${afterState.state}.`,
-        {
-          runtimeState: runtimeState || "healthy",
-          ...failureDiagnostics,
-        },
       );
     }
 
