@@ -1,0 +1,275 @@
+#!/usr/bin/env node
+const {
+  runClawperator,
+  findAttribute,
+  resolveOperatorPackage,
+  logSkillProgress
+} = require('../../utils/common');
+
+const APPLICATION_ID = 'com.amazon.mShop.android.shopping';
+const SEARCH_BOX_ID = `${APPLICATION_ID}:id/chrome_search_box`;
+const SEARCH_FIELD_ID = `${APPLICATION_ID}:id/rs_search_src_text`;
+const MAX_QUERY_LENGTH = 256;
+const MAX_RESULTS = 8;
+const skillId = 'com.amazon.mShop.android.shopping.search-products';
+
+const deviceId = process.argv[2] || process.env.DEVICE_ID;
+const rawQuery = process.argv[3] || process.env.QUERY || '';
+const query = rawQuery.trim();
+const operatorPkg = resolveOperatorPackage(process.argv[4]);
+
+if (!deviceId || !query) {
+  console.error('Usage: node search_amazon_products.js <device_id> <query> [operator_package]');
+  process.exit(1);
+}
+
+if (query.length > MAX_QUERY_LENGTH) {
+  console.error(`Query too long (max ${MAX_QUERY_LENGTH})`);
+  process.exit(1);
+}
+
+function buildExecution({ submit, clickSuggestion, commandId }) {
+  const actions = [
+    { id: 'close', type: 'close_app', params: { applicationId: APPLICATION_ID } },
+    { id: 'wait_close', type: 'sleep', params: { durationMs: 1500 } },
+    { id: 'open', type: 'open_app', params: { applicationId: APPLICATION_ID } },
+    { id: 'wait_open', type: 'sleep', params: { durationMs: 8000 } },
+    { id: 'click_search', type: 'click', params: { matcher: { resourceId: SEARCH_BOX_ID } } },
+    { id: 'wait_search', type: 'sleep', params: { durationMs: 1500 } },
+    {
+      id: 'type_query',
+      type: 'enter_text',
+      params: {
+        matcher: { resourceId: SEARCH_FIELD_ID },
+        text: query,
+        clear: true,
+        submit
+      }
+    },
+    { id: 'wait_input', type: 'sleep', params: { durationMs: 2500 } }
+  ];
+
+  if (clickSuggestion) {
+    actions.push(
+      { id: 'click_exact_suggestion', type: 'click', params: { matcher: { contentDescEquals: query } } },
+      { id: 'wait_results', type: 'sleep', params: { durationMs: 5000 } }
+    );
+  } else if (submit) {
+    actions.push({ id: 'wait_results', type: 'sleep', params: { durationMs: 7000 } });
+  }
+
+  actions.push({ id: 'snap', type: 'snapshot_ui' });
+
+  return {
+    commandId,
+    taskId: commandId,
+    source: 'clawperator-skill',
+    expectedFormat: 'android-ui-automator',
+    timeoutMs: 120000,
+    actions
+  };
+}
+
+function getSnapshotText(result) {
+  const steps = (result && result.envelope && result.envelope.stepResults) || [];
+  const snapStep = steps.find((step) => step.id === 'snap');
+  return snapStep && snapStep.data ? snapStep.data.text || '' : '';
+}
+
+function escapeXmlAttribute(value) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function decodeXmlEntities(value) {
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+}
+
+function hasExactSuggestion(snapshotText, searchQuery) {
+  const encodedQuery = escapeXmlAttribute(searchQuery);
+  return snapshotText.includes(`content-desc="${encodedQuery}"`);
+}
+
+function looksLikeProductTitle(value, searchQuery) {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (normalized.length < 12 || normalized.length > 220) {
+    return false;
+  }
+
+  const lower = normalized.toLowerCase();
+  const queryLower = searchQuery.toLowerCase();
+  const rejectContains = [
+    'append suggestion',
+    'search amazon',
+    'all filters icon',
+    'prime filter',
+    'delivery options',
+    'availability',
+    'subscribe & save',
+    'shop the store',
+    'shop the ',
+    'view sponsored information',
+    'leave feedback on sponsored ad',
+    'pause sponsored video',
+    'mute sponsored video',
+    'scan it',
+    'free delivery',
+    'prime savings save',
+    'prime tomorrow',
+    'prime two-day',
+    'amazon prime',
+    'results',
+    '4 stars & up',
+    'apply the filter',
+    'fight the burn',
+    'more like this',
+    'add to cart',
+    'out of 5 stars',
+    'bought in past month'
+  ];
+
+  if (normalized === searchQuery) {
+    return false;
+  }
+
+  if (lower === queryLower || lower === `${queryLower} products`) {
+    return false;
+  }
+
+  if (rejectContains.some((term) => lower.includes(term))) {
+    return false;
+  }
+
+  if (/\$\d/.test(normalized)) {
+    return false;
+  }
+
+  if (lower.startsWith('ref=')) {
+    return false;
+  }
+
+  if (/^\d+\s+count\b/i.test(normalized)) {
+    return false;
+  }
+
+  if (/\bcount\s+\(pack of\b/i.test(normalized)) {
+    return false;
+  }
+
+  if (/(^|[\s-])(rrp|delivery|save\s+\d|today|tomorrow|mon,|tue,|wed,|thu,|fri,|sat,|sun,)/i.test(normalized)) {
+    return false;
+  }
+
+  return /[a-z]/i.test(normalized);
+}
+
+function extractProductTitles(snapshotText, searchQuery) {
+  const allLines = snapshotText.split('\n');
+  const resultsStartIndex = allLines.findIndex((line) => line.includes('text="Results"'));
+  const lines = resultsStartIndex >= 0 ? allLines.slice(resultsStartIndex) : allLines;
+  const titles = [];
+  const seen = new Set();
+
+  for (const line of lines) {
+    if (!line.includes('clickable="true"')) {
+      continue;
+    }
+
+    if (line.includes('class="android.widget.Button"') || line.includes('class="android.widget.ToggleButton"')) {
+      continue;
+    }
+
+    const content = decodeXmlEntities(findAttribute(line, 'content-desc') || '');
+    if (!content) {
+      continue;
+    }
+
+    const normalized = content.replace(/\s+/g, ' ').trim();
+    if (!looksLikeProductTitle(normalized, searchQuery)) {
+      continue;
+    }
+
+    const dedupeKey = normalized.toLowerCase();
+    if (seen.has(dedupeKey)) {
+      continue;
+    }
+
+    seen.add(dedupeKey);
+    titles.push(normalized);
+
+    if (titles.length >= MAX_RESULTS) {
+      break;
+    }
+  }
+
+  return titles;
+}
+
+function runExecution(execution) {
+  const outcome = runClawperator(execution, deviceId, operatorPkg);
+  if (!outcome.ok) {
+    console.error(`Skill execution failed: ${outcome.error}`);
+    process.exit(2);
+  }
+  return outcome.result;
+}
+
+logSkillProgress(skillId, 'Opening Amazon Shopping...');
+logSkillProgress(skillId, `Probing search flow for "${query}"...`);
+const probeCommandId = `skill-amazon-search-probe-${Date.now()}`;
+const probeResult = runExecution(buildExecution({
+  submit: false,
+  clickSuggestion: false,
+  commandId: probeCommandId
+}));
+const probeSnapshot = getSnapshotText(probeResult);
+const useSuggestion = hasExactSuggestion(probeSnapshot, query);
+
+logSkillProgress(
+  skillId,
+  useSuggestion
+    ? 'Exact suggestion row detected. Re-running with suggestion click.'
+    : 'Exact suggestion row not detected. Re-running with IME submit.'
+);
+
+const finalCommandId = `skill-amazon-search-${Date.now()}`;
+const finalResult = runExecution(buildExecution({
+  submit: !useSuggestion,
+  clickSuggestion: useSuggestion,
+  commandId: finalCommandId
+}));
+const finalSnapshot = getSnapshotText(finalResult);
+
+if (!finalSnapshot) {
+  console.error('Could not capture Amazon search snapshot.');
+  process.exit(2);
+}
+
+const titles = extractProductTitles(finalSnapshot, query);
+const reachedResults = finalSnapshot.includes('text="Results"') || titles.length > 0;
+
+if (!reachedResults) {
+  console.error('Amazon search did not reach a readable results page.');
+  process.exit(2);
+}
+
+logSkillProgress(skillId, `Reached results using ${useSuggestion ? 'exact suggestion click' : 'IME submit'}.`);
+console.log(`✅ Amazon search results for '${query}':`);
+
+if (titles.length === 0) {
+  console.log('- Results page opened, but no product titles were parsed from the current accessibility snapshot.');
+  process.exit(0);
+}
+
+for (const title of titles) {
+  console.log(`- ${title}`);
+}

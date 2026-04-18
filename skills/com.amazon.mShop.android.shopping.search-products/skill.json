@@ -1,0 +1,13 @@
+{
+  "id": "com.amazon.mShop.android.shopping.search-products",
+  "applicationId": "com.amazon.mShop.android.shopping",
+  "intent": "search-products",
+  "summary": "Search Amazon Shopping for a product query and return the first accessible result titles.",
+  "path": "skills/com.amazon.mShop.android.shopping.search-products",
+  "skillFile": "skills/com.amazon.mShop.android.shopping.search-products/SKILL.md",
+  "scripts": [
+    "skills/com.amazon.mShop.android.shopping.search-products/scripts/search_amazon_products.js",
+    "skills/com.amazon.mShop.android.shopping.search-products/scripts/search_amazon_products.sh"
+  ],
+  "artifacts": []
+}
