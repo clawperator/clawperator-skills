@@ -599,7 +599,10 @@ async function main() {
         result,
         "terminal_state_verified",
         `Requested ${targetZone}=${requestedState} but screenshot classifier still observed ${afterState.state}.`,
-        failureDiagnostics,
+        {
+          runtimeState: runtimeState || "healthy",
+          ...failureDiagnostics,
+        },
       );
     }
 

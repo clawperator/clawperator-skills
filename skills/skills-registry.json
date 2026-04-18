@@ -1,7 +1,7 @@
 {
   "$schema": "./skills-registry.schema.json",
   "schemaVersion": "1.0",
-  "generatedAt": "2026-04-17T00:45:39Z",
+  "generatedAt": "2026-04-18T05:35:12Z",
   "skills": [
     {
       "id": "au.com.polyaire.airtouch5.set-zone-state",
