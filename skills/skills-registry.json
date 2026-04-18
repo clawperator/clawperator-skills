@@ -1,8 +1,34 @@
 {
   "$schema": "./skills-registry.schema.json",
   "schemaVersion": "1.0",
-  "generatedAt": "2026-04-15T06:48:38Z",
+  "generatedAt": "2026-04-18T03:16:00Z",
   "skills": [
+    {
+      "id": "au.com.polyaire.airtouch5.set-zone-state",
+      "applicationId": "au.com.polyaire.airtouch5",
+      "intent": "set-zone-state",
+      "summary": "Set an AirTouch 5 zone state to on or off using snapshot geometry plus screenshot verification.",
+      "path": "skills/au.com.polyaire.airtouch5.set-zone-state",
+      "skillFile": "skills/au.com.polyaire.airtouch5.set-zone-state/SKILL.md",
+      "scripts": [
+        "skills/au.com.polyaire.airtouch5.set-zone-state/scripts/run.js",
+        "skills/au.com.polyaire.airtouch5.set-zone-state/scripts/run.sh"
+      ],
+      "artifacts": [],
+      "contract": {
+        "inputs": {
+          "state": "string",
+          "zone_name": "string"
+        },
+        "goal": {
+          "kind": "set_zone_power"
+        },
+        "verification": {
+          "kind": "node_text_matches",
+          "matcher": "{state}"
+        }
+      }
+    },
     {
       "id": "com.android.settings.capture-overview",
       "applicationId": "com.android.settings",
