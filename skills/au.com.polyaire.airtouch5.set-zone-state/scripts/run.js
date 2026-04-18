@@ -123,6 +123,15 @@ async function cleanupRunDirectory(runDir, shouldRetain) {
   await rm(runDir, { recursive: true, force: true });
 }
 
+function pruneTransientArtifactDiagnostics(result, shouldRetain) {
+  if (shouldRetain || !result.diagnostics) {
+    return;
+  }
+  delete result.diagnostics.runDir;
+  delete result.diagnostics.beforeScreenshot;
+  delete result.diagnostics.afterScreenshot;
+}
+
 async function cleanupRunDirectoryBestEffort(result, runDir, shouldRetain) {
   try {
     await cleanupRunDirectory(runDir, shouldRetain);
@@ -132,6 +141,7 @@ async function cleanupRunDirectoryBestEffort(result, runDir, shouldRetain) {
       cleanupError: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
     };
   }
+  pruneTransientArtifactDiagnostics(result, shouldRetain);
 }
 
 function decodeEntities(value) {
