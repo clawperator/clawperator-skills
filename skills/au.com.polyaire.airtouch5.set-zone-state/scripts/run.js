@@ -427,11 +427,11 @@ async function waitForZonesReady() {
 
 async function waitForZoneSnapshot(zoneName) {
   let lastXml = "";
-  const normalizedZoneName = String(zoneName || "").trim().toLowerCase();
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const snapResult = snapshot();
     lastXml = parseSnapshotXml(snapResult);
-    if (lastXml.toLowerCase().includes(`text="${normalizedZoneName}"`) || lastXml.toLowerCase().includes(`>${normalizedZoneName}<`)) {
+    const nodes = parseXmlNodes(lastXml);
+    if (findZoneLabelNode(nodes, zoneName)) {
       return lastXml;
     }
     await sleep(1200);
@@ -524,13 +524,21 @@ async function main() {
       observed: { kind: "text", text: afterState.state },
       note: `Screenshot classifier observed ${targetZone}=${afterState.state}.`,
     };
+    const artifactDiagnostics = retainRunArtifacts
+      ? {
+          runDir,
+          beforeScreenshot: beforePath,
+          afterScreenshot: afterPath,
+        }
+      : {
+          artifactsRetained: false,
+        };
     result.diagnostics = {
       ...(result.diagnostics || {}),
-      beforeScreenshot: beforePath,
-      afterScreenshot: afterPath,
       powerBounds,
       beforeMetrics: beforeState.metrics,
       afterMetrics: afterState.metrics,
+      ...artifactDiagnostics,
     };
 
     if (afterState.state !== requestedState) {
