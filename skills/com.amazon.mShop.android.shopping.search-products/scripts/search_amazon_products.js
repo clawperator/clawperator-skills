@@ -8,9 +8,12 @@ const {
 
 const APPLICATION_ID = 'com.amazon.mShop.android.shopping';
 const SEARCH_BOX_ID = `${APPLICATION_ID}:id/chrome_search_box`;
+const SEARCH_ENTRY_BAR_ID = `${APPLICATION_ID}:id/rs_search_entry_bar`;
 const SEARCH_FIELD_ID = `${APPLICATION_ID}:id/rs_search_src_text`;
 const MAX_QUERY_LENGTH = 256;
-const MAX_RESULTS = 8;
+const MAX_RESULTS = 20;
+const MAX_SCROLLS = 3;
+const SCROLL_SETTLE_DELAY_MS = 1800;
 const skillId = 'com.amazon.mShop.android.shopping.search-products';
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
@@ -28,14 +31,41 @@ if (query.length > MAX_QUERY_LENGTH) {
   process.exit(1);
 }
 
-function buildExecution({ submit, clickSuggestion, suggestionLabel, commandId }) {
+function buildOpenProbeExecution(commandId) {
   const actions = [
     { id: 'close', type: 'close_app', params: { applicationId: APPLICATION_ID } },
     { id: 'wait_close', type: 'sleep', params: { durationMs: 1500 } },
     { id: 'open', type: 'open_app', params: { applicationId: APPLICATION_ID } },
     { id: 'wait_open', type: 'sleep', params: { durationMs: 8000 } },
-    { id: 'click_search', type: 'click', params: { matcher: { resourceId: SEARCH_BOX_ID } } },
-    { id: 'wait_search', type: 'sleep', params: { durationMs: 1500 } },
+    { id: 'snap', type: 'snapshot_ui' }
+  ];
+
+  return {
+    commandId,
+    taskId: commandId,
+    source: 'clawperator-skill',
+    expectedFormat: 'android-ui-automator',
+    timeoutMs: 120000,
+    actions
+  };
+}
+
+function buildExecution({ surface, submit, clickSuggestion, suggestionLabel, commandId }) {
+  const actions = [];
+
+  if (surface === 'home_search_box') {
+    actions.push(
+      { id: 'click_search', type: 'click', params: { matcher: { resourceId: SEARCH_BOX_ID } } },
+      { id: 'wait_search', type: 'sleep', params: { durationMs: 1500 } }
+    );
+  } else if (surface === 'search_entry_bar') {
+    actions.push(
+      { id: 'click_search', type: 'click', params: { matcher: { resourceId: SEARCH_ENTRY_BAR_ID } } },
+      { id: 'wait_search', type: 'sleep', params: { durationMs: 1200 } }
+    );
+  }
+
+  actions.push(
     {
       id: 'type_query',
       type: 'enter_text',
@@ -47,7 +77,7 @@ function buildExecution({ submit, clickSuggestion, suggestionLabel, commandId })
       }
     },
     { id: 'wait_input', type: 'sleep', params: { durationMs: 2500 } }
-  ];
+  );
 
   if (clickSuggestion) {
     actions.push(
@@ -74,6 +104,27 @@ function getSnapshotText(result) {
   const steps = (result && result.envelope && result.envelope.stepResults) || [];
   const snapStep = steps.find((step) => step.id === 'snap');
   return snapStep && snapStep.data ? snapStep.data.text || '' : '';
+}
+
+function detectSearchSurface(snapshotText) {
+  if (!snapshotText) return null;
+  if (snapshotText.includes(`resource-id="${SEARCH_FIELD_ID}"`)) {
+    return 'search_field';
+  }
+  if (snapshotText.includes(`resource-id="${SEARCH_ENTRY_BAR_ID}"`)) {
+    return 'search_entry_bar';
+  }
+  if (snapshotText.includes(`resource-id="${SEARCH_BOX_ID}"`)) {
+    return 'home_search_box';
+  }
+  return null;
+}
+
+function getSnapshotTextsByPrefix(result, prefix) {
+  const steps = (result && result.envelope && result.envelope.stepResults) || [];
+  return steps
+    .filter((step) => step.id && step.id.startsWith(prefix) && step.data && step.data.text)
+    .map((step) => step.data.text);
 }
 
 function escapeXmlAttribute(value) {
@@ -163,7 +214,9 @@ function looksLikeProductTitle(value, searchQuery) {
     'bought in past month',
     'unbeatably smooth shave',
     'shop gillette',
-    'options:'
+    'options:',
+    "amazon's choice",
+    'amazon’s choice'
   ];
 
   if (normalized === searchQuery) {
@@ -325,6 +378,58 @@ function extractProducts(snapshotText, searchQuery) {
   return merged.slice(0, MAX_RESULTS);
 }
 
+function mergeProductsFromSnapshots(snapshotTexts, searchQuery) {
+  const ordered = [];
+  const byTitle = new Map();
+
+  for (const snapshotText of snapshotTexts) {
+    const products = extractProducts(snapshotText, searchQuery);
+    for (const product of products) {
+      const key = product.title.toLowerCase();
+      const existing = byTitle.get(key);
+      if (existing) {
+        existing.sponsored = existing.sponsored || product.sponsored;
+        existing.price = existing.price || product.price;
+        continue;
+      }
+
+      const mergedProduct = { ...product };
+      byTitle.set(key, mergedProduct);
+      ordered.push(mergedProduct);
+
+      if (ordered.length >= MAX_RESULTS) {
+        return ordered;
+      }
+    }
+  }
+
+  return ordered;
+}
+
+function buildScrollCollectionExecution(scrollCount, commandId) {
+  const actions = [];
+
+  for (let i = 0; i < scrollCount; i += 1) {
+    actions.push(
+      {
+        id: `scroll_${i + 1}`,
+        type: 'scroll',
+        params: { direction: 'down', settleDelayMs: SCROLL_SETTLE_DELAY_MS }
+      },
+      { id: `snap_${i + 1}`, type: 'snapshot_ui' }
+    );
+  }
+
+  return {
+    commandId,
+    taskId: commandId,
+    source: 'clawperator-skill',
+    expectedFormat: 'android-ui-automator',
+    timeoutMs: 120000,
+    actions
+  };
+}
+
 function runExecution(execution) {
   const outcome = runClawperator(execution, deviceId, operatorPkg);
   if (!outcome.ok) {
@@ -335,9 +440,21 @@ function runExecution(execution) {
 }
 
 logSkillProgress(skillId, 'Opening Amazon Shopping...');
+const openProbeCommandId = `skill-amazon-open-probe-${Date.now()}`;
+const openProbeResult = runExecution(buildOpenProbeExecution(openProbeCommandId));
+const openProbeSnapshot = getSnapshotText(openProbeResult);
+const searchSurface = detectSearchSurface(openProbeSnapshot);
+
+if (!searchSurface) {
+  console.error('Amazon search surface was not reachable after opening the app.');
+  process.exit(2);
+}
+
+logSkillProgress(skillId, `Detected landing surface: ${searchSurface}.`);
 logSkillProgress(skillId, `Probing search flow for "${query}"...`);
 const probeCommandId = `skill-amazon-search-probe-${Date.now()}`;
 const probeResult = runExecution(buildExecution({
+  surface: searchSurface,
   submit: false,
   clickSuggestion: false,
   suggestionLabel: null,
@@ -356,6 +473,7 @@ logSkillProgress(
 
 const finalCommandId = `skill-amazon-search-${Date.now()}`;
 const finalResult = runExecution(buildExecution({
+  surface: 'search_field',
   submit: !useSuggestion,
   clickSuggestion: useSuggestion,
   suggestionLabel: exactSuggestionLabel,
@@ -368,7 +486,15 @@ if (!finalSnapshot) {
   process.exit(2);
 }
 
-const products = extractProducts(finalSnapshot, query);
+logSkillProgress(skillId, `Reached results using ${useSuggestion ? 'exact suggestion click' : 'IME submit'}.`);
+logSkillProgress(skillId, `Collecting additional results with ${MAX_SCROLLS} scrolls...`);
+
+const scrollCollectionCommandId = `skill-amazon-search-collect-${Date.now()}`;
+const scrollCollectionResult = runExecution(buildScrollCollectionExecution(MAX_SCROLLS, scrollCollectionCommandId));
+const additionalSnapshots = getSnapshotTextsByPrefix(scrollCollectionResult, 'snap_');
+const snapshotSeries = [finalSnapshot, ...additionalSnapshots];
+
+const products = mergeProductsFromSnapshots(snapshotSeries, query);
 const reachedResults = finalSnapshot.includes('text="Results"') || products.length > 0;
 
 if (!reachedResults) {
@@ -376,7 +502,6 @@ if (!reachedResults) {
   process.exit(2);
 }
 
-logSkillProgress(skillId, `Reached results using ${useSuggestion ? 'exact suggestion click' : 'IME submit'}.`);
 console.log(`✅ Amazon search results for '${query}':`);
 
 if (products.length === 0) {
