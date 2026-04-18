@@ -69,7 +69,7 @@ function buildBaseSkillResult(zoneName, state, status = "failed") {
     contractVersion: "1.0.0",
     skillId,
     goal: {
-      kind: "set_zone_power",
+      kind: "set_zone_state",
       zone_name: zoneName,
       state,
     },
@@ -182,7 +182,8 @@ function parseXmlNodes(xml) {
 }
 
 function findZoneLabelNode(nodes, zoneName) {
-  return nodes.find((node) => node.text.trim() === zoneName);
+  const normalizedZoneName = String(zoneName || "").trim().toLowerCase();
+  return nodes.find((node) => node.text.trim().toLowerCase() === normalizedZoneName);
 }
 
 function derivePowerBounds(nodes, labelNode) {
@@ -418,10 +419,11 @@ async function waitForZonesReady() {
 
 async function waitForZoneSnapshot(zoneName) {
   let lastXml = "";
+  const normalizedZoneName = String(zoneName || "").trim().toLowerCase();
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const snapResult = snapshot();
     lastXml = parseSnapshotXml(snapResult);
-    if (lastXml.includes(`text="${zoneName}"`) || lastXml.includes(`>${zoneName}<`)) {
+    if (lastXml.toLowerCase().includes(`text="${normalizedZoneName}"`) || lastXml.toLowerCase().includes(`>${normalizedZoneName}<`)) {
       return lastXml;
     }
     await sleep(1200);

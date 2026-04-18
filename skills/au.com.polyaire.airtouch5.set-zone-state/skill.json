@@ -16,7 +16,7 @@
       "zone_name": "string"
     },
     "goal": {
-      "kind": "set_zone_power"
+      "kind": "set_zone_state"
     },
     "verification": {
       "kind": "node_text_matches",
