@@ -363,6 +363,8 @@ function isTitleCandidateLine(line, searchQuery) {
 }
 
 function extractPriceFromWindow(lines, startIndex, endIndex) {
+  const pricePattern = /\$[0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|\$[0-9]+(?:\.[0-9]{2})?/;
+
   for (let i = startIndex; i < endIndex; i += 1) {
     const value = extractLineValue(lines[i]);
     if (!value) {
@@ -370,7 +372,7 @@ function extractPriceFromWindow(lines, startIndex, endIndex) {
     }
 
     if (value.startsWith('$')) {
-      const match = value.match(/\$[0-9]+(?:\.[0-9]{2})?/);
+      const match = value.match(pricePattern);
       if (match) {
         return match[0];
       }
@@ -383,7 +385,7 @@ function extractPriceFromWindow(lines, startIndex, endIndex) {
       continue;
     }
 
-    const match = value.match(/\$[0-9]+(?:\.[0-9]{2})?/);
+    const match = value.match(pricePattern);
     if (match) {
       return match[0];
     }
