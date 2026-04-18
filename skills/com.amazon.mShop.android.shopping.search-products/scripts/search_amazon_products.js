@@ -140,7 +140,8 @@ function looksLikeProductTitle(value, searchQuery) {
     'out of 5 stars',
     'bought in past month',
     'unbeatably smooth shave',
-    'shop gillette'
+    'shop gillette',
+    'options:'
   ];
 
   if (normalized === searchQuery) {
