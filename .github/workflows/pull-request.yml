@@ -1,0 +1,27 @@
+name: Pull Request Checks
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  node-tests:
+    name: Run Node Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Make test script executable
+        run: chmod +x ./scripts/test_all.sh
+
+      - name: Run Node tests
+        run: ./scripts/test_all.sh
