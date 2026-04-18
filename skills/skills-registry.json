@@ -1,7 +1,7 @@
 {
   "$schema": "./skills-registry.schema.json",
   "schemaVersion": "1.0",
-  "generatedAt": "2026-04-18T03:16:00Z",
+  "generatedAt": "2026-04-18T08:34:26Z",
   "skills": [
     {
       "id": "au.com.polyaire.airtouch5.set-office-power",
@@ -27,6 +27,29 @@
           "kind": "node_text_matches",
           "matcher": "{state}"
         }
+      }
+    },
+    {
+      "id": "au.com.polyaire.airtouch5.set-zone-state",
+      "applicationId": "au.com.polyaire.airtouch5",
+      "intent": "set-zone-state",
+      "summary": "Set an AirTouch 5 zone state to on or off using snapshot geometry plus screenshot verification.",
+      "path": "skills/au.com.polyaire.airtouch5.set-zone-state",
+      "skillFile": "skills/au.com.polyaire.airtouch5.set-zone-state/SKILL.md",
+      "scripts": [
+        "skills/au.com.polyaire.airtouch5.set-zone-state/scripts/run.js",
+        "skills/au.com.polyaire.airtouch5.set-zone-state/scripts/run.sh"
+      ],
+      "artifacts": [],
+      "contract": {
+        "inputs": {
+          "state": "string",
+          "zone_name": "string"
+        },
+        "goal": {
+          "kind": "set_zone_state"
+        },
+        "verification": null
       }
     },
     {
@@ -116,6 +139,15 @@
       "applicationId": "com.google.android.apps.chromecast.app",
       "intent": "control-hvac",
       "summary": "Agent-driven Google Home HVAC controller for one named climate action per run.",
+      "keywords": [
+        "google home",
+        "climate",
+        "hvac",
+        "air conditioner",
+        "aircon",
+        "ac",
+        "heater"
+      ],
       "path": "skills/com.google.android.apps.chromecast.app.control-hvac-orchestrated",
       "skillFile": "skills/com.google.android.apps.chromecast.app.control-hvac-orchestrated/SKILL.md",
       "scripts": [
@@ -147,6 +179,15 @@
       "applicationId": "com.google.android.apps.chromecast.app",
       "intent": "get-climate",
       "summary": "Replay baseline skill for reading a Google Home climate unit status.",
+      "keywords": [
+        "google home",
+        "climate",
+        "hvac",
+        "air conditioner",
+        "aircon",
+        "ac",
+        "heater"
+      ],
       "path": "skills/com.google.android.apps.chromecast.app.get-climate-replay",
       "skillFile": "skills/com.google.android.apps.chromecast.app.get-climate-replay/SKILL.md",
       "scripts": [
@@ -169,6 +210,15 @@
       "applicationId": "com.google.android.apps.chromecast.app",
       "intent": "set-power",
       "summary": "Replay baseline skill for setting a Google Home climate unit power on or off.",
+      "keywords": [
+        "google home",
+        "climate",
+        "hvac",
+        "air conditioner",
+        "aircon",
+        "ac",
+        "heater"
+      ],
       "path": "skills/com.google.android.apps.chromecast.app.set-power-replay",
       "skillFile": "skills/com.google.android.apps.chromecast.app.set-power-replay/SKILL.md",
       "scripts": [
@@ -195,6 +245,15 @@
       "applicationId": "com.google.android.apps.chromecast.app",
       "intent": "set-temperature",
       "summary": "Replay baseline skill for setting a Google Home climate unit temperature.",
+      "keywords": [
+        "google home",
+        "climate",
+        "hvac",
+        "air conditioner",
+        "aircon",
+        "ac",
+        "heater"
+      ],
       "path": "skills/com.google.android.apps.chromecast.app.set-temperature-replay",
       "skillFile": "skills/com.google.android.apps.chromecast.app.set-temperature-replay/SKILL.md",
       "scripts": [

@@ -3,6 +3,15 @@
   "applicationId": "com.google.android.apps.chromecast.app",
   "intent": "set-temperature",
   "summary": "Replay baseline skill for setting a Google Home climate unit temperature.",
+  "keywords": [
+    "google home",
+    "climate",
+    "hvac",
+    "air conditioner",
+    "aircon",
+    "ac",
+    "heater"
+  ],
   "path": "skills/com.google.android.apps.chromecast.app.set-temperature-replay",
   "skillFile": "skills/com.google.android.apps.chromecast.app.set-temperature-replay/SKILL.md",
   "scripts": [
