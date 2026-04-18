@@ -176,16 +176,13 @@ function extractProducts(snapshotText, searchQuery) {
 
     const normalized = extractLineValue(line);
     const cleaned = cleanTitle(normalized);
-    const dedupeKey = normalized.toLowerCase();
+    const dedupeKey = normalizeWhitespace(cleaned).toLowerCase();
     if (seen.has(dedupeKey)) {
       continue;
     }
 
     seen.add(dedupeKey);
     titleCandidates.push({ index: i, title: normalized, cleanedTitle: cleaned });
-    if (titleCandidates.length >= MAX_RESULTS) {
-      break;
-    }
   }
 
   const merged = [];

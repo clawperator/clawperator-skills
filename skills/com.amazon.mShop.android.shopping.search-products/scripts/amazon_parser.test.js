@@ -61,6 +61,36 @@ test('extractProducts reads grouped prices from a minimal Amazon results snapsho
   ]);
 });
 
+test('extractProducts does not let sponsored/raw-title duplicates crowd out later unique products', () => {
+  const lines = ['<hierarchy>', '<node text="Results" content-desc="Results" clickable="false" />'];
+
+  for (let index = 1; index <= 18; index += 1) {
+    lines.push(
+      `<node text="Test Product ${index} Deluxe Widget" content-desc="Test Product ${index} Deluxe Widget" clickable="true" class="android.view.View" />`,
+      `<node text="$${index}.00" content-desc="$${index}.00" clickable="false" class="android.view.View" />`
+    );
+  }
+
+  lines.push(
+    '<node text="Sponsored Ad - Crowded Product Deluxe Widget" content-desc="Sponsored Ad - Crowded Product Deluxe Widget" clickable="true" class="android.view.View" />',
+    '<node text="$20.00" content-desc="$20.00" clickable="false" class="android.view.View" />',
+    '<node text="Crowded Product Deluxe Widget" content-desc="Crowded Product Deluxe Widget" clickable="true" class="android.view.View" />',
+    '<node text="$20.00" content-desc="$20.00" clickable="false" class="android.view.View" />',
+    '<node text="Late Product Deluxe Widget" content-desc="Late Product Deluxe Widget" clickable="true" class="android.view.View" />',
+    '<node text="$21.00" content-desc="$21.00" clickable="false" class="android.view.View" />',
+    '</hierarchy>'
+  );
+
+  const results = extractProducts(lines.join('\n'), 'Deluxe Widget');
+
+  assert.strictEqual(results.length, 20);
+  assert.deepStrictEqual(results[19], {
+    title: 'Late Product Deluxe Widget',
+    sponsored: false,
+    price: '$21.00'
+  });
+});
+
 test('mergeProductsFromSnapshots backfills missing price from a later snapshot without reordering', () => {
   const firstSnapshot = [
     '<hierarchy>',
