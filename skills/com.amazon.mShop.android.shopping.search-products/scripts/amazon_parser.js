@@ -252,6 +252,7 @@ function mergeProductsFromSnapshots(snapshotTexts, searchQuery) {
 
 module.exports = {
   cleanTitle,
+  decodeXmlEntities,
   extractLineValue,
   extractPriceFromWindow,
   extractProducts,

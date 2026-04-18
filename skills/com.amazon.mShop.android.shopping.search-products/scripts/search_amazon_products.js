@@ -7,7 +7,9 @@ const {
   logSkillProgress
 } = require('../../utils/common');
 const {
-  mergeProductsFromSnapshots
+  decodeXmlEntities,
+  mergeProductsFromSnapshots,
+  normalizeWhitespace
 } = require('./amazon_parser');
 
 const SKILL_RESULT_FRAME_PREFIX = '[Clawperator-Skill-Result]';
@@ -36,22 +38,6 @@ if (query.length > MAX_QUERY_LENGTH) {
   process.exit(1);
 }
 
-function normalizeWhitespace(value) {
-  return value
-    .replace(/\u2019/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function decodeXmlEntities(value) {
-  return value
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&');
-}
-
 function escapeXmlAttribute(value) {
   return value
     .replace(/&/g, '&amp;')
@@ -78,7 +64,7 @@ function buildOpenProbeExecution(commandId) {
   };
 }
 
-function buildExecution({ surface, submit, clickSuggestion, suggestionLabel, commandId }) {
+function buildExecution({ surface, clickSuggestion, suggestionLabel, commandId }) {
   const actions = [];
 
   if (surface === 'home_search_box') {
@@ -101,7 +87,7 @@ function buildExecution({ surface, submit, clickSuggestion, suggestionLabel, com
         matcher: { resourceId: SEARCH_FIELD_ID },
         text: query,
         clear: true,
-        submit
+        submit: false
       }
     },
     { id: 'wait_input', type: 'sleep', params: { durationMs: 2500 } }
@@ -116,8 +102,6 @@ function buildExecution({ surface, submit, clickSuggestion, suggestionLabel, com
       },
       { id: 'wait_results', type: 'sleep', params: { durationMs: 5000 } }
     );
-  } else if (submit) {
-    actions.push({ id: 'wait_results', type: 'sleep', params: { durationMs: 7000 } });
   }
 
   actions.push({ id: 'snap', type: 'snapshot_ui' });
@@ -421,7 +405,6 @@ let probeResult;
 try {
   probeResult = runExecution(buildExecution({
     surface: searchSurface,
-    submit: false,
     clickSuggestion: false,
     suggestionLabel: null,
     commandId: `skill-amazon-search-probe-${Date.now()}`
@@ -484,7 +467,6 @@ let finalResult;
 try {
   finalResult = runExecution(buildExecution({
     surface: 'search_field',
-    submit: false,
     clickSuggestion: useSuggestion,
     suggestionLabel: exactSuggestionLabel,
     commandId: `skill-amazon-search-${Date.now()}`
