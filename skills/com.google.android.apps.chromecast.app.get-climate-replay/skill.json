@@ -3,6 +3,15 @@
   "applicationId": "com.google.android.apps.chromecast.app",
   "intent": "get-climate",
   "summary": "Replay baseline skill for reading a Google Home climate unit status.",
+  "keywords": [
+    "google home",
+    "climate",
+    "hvac",
+    "air conditioner",
+    "aircon",
+    "ac",
+    "heater"
+  ],
   "path": "skills/com.google.android.apps.chromecast.app.get-climate-replay",
   "skillFile": "skills/com.google.android.apps.chromecast.app.get-climate-replay/SKILL.md",
   "scripts": [
