@@ -593,12 +593,13 @@ async function main() {
     };
 
     if (afterState.state !== requestedState) {
+      const { runtimeState, ...failureDiagnostics } = result.diagnostics || {};
       await cleanupRunDirectoryBestEffort(result, runDir, retainRunArtifacts);
       return failResult(
         result,
         "terminal_state_verified",
         `Requested ${targetZone}=${requestedState} but screenshot classifier still observed ${afterState.state}.`,
-        result.diagnostics,
+        failureDiagnostics,
       );
     }
 
