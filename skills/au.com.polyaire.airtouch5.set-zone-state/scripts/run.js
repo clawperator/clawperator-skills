@@ -4,11 +4,11 @@ const { mkdtemp, readFile, rm } = require("node:fs/promises");
 const { join } = require("node:path");
 const { tmpdir } = require("node:os");
 const zlib = require("node:zlib");
-const { runClawperatorCommand } = require("../../utils/common.js");
+const { resolveOperatorPackage, runClawperatorCommand } = require("../../utils/common.js");
 
 const skillId = "au.com.polyaire.airtouch5.set-zone-state";
 const targetPackage = "au.com.polyaire.airtouch5";
-const operatorPackage = process.env.CLAWPERATOR_OPERATOR_PACKAGE || "com.clawperator.operator";
+const operatorPackage = resolveOperatorPackage();
 const deviceId = process.env.CLAWPERATOR_DEVICE_ID || process.argv[2] || "";
 const rawArgs = process.env.CLAWPERATOR_DEVICE_ID ? process.argv.slice(2) : process.argv.slice(3);
 const retainRunArtifacts = process.env.CLAWPERATOR_SKILL_RETAIN_LOGS === "1" || process.env.CLAWPERATOR_SKILL_DEBUG === "1";
