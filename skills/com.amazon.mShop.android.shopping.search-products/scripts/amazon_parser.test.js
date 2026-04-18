@@ -17,6 +17,15 @@ test('extractPriceFromWindow preserves grouped thousands prices from snapshot li
   assert.strictEqual(extractPriceFromWindow(lines, 1, lines.length), '$1,347.00');
 });
 
+test('extractPriceFromWindow preserves ungrouped four-digit prices from snapshot lines', () => {
+  const lines = [
+    '<node index="0" text="Apple Studio Display" content-desc="Apple Studio Display" clickable="true" />',
+    '<node index="1" text="$1999.00" content-desc="$1999.00" clickable="false" />'
+  ];
+
+  assert.strictEqual(extractPriceFromWindow(lines, 1, lines.length), '$1999.00');
+});
+
 test('extractPriceFromWindow prefers a live price over an RRP-only mention', () => {
   const lines = [
     '<node index="0" text="RRP: $18.99" content-desc="RRP: $18.99" clickable="false" />',

@@ -8,7 +8,7 @@ Performs a product search for a specific query and returns the first accessible 
 ## Usage
 
 ```bash
-./skills/com.amazon.mShop.android.shopping.search-products/scripts/search_amazon_products.sh <device_id> [query] [operator_package]
+./skills/com.amazon.mShop.android.shopping.search-products/scripts/search_amazon_products.sh <device_id> <query> [operator_package]
 ```
 
 Example:

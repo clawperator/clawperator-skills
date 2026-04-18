@@ -17,7 +17,6 @@ const SEARCH_BOX_ID = `${APPLICATION_ID}:id/chrome_search_box`;
 const SEARCH_ENTRY_BAR_ID = `${APPLICATION_ID}:id/rs_search_entry_bar`;
 const SEARCH_FIELD_ID = `${APPLICATION_ID}:id/rs_search_src_text`;
 const MAX_QUERY_LENGTH = 256;
-const MAX_RESULTS = 20;
 const MAX_SCROLLS = 3;
 const SCROLL_SETTLE_DELAY_MS = 1800;
 const skillId = 'com.amazon.mShop.android.shopping.search-products';
@@ -364,7 +363,7 @@ let openProbeResult;
 try {
   openProbeResult = runExecution(buildOpenProbeExecution(`skill-amazon-open-probe-${Date.now()}`));
 } catch (error) {
-  emitFailureAndExit(error.message, {
+  emitFailureAndExit(summarizeExecutionErrorMessage(error.message), {
     inputs,
     checkpoints,
     execEnvelopes,
@@ -428,7 +427,7 @@ try {
     commandId: `skill-amazon-search-probe-${Date.now()}`
   }));
 } catch (error) {
-  emitFailureAndExit(error.message, {
+  emitFailureAndExit(summarizeExecutionErrorMessage(error.message), {
     inputs,
     checkpoints,
     execEnvelopes,
@@ -491,14 +490,14 @@ try {
     commandId: `skill-amazon-search-${Date.now()}`
   }));
 } catch (error) {
-  emitFailureAndExit(error.message, {
+  emitFailureAndExit(summarizeExecutionErrorMessage(error.message), {
     inputs,
     checkpoints,
     execEnvelopes,
     diagnostics: {
       runtimeState: 'unknown',
       landingSurface: searchSurface,
-      suggestionStrategy: useSuggestion ? 'exact_suggestion_click' : 'ime_submit',
+      suggestionStrategy: useSuggestion ? 'exact_suggestion_click' : 'enter_key_submit',
       warnings: ['Final search pass failed before a readable results snapshot was captured.']
     }
   });
@@ -515,7 +514,7 @@ if (finalForeignSnapshot) {
     diagnostics: {
       runtimeState: 'poisoned',
       landingSurface: searchSurface,
-      suggestionStrategy: useSuggestion ? 'exact_suggestion_click' : 'ime_submit',
+      suggestionStrategy: useSuggestion ? 'exact_suggestion_click' : 'enter_key_submit',
       snapshotPackages: summarizeSnapshotPackages(finalSnapshotSteps),
       warnings: ['Another app took focus before the results snapshot was captured.']
     }
@@ -531,7 +530,7 @@ if (!finalSnapshot) {
     diagnostics: {
       runtimeState: 'unknown',
       landingSurface: searchSurface,
-      suggestionStrategy: useSuggestion ? 'exact_suggestion_click' : 'ime_submit'
+      suggestionStrategy: useSuggestion ? 'exact_suggestion_click' : 'enter_key_submit'
     }
   });
 }

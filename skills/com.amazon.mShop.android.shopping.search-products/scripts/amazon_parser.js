@@ -1,7 +1,7 @@
 const { findAttribute } = require('../../utils/common');
 
 const MAX_RESULTS = 20;
-const PRICE_PATTERN = /\$[0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})?|\$[0-9]+(?:\.[0-9]{2})?/;
+const PRICE_PATTERN = /\$[0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]{2})?|\$[0-9]+(?:\.[0-9]{2})?/;
 
 function normalizeWhitespace(value) {
   return value
