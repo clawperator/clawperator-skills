@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+const { execFileSync } = require('child_process');
 const {
   runClawperator,
   findAttribute,
@@ -147,6 +148,25 @@ function buildScrollExecution(commandId) {
   };
 }
 
+function buildSnapshotExecution(commandId, waitMs = 0) {
+  const actions = [];
+
+  if (waitMs > 0) {
+    actions.push({ id: 'wait', type: 'sleep', params: { durationMs: waitMs } });
+  }
+
+  actions.push({ id: 'snap', type: 'snapshot_ui' });
+
+  return {
+    commandId,
+    taskId: commandId,
+    source: 'clawperator-skill',
+    expectedFormat: 'android-ui-automator',
+    timeoutMs: 120000,
+    actions
+  };
+}
+
 function getSnapshotText(result) {
   const steps = (result && result.envelope && result.envelope.stepResults) || [];
   const snapStep = steps.find((step) => step.id === 'snap');
@@ -193,6 +213,26 @@ function detectSearchSurface(snapshotText) {
     return 'home_search_box';
   }
   return null;
+}
+
+function isAutocompleteSurface(snapshotText) {
+  if (!snapshotText) {
+    return false;
+  }
+
+  return snapshotText.includes('Amazon Search Suggestions')
+    || snapshotText.includes('sac-suggestion-row-')
+    || snapshotText.includes('iss_autocomplete_ux_container');
+}
+
+function isResultsSurface(snapshotText) {
+  if (!snapshotText || isAutocompleteSurface(snapshotText)) {
+    return false;
+  }
+
+  return snapshotText.includes('text="Results"')
+    || snapshotText.includes('Amazon.com.au : ')
+    || snapshotText.includes('resource-id="search"');
 }
 
 function findExactSuggestionLabel(snapshotText, searchQuery) {
@@ -461,6 +501,12 @@ function runExecution(execution) {
   return outcome.result;
 }
 
+function pressEnterKey() {
+  execFileSync('adb', ['-s', deviceId, 'shell', 'input', 'keyevent', '66'], {
+    stdio: ['pipe', 'pipe', 'pipe']
+  });
+}
+
 function sanitizeStepData(actionType, data) {
   const sanitized = { ...data };
   if (actionType === 'snapshot_ui' && typeof sanitized.text === 'string') {
@@ -660,14 +706,14 @@ logSkillProgress(
   skillId,
   useSuggestion
     ? 'Exact suggestion row detected. Re-running with suggestion click.'
-    : 'Exact suggestion row not detected. Re-running with IME submit.'
+    : 'Exact suggestion row not detected. Re-running with Enter-key submit fallback.'
 );
 
 let finalResult;
 try {
   finalResult = runExecution(buildExecution({
     surface: 'search_field',
-    submit: !useSuggestion,
+    submit: false,
     clickSuggestion: useSuggestion,
     suggestionLabel: exactSuggestionLabel,
     commandId: `skill-amazon-search-${Date.now()}`
@@ -718,17 +764,91 @@ if (!finalSnapshot) {
   });
 }
 
+let finalSnapshotText = finalSnapshot;
+let suggestionStrategy = useSuggestion ? 'exact_suggestion_click' : 'enter_key_submit';
+
+if (!useSuggestion && isAutocompleteSurface(finalSnapshotText)) {
+  logSkillProgress(skillId, 'Autocomplete remained open after typing. Sending Enter key to submit the query.');
+
+  try {
+    pressEnterKey();
+  } catch (error) {
+    emitFailureAndExit(`Failed to submit Amazon search with Enter key: ${error.message}`, {
+      inputs,
+      checkpoints,
+      execEnvelopes,
+      diagnostics: {
+        runtimeState: 'unknown',
+        landingSurface: searchSurface,
+        suggestionStrategy,
+        warnings: ['Amazon query remained on the autocomplete surface after typing.']
+      }
+    });
+  }
+
+  let submitProbeResult;
+  try {
+    submitProbeResult = runExecution(buildSnapshotExecution(`skill-amazon-search-submit-probe-${Date.now()}`, 5000));
+  } catch (error) {
+    emitFailureAndExit(summarizeExecutionErrorMessage(error.message), {
+      inputs,
+      checkpoints,
+      execEnvelopes,
+      diagnostics: {
+        runtimeState: 'unknown',
+        landingSurface: searchSurface,
+        suggestionStrategy,
+        warnings: ['Failed to capture a post-submit Amazon snapshot after sending Enter.']
+      }
+    });
+  }
+
+  execEnvelopes.push(sanitizeEnvelope(submitProbeResult.envelope));
+  const submitProbeSnapshotSteps = getSnapshotStepResults(submitProbeResult);
+  const submitProbeForeignSnapshot = findForeignSnapshot(submitProbeSnapshotSteps);
+  if (submitProbeForeignSnapshot) {
+    emitFailureAndExit(`Amazon submit probe lost foreground to ${submitProbeForeignSnapshot.data.foreground_package}.`, {
+      inputs,
+      checkpoints,
+      execEnvelopes,
+      diagnostics: {
+        runtimeState: 'poisoned',
+        landingSurface: searchSurface,
+        suggestionStrategy,
+        snapshotPackages: summarizeSnapshotPackages(submitProbeSnapshotSteps),
+        warnings: ['Another app took focus after Enter-key submission.']
+      }
+    });
+  }
+
+  finalSnapshotText = getSnapshotText(submitProbeResult);
+}
+
+if (!isResultsSurface(finalSnapshotText)) {
+  emitFailureAndExit('Amazon search did not leave the autocomplete surface for a readable results page.', {
+    inputs,
+    checkpoints,
+    execEnvelopes,
+    diagnostics: {
+      runtimeState: 'unknown',
+      landingSurface: searchSurface,
+      suggestionStrategy,
+      autocompleteStillVisible: isAutocompleteSurface(finalSnapshotText)
+    }
+  });
+}
+
 checkpoints.push({
   id: 'results_reached',
   status: 'ok',
   evidence: {
     kind: 'text',
-    text: useSuggestion ? 'exact_suggestion_click' : 'ime_submit'
+    text: suggestionStrategy
   },
   note: 'Reached the results surface after the final search pass.'
 });
 
-logSkillProgress(skillId, `Reached results using ${useSuggestion ? 'exact suggestion click' : 'IME submit'}.`);
+logSkillProgress(skillId, `Reached results using ${suggestionStrategy}.`);
 logSkillProgress(skillId, `Collecting additional results with ${MAX_SCROLLS} scrolls...`);
 
 let scrollCollectionResult;
@@ -748,7 +868,7 @@ for (let scrollIndex = 0; scrollIndex < MAX_SCROLLS; scrollIndex += 1) {
       diagnostics: {
         runtimeState: 'unknown',
         landingSurface: searchSurface,
-        suggestionStrategy: useSuggestion ? 'exact_suggestion_click' : 'ime_submit',
+        suggestionStrategy,
         completedScrollCount: scrollIndex,
         warnings: ['Additional result collection failed during scrolling.']
       }
@@ -767,7 +887,7 @@ for (let scrollIndex = 0; scrollIndex < MAX_SCROLLS; scrollIndex += 1) {
       diagnostics: {
         runtimeState: 'poisoned',
         landingSurface: searchSurface,
-        suggestionStrategy: useSuggestion ? 'exact_suggestion_click' : 'ime_submit',
+        suggestionStrategy,
         completedScrollCount: scrollIndex,
         snapshotPackages: scrollSnapshotPackages,
         warnings: ['Another app took focus during result scrolling, so parsed rows are not trustworthy.']
@@ -781,9 +901,9 @@ for (let scrollIndex = 0; scrollIndex < MAX_SCROLLS; scrollIndex += 1) {
   }
 }
 
-const snapshotSeries = [finalSnapshot, ...additionalSnapshots];
+const snapshotSeries = [finalSnapshotText, ...additionalSnapshots];
 const products = mergeProductsFromSnapshots(snapshotSeries, query);
-const reachedResults = finalSnapshot.includes('text="Results"') || products.length > 0;
+const reachedResults = isResultsSurface(finalSnapshotText);
 
 if (!reachedResults) {
   emitFailureAndExit('Amazon search did not reach a readable results page.', {
@@ -793,7 +913,7 @@ if (!reachedResults) {
     diagnostics: {
       runtimeState: 'unknown',
       landingSurface: searchSurface,
-      suggestionStrategy: useSuggestion ? 'exact_suggestion_click' : 'ime_submit'
+      suggestionStrategy
     }
   });
 }
@@ -836,7 +956,7 @@ if (products.length === 0) {
     diagnostics: {
       runtimeState: 'healthy',
       landingSurface: searchSurface,
-      suggestionStrategy: useSuggestion ? 'exact_suggestion_click' : 'ime_submit',
+      suggestionStrategy,
       scrollCount: MAX_SCROLLS,
       snapshotCount: snapshotSeries.length,
       results: []
@@ -881,7 +1001,7 @@ writeSkillResult(buildSkillResult({
   diagnostics: {
     runtimeState: 'healthy',
     landingSurface: searchSurface,
-    suggestionStrategy: useSuggestion ? 'exact_suggestion_click' : 'ime_submit',
+    suggestionStrategy,
     scrollCount: MAX_SCROLLS,
     snapshotCount: snapshotSeries.length,
     results: structuredResults
