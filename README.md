@@ -139,8 +139,9 @@ cp ./blocked-terms.txt.example ~/.clawperator/blocked-terms.txt
 ./scripts/scan_blocked_terms.sh
 ```
 
-Use `AGENTS.md` as the local hygiene checklist while the final durable routing
-to main-repo docs is being finished.
+Use `AGENTS.md` as the local checklist for the testing matrix, recurring review
+failures, and repo-specific hygiene rules while the main repo keeps the durable
+workflow and contract docs.
 
 ## Privacy and Safety Rules
 

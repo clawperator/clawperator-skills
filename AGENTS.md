@@ -2,9 +2,10 @@
 
 ## Purpose
 
-This repository stores reusable Clawperator skill packages consumed by the Clawperator runtime.
+This repository stores reusable Clawperator skill packages consumed by the
+Clawperator runtime.
 
-Canonical runtime, API, and public skills docs live in the main repo:
+Canonical runtime, API, and durable public skills docs live in the main repo:
 
 - [Overview](https://github.com/clawperator/clawperator/blob/main/docs/skills/overview.md)
 - [Runtime](https://github.com/clawperator/clawperator/blob/main/docs/skills/runtime.md)
@@ -13,154 +14,313 @@ Canonical runtime, API, and public skills docs live in the main repo:
 - [API overview](https://github.com/clawperator/clawperator/blob/main/docs/api/overview.md)
 - [API actions](https://github.com/clawperator/clawperator/blob/main/docs/api/actions.md)
 
-Use those pages as source of truth when behavior, contracts, or terminology are in question.
+Use those pages as the source of truth for runtime contracts, CLI behavior, and
+terminology. Use this file as the local author checklist and PR-hardening bar
+for runtime skills in `clawperator-skills`.
 
 ## Required Mental Model
 
 Skills are deterministic execution aids, not reasoning engines.
 
-- Clawperator runtime + skill scripts handle execution and output capture.
-- LLM/agent systems handle planning, interpretation, retries, and fallback decisions.
+- Clawperator runtime plus skill scripts handle execution, checkpoints, and
+  output capture.
+- LLM or agent systems handle planning, interpretation, retries, and fallback
+  decisions.
 
 Do not put autonomous business logic into skill wrappers.
 
 ## Skill Categories
 
-Current authoring work distinguishes two categories of skills:
+Current authoring work distinguishes two active skill categories:
 
-- `-replay`:
+- `replay`
   - replay-oriented or recording-derived skills
   - acceptable as deterministic baselines, especially for known stable UI paths
-- `-orchestrated`:
-  - agent-controlled skills intended to align more closely with the Clawperator brain/hand model
-  - expected to grow stronger checkpoint, verification, and result-shaping behavior over time
+- `orchestrated`
+  - agent-controlled skills intended to align more closely with the Clawperator
+    brain/hand model
+  - expected to carry stronger checkpointing, verification discipline, and
+    result-shaping behavior over time
 
-Notes:
+Current local rules:
 
-- this is currently a naming and documentation convention, not a registry-enforced type field
-- legacy skills may still be unsuffixed
-- do not infer that an unsuffixed legacy skill is already orchestrated
+- declare `clawperator-skill-type` in `SKILL.md` frontmatter
+- use `replay` or `orchestrated` for new and updated work
+- one legacy compatibility exception still exists for
+  `au.com.polyaire.airtouch5.set-zone-state` with `script`
+- do not copy the legacy `script` type into new work
 
 ## Scope and Structure
 
 - Metadata: `skills/**/skill.json`
 - Instructions: `skills/**/SKILL.md`
-- Wrappers/scripts: `skills/**/scripts/*`
+- Wrappers and scripts: `skills/**/scripts/*`
 - Optional artifacts: `skills/**/artifacts/*.recipe.json`
-- Utility skills: `skills/utils/**`
+- Utility helpers and tests: `skills/utils/**`
 
 ## Current Author Route
 
-The durable workflow and authoring docs for runtime skills live in the main
-`clawperator` repo under `docs/skills/`. Use this route when authoring or
-hardening a runtime skill in this repo:
+Use this route when authoring or hardening a runtime skill in this repo:
 
-1. Start with [Authoring](https://github.com/clawperator/clawperator/blob/main/docs/skills/authoring.md) for the durable workflow and runtime contract.
+1. Start with [Authoring](https://github.com/clawperator/clawperator/blob/main/docs/skills/authoring.md) for the durable workflow, validator boundary, and host-visible discovery surface.
 2. Use [Development workflow](https://github.com/clawperator/clawperator/blob/main/docs/skills/development.md) for the local scaffold-edit-validate-run loop.
-3. Read this file for the local checklist seed, repo conventions, and recurring review failures.
-4. Run `./scripts/test_all.sh` for off-device Node tests when the skill adds or changes pure JS logic.
-5. Run `./scripts/generate_skill_indexes.sh` whenever registry-linked metadata changes.
-6. Use `skill-migration.md` only as a migration and audit log, not as the primary contribution guide.
+3. Use this file for the local checklist, testing matrix, and recurring PR failure patterns.
+4. Use `clawperator authoring-skills list --json` when you need to inspect installed guided authoring workflows on the current host.
+5. Use `clawperator skills new <skill_id>` only when you explicitly want the low-level manual scaffold.
+6. Run `clawperator skills validate <skill_id> --dry-run`.
+7. Run `./scripts/test_all.sh` for off-device `node --test` coverage when the change touches pure JS logic.
+8. Run shell syntax checks for `scripts/*.sh`.
+9. Run `./scripts/generate_skill_indexes.sh` whenever registry-linked metadata changes.
+10. Prove UI behavior with live-device proof on a real target device or emulator when the change affects selectors, navigation, recording, checkpoints, compare baselines, or terminal verification.
+11. Use `skill-migration.md` only as a migration and audit log, not as the primary contribution guide.
 
-Structure and testing model:
+## Testing Matrix
 
-- Keep `scripts/run.js` thin when possible.
-- Extract testable off-device logic into importable modules under
-  `skills/**/scripts/` or `skills/utils/`.
-- Colocate `*.test.js` files where `./scripts/test_all.sh` can discover them.
-- Live-device proof still applies to selector, navigation, recording,
-  checkpoint, compare-baseline, and terminal-verification changes.
+Use this matrix before opening a PR.
 
-## Seed Authoring Guardrails
+| Change shape | Add or update colocated `*.test.js` | Run `./scripts/test_all.sh` | Run shell syntax checks | Run `clawperator skills validate <skill_id> --dry-run` | Run `./scripts/generate_skill_indexes.sh` | Live-device proof |
+| --- | --- | --- | --- | --- | --- | --- |
+| Pure JS parser, normalizer, helper, decoder, or output-shaping logic under `skills/**/scripts/*.js` or `skills/utils/*.js` | Yes | Yes | No | Yes | Only if registry-linked metadata changed | Only if the behavior also affects a real UI path |
+| `scripts/run.js` orchestration changes that only rewire existing helpers | Usually, if any off-device behavior changed | Yes | No | Yes | Only if registry-linked metadata changed | Yes when the orchestration changes selector, navigation, checkpoint, compare-baseline, or terminal-verification behavior |
+| `scripts/*.sh` wrapper changes | When the shell wrapper also changes JS-callable logic | When any JS module changed | Yes | Yes | Only if registry-linked metadata changed | Yes when the wrapper changes runtime behavior on device |
+| `skill.json`, `SKILL.md`, or registry-linked metadata changes | Only when the metadata change also changes JS behavior | Only when JS behavior changed | Only when shell wrappers changed | Yes | Yes when `skills/skills-registry.json` or generated outputs are affected | Only when the metadata change alters user-visible runtime behavior |
+| Selector, navigation, recording, checkpoint, compare-baseline, or terminal-verification changes | Yes when any off-device helper logic changed | Yes when any JS logic changed | Yes when shell wrappers changed | Yes | Only if registry-linked metadata changed | Yes, always |
 
-These rules are the highest-value findings migrated from the local drafting
-findings and recent PR hardening work. They are mandatory even before the full
-checklist lands.
+Interpretation rules:
 
-### Verification
+- `./scripts/test_all.sh` is the canonical off-device entrypoint. Do not invent
+  ad hoc one-off `node --test` commands in PR notes when a colocated
+  `*.test.js` can run through the repo entrypoint.
+- Shell syntax checks do not replace JS tests.
+- `clawperator skills validate <skill_id> --dry-run` is the static gate, not
+  the full proof story.
+- Live-device proof is still mandatory for UI behavior, even when the static
+  gate and off-device tests pass.
 
-- Keep `contract.verification` truthful. Declare a verification kind only when
-  the wrapper can actually prove it through the runtime's matcher path.
-- If the proof path is indirect, screenshot-based, heuristic, or still
-  uncertain, use `verification: null` instead of overstating certainty.
-- Do not let a post-action verification miss rewrite a healthy app run into a
-  misleading runtime failure.
+## Mechanical Guardrails Versus Author Checklist
 
-### Generated Index Drift
+These categories are intentionally different.
 
-- Any skill add, rename, remove, or metadata change that affects
-  `skills/skills-registry.json` must regenerate the generated index outputs in
-  the same change.
+Mechanically enforced by `clawperator skills validate` in the main repo:
+
+- required file presence and registry parity
+- `clawperator-skill-type` frontmatter presence and allowed values
+- generated-index freshness when the validated repo includes
+  `scripts/generate_skill_indexes.sh`
+- artifact payload validation under `--dry-run`
+
+Still checklist-only and must be reviewed by the author:
+
+- truthful declared verification
+- correct use of shared helpers instead of duplicated local resolution logic
+- diagnostic truthfulness across success, failure, and cleanup paths
+- parser ambiguity and parser robustness concerns
+- privacy hygiene in code, examples, retained artifacts, validation notes, PR
+  bodies, and commit messages
+- whether `scripts/run.js` stayed thin enough or needs extracted modules
+
+If a rule is checklist-only, passing `validateSkill` does not prove it.
+
+## Structure Rule: Keep `run.js` Thin
+
+Use `scripts/run.js` as thin orchestration whenever practical.
+
+Preferred structure:
+
+- `scripts/run.js` gathers inputs, calls shared helpers, invokes the runtime,
+  and shapes the final result
+- parser, normalizer, decoder, and image or numeric helper logic live in
+  importable modules under `skills/**/scripts/` or `skills/utils/`
+- colocated `*.test.js` files sit next to those modules so `node --test`
+  discovery works through `./scripts/test_all.sh`
+
+Use these in-repo examples as the pattern:
+
+- `skills/utils/common.test.js`
+- `skills/com.amazon.mShop.android.shopping.search-products/scripts/amazon_parser.test.js`
+
+Negative example:
+
+- Bad: a large `scripts/run.js` that inlines CLI resolution, HTML decoding,
+  argument parsing, image math, and result shaping in one file with no
+  importable tests.
+- Better: `scripts/run.js` orchestrates small helpers, and each helper that can
+  run off-device has a colocated `*.test.js`.
+
+## Recurring Failure Patterns And Negative Examples
+
+These are the durable local rules extracted from repeated PR review comments.
+
+### Verification drift
+
+Rules:
+
+- Declared `contract.verification` must match the actual proof path.
+- Use `verification: null` when the real proof is screenshot-based, heuristic,
+  indirect, or still uncertain.
+- Do not rewrite a healthy app run into a misleading runtime failure just
+  because a later proof step missed.
+
+Negative example:
+
+- Bad: declare `node_text_matches` even though the wrapper really proves the
+  outcome from a screenshot color heuristic and a human-readable summary line.
+- Better: either add a real matcher-backed proof path or keep
+  `verification: null`.
+
+### Generated index drift
+
+Rules:
+
+- Any add, rename, remove, or metadata change that affects
+  `skills/skills-registry.json` must regenerate `skills/generated/*` in the
+  same change.
 - Treat `./scripts/generate_skill_indexes.sh` as the only supported refresh
-  path for `skills/generated/*`.
+  path.
 
-### Shared Helper Usage
+Negative example:
 
-- Prefer shared helpers from `skills/utils/common.js` instead of local ad hoc
-  resolution logic.
-- Use `resolveClawperatorBin` for CLI invocation and `resolveOperatorPackage`
-  for operator-package resolution when those helpers fit the job.
-- Do not duplicate shared precedence logic in a new skill unless there is a
-  clear, documented reason.
+- Bad: edit `skills/skills-registry.json`, adjust a skill folder, and open the
+  PR without refreshing generated shards.
+- Better: run `./scripts/generate_skill_indexes.sh` before the PR and commit
+  the resulting generated outputs in the same change.
 
-### Diagnostic Truthfulness
+### Shared helper bypass
 
-- Success diagnostics must describe only files, directories, and runtime state
+Rules:
+
+- Prefer shared helpers from `skills/utils/common.js` over copied local
+  precedence logic.
+- Use `resolveClawperatorBin` for CLI invocation and
+  `resolveOperatorPackage` for operator-package resolution when those helpers
+  fit the job.
+
+Negative example:
+
+- Bad: hardcode `"clawperator"` or re-implement operator-package precedence in
+  a new wrapper.
+- Better: import the shared helper and keep local glue code focused on the
+  skill's app-specific behavior.
+
+### Diagnostics Truthfulness
+
+Rules:
+
+- Success diagnostics must only describe files, directories, and runtime state
   that still exist when the message is emitted.
-- Failure diagnostics must not inherit stale success state from an earlier
-  branch.
+- Failure diagnostics must not inherit stale success state.
+- Distinguish runtime failure from post-action verification failure.
 - Cleanup should be best-effort across success and failure paths and must not
   corrupt the primary reported outcome.
-- Do not unwrap raw stdout or stderr blobs directly into `error.message`.
+- Bound stderr and stdout context instead of dumping raw blobs into
+  `error.message`.
 
-### Parser And Image Robustness
+Negative examples:
 
-- Prefer explicit named flags over positional fallbacks. Positional parsing must
-  skip tokens that belong to named options.
-- Keep parser logic narrow, testable, and defensive around malformed input.
-- Validate screenshot or image dimensions and pixel data before classification.
+- Bad: emit a success note that names a temp file after deleting that file.
+- Bad: keep a stale "skill completed successfully" message in a branch that now
+  returns a failure after verification misses.
+- Bad: assign raw child-process stderr directly to `error.message`.
+- Better: report only state that is still true, keep cleanup secondary, and
+  summarize subprocess failure output without flooding the primary error field.
+
+### Parser ambiguity and robustness
+
+Rules:
+
+- Explicit named flags win over positional fallbacks.
+- Positional parsers must skip tokens that belong to named flags.
+- Validate image dimensions and pixel data before classification.
 - Guard crop and averaging math against empty regions and division by zero.
-- Numeric, price, and entity decoders must cover the real domain range and the
-  common HTML entity forms they claim to support.
+- Numeric and price parsers must cover the full digit range the real domain
+  requires.
+- HTML entity decoders must cover the common forms they claim to support, such
+  as `&apos;`, `&#39;`, `&#x27;`, and `&amp;`.
+
+Negative examples:
+
+- Bad: treat `--device` or another named flag value as a positional input.
+- Bad: accept a PNG header with zero width or zero height.
+- Bad: average an empty crop region and divide by zero.
+- Bad: parse only three digits from a four-digit price or ignore `&#39;`.
+- Better: keep parsing narrow, explicit, defensive, and covered by colocated
+  tests.
 
 ### Privacy Hygiene
 
-- Privacy rules apply equally to code, examples, validation notes, PR bodies,
-  commit messages, and retained artifacts.
-- Never commit personal names, device serials, local paths, or user-specific
+Rules:
+
+- Privacy scrubbing applies to code, examples, retained artifacts, validation
+  notes, PR bodies, and commit messages equally.
+- Never commit personal names, local paths, device serials, or user-specific
   labels when placeholders are possible.
 - Use placeholders such as `<person>`, `<device_serial>`, `<label>`, and
   `<local_user>`.
 
-## Authoring and Maintenance Standards
+Negative examples:
 
-1. Prefer robust selectors and explicit waits over timing assumptions.
-2. Use fresh-session patterns where relevant (`close_app` then `open_app`).
-3. Keep outputs machine-readable and stable for downstream agents.
-4. Use placeholders for user-specific values and identifiers.
-5. Keep scripts deterministic and narrowly scoped.
-6. Document expected drift and fallback behavior in `SKILL.md`.
-7. Prefer shared helpers and extracted testable modules over duplicated wrapper logic.
-8. Never shorten `Clawperator` to `Claw` in code, docs, comments, or commit messages.
+- Bad: paste a real bedroom label, adb serial, or home-directory path into a
+  code comment, screenshot note, PR body, or commit message.
+- Better: replace every user-specific identifier with a placeholder before the
+  change leaves your machine.
+
+## PR-Hardening Lessons
+
+These numbered lessons are the short checklist form of the recurring patterns
+above. They are all active rules in this repo.
+
+1. Declared `contract.verification` kind must match the actual proof path; use
+   `null` when unsure.
+2. Regenerate `skills/generated/*` whenever `skills/skills-registry.json`
+   changes, in the same commit.
+3. Use shared helpers (`resolveOperatorPackage`, `resolveClawperatorBin`)
+   instead of duplicating resolution logic.
+4. Success diagnostics must not reference files, directories, or runtime states
+   that are no longer true at emit time.
+5. Failure diagnostics must not inherit stale success state; distinguish
+   runtime failure from post-action verification failure.
+6. Explicit named flags win over positional fallbacks; positional parsers skip
+   tokens that belong to named flags.
+7. Cleanup behavior must be best-effort across both success and failure paths,
+   and must not corrupt the primary reported outcome.
+8. Image decoders must validate dimensions and pixel data before classification;
+   reject zero width or height.
+9. Crop and averaging math must guard against empty regions and division by
+   zero.
+10. Numeric and price parsers must cover the full digit range the domain
+    requires; do not truncate.
+11. HTML entity decoders must cover the common set they claim to support.
+12. Error messages must not unwrap raw stdout or stderr into `error.message`;
+    bound the payload.
+13. Privacy scrubbing applies to code, examples, validation notes, PR bodies,
+    and commit messages equally.
 
 ## Validation Checklist
 
-1. Regenerate indexes:
-   - `./scripts/generate_skill_indexes.sh`
-2. Run off-device Node tests for pure JS helper, parser, normalizer, or output-shaping changes:
+Run the checks that match the change:
+
+1. Static gate:
+   - `clawperator skills validate <skill_id> --dry-run`
+2. Off-device Node tests for pure JS helper, parser, normalizer, decoder, or
+   output-shaping changes:
    - `./scripts/test_all.sh`
-3. Validate shell script syntax:
+3. Shell syntax checks for wrappers:
    - `find skills -type f -path '*/scripts/*.sh' -print0 | xargs -0 -n1 bash -n`
-4. Verify placeholders are used for personal and device-specific values.
-5. Install blocked-terms hook if needed:
+4. Registry and generated-index refresh:
+   - `./scripts/generate_skill_indexes.sh`
+5. Blocked-terms hook and scan when privacy-sensitive edits are in play:
    - `./scripts/install_blocked_terms_hook.sh`
-6. Scan staged content for blocked terms:
    - `./scripts/scan_blocked_terms.sh`
+6. Live-device proof on the real target surface when UI behavior changed:
+   - run the skill on a physical device or emulator and verify the claimed
+     selector, navigation, checkpoint, compare-baseline, or terminal behavior
 
 ## Privacy and Safety
 
-- Never commit personal names in scripts, docs, or examples.
+- Never commit personal names in scripts, docs, validation notes, PR bodies, or
+  examples.
 - Never commit local adb serials.
 - Never commit user-specific labels when placeholders are possible.
-- Use placeholders such as `<person>`, `<device_serial>`, and `<label>`.
-- Local blocked terms policy file: `~/.clawperator/blocked-terms.txt`
+- Never shorten `Clawperator` to `Claw` in code, docs, comments, or commit
+  messages.
+- Local blocked-terms policy file: `~/.clawperator/blocked-terms.txt`
