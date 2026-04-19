@@ -310,9 +310,10 @@ Run the checks that match the change:
 2. Off-device Node tests for pure JS helper, parser, normalizer, decoder, or
    output-shaping changes:
    - `./scripts/test_all.sh`
-3. Shell syntax checks for wrappers:
+3. Shell syntax checks for wrappers and repo tooling scripts:
    - `find skills -type f -path '*/scripts/*.sh' -print0 | xargs -0 -n1 bash -n`
-4. Registry and generated-index refresh:
+   - `find scripts -maxdepth 1 -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n`
+4. Registry and generated-index refresh when registry-linked metadata changes:
    - `./scripts/generate_skill_indexes.sh`
 5. Blocked-terms hook and scan when privacy-sensitive edits are in play:
    - `./scripts/install_blocked_terms_hook.sh`
