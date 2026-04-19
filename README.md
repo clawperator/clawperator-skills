@@ -24,18 +24,22 @@ These skills are designed to be used by an LLM/agent through Clawperator, not by
 
 ## Skill Categories
 
-This repo now recognizes two categories of skills:
+This repo now recognizes two active skill categories:
 
-- `-replay`
+- `replay`
   - replay-oriented or recording-derived skills
   - useful as deterministic baselines on known flows
-- `-orchestrated`
+- `orchestrated`
   - agent-controlled skills intended to better reflect the Clawperator brain/hand model
   - these are the longer-term destination for richer checkpoints and verification behavior
 
 Important current caveats:
 
-- this split is a naming and authoring convention, not yet a machine-enforced runtime field
+- new and updated skills must declare `clawperator-skill-type` in `SKILL.md`
+  frontmatter
+- the validator enforces `replay` and `orchestrated` for current authoring work
+- one legacy compatibility exception still exists for
+  `au.com.polyaire.airtouch5.set-zone-state` with `script`
 - some older skills predate the convention and still have unsuffixed ids
 - an unsuffixed legacy skill should not be assumed to already be orchestrated
 
