@@ -77,7 +77,7 @@ Use this route when authoring or hardening a runtime skill in this repo:
    `skills/**/scripts/*.sh`, and also for top-level `scripts/*.sh` when those
    repo tooling scripts change.
 9. Run `./scripts/generate_skill_indexes.sh` whenever registry-linked metadata changes.
-10. Prove UI behavior with live-device proof on a real target device or emulator when the change affects selectors, navigation, recording, checkpoints, compare baselines, or terminal verification.
+10. Prove UI behavior with live-device proof on a real target device or emulator when the change affects selectors, navigation, recording, checkpoints, compare-baseline, or terminal verification.
 11. Use `skill-migration.md` only as a migration and audit log, not as the primary contribution guide.
 
 ## Testing Matrix
@@ -125,7 +125,7 @@ Still checklist-only and must be reviewed by the author:
   bodies, and commit messages
 - whether `scripts/run.js` stayed thin enough or needs extracted modules
 
-If a rule is checklist-only, passing `validateSkill` does not prove it.
+If a rule is checklist-only, passing `clawperator skills validate` does not prove it.
 
 ## Structure Rule: Keep `run.js` Thin
 
