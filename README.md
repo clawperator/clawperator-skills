@@ -37,6 +37,9 @@ Important current caveats:
 
 - new and updated skills must declare `clawperator-skill-type` in `SKILL.md`
   frontmatter
+- `replay` and `orchestrated` are frontmatter values, not replacement folder or
+  skill-id suffixes; the existing `*-replay` and `*-orchestrated` naming
+  convention still describes the skill id shape where authors use it
 - the validator enforces `replay` and `orchestrated` for current authoring work
 - one legacy compatibility exception still exists for
   `au.com.polyaire.airtouch5.set-zone-state` with `script`
