@@ -6,10 +6,10 @@ Related runtime/API repository: [clawperator](https://github.com/clawperator/cla
 
 Canonical skills docs in the main repo:
 
-- https://github.com/clawperator/clawperator/docs/skills/overview.md
-- https://github.com/clawperator/clawperator/docs/skills/runtime.md
-- https://github.com/clawperator/clawperator/docs/skills/authoring.md
-- https://github.com/clawperator/clawperator/docs/skills/development.md
+- [Overview](https://github.com/clawperator/clawperator/blob/main/docs/skills/overview.md)
+- [Runtime](https://github.com/clawperator/clawperator/blob/main/docs/skills/runtime.md)
+- [Authoring](https://github.com/clawperator/clawperator/blob/main/docs/skills/authoring.md)
+- [Development workflow](https://github.com/clawperator/clawperator/blob/main/docs/skills/development.md)
 
 ## What This Repo Is
 
@@ -79,31 +79,47 @@ Not intended:
 - `skills/skills-registry.json` generated canonical registry.
 - `skills/generated/` generated indexes (selected summary files committed).
 - `scripts/generate_skill_indexes.sh` regenerate registry/index artifacts.
+- `scripts/test_all.sh` canonical off-device `node --test` entrypoint.
 - `scripts/install_blocked_terms_hook.sh` install local PII/device-term pre-commit hook.
-- `docs/` supporting guidance for agent operators and skill authors.
 
-## Docs in This Repo
+## Local Authoring Entry Points
 
-- `docs/usage-model.md` - how agents should use skills with Clawperator.
-- `docs/skill-development-workflow.md` - shortest path from exploration to a reusable skill.
-- `docs/skill-authoring-guidelines.md` - conventions and quality bar for new skills.
-- `docs/device-prep-and-runtime-tips.md` - practical device/app prep and runtime reliability tips.
-- `docs/blocked-terms-policy.md` - shared blocked-terms hook and scan policy.
+Durable workflow and authoring docs live in the main `clawperator` repo under
+`docs/skills/`. Start from these entry points:
+
+- [Authoring](https://github.com/clawperator/clawperator/blob/main/docs/skills/authoring.md) - durable workflow and runtime authoring guidance.
+- [Development workflow](https://github.com/clawperator/clawperator/blob/main/docs/skills/development.md) - scaffold, validate, run, and iterate.
+- `AGENTS.md` - local checklist seed, repo conventions, and recurring review failures.
+- `scripts/test_all.sh` - canonical off-device Node test entrypoint for pure JS logic.
+- `scripts/generate_skill_indexes.sh` - required registry and generated-index refresh path.
+- `skill-migration.md` - active migration and audit log only, not the primary contribution guide.
+
+High-level authoring model in this repo:
+
+- Keep `scripts/run.js` thin when possible.
+- Extract testable off-device logic into importable modules under
+  `skills/**/scripts/` or `skills/utils/`.
+- Colocate `*.test.js` files where `./scripts/test_all.sh` can discover them.
+- Live-device proof still applies to selector, navigation, recording, and other
+  UI-behavior changes.
 
 ## Main Repo Docs Cross-Reference
 
-- API overview: https://github.com/clawperator/clawperator/docs/api/overview.md
-- API actions: https://github.com/clawperator/clawperator/docs/api/actions.md
-- API devices: https://github.com/clawperator/clawperator/docs/api/devices.md
-- API snapshot: https://github.com/clawperator/clawperator/docs/api/snapshot.md
-- Setup guide: https://github.com/clawperator/clawperator/docs/setup.md
-- Troubleshooting: https://github.com/clawperator/clawperator/docs/troubleshooting/operator.md
+- API overview: https://github.com/clawperator/clawperator/blob/main/docs/api/overview.md
+- API actions: https://github.com/clawperator/clawperator/blob/main/docs/api/actions.md
+- API devices: https://github.com/clawperator/clawperator/blob/main/docs/api/devices.md
+- API snapshot: https://github.com/clawperator/clawperator/blob/main/docs/api/snapshot.md
+- Setup guide: https://github.com/clawperator/clawperator/blob/main/docs/setup.md
+- Troubleshooting: https://github.com/clawperator/clawperator/blob/main/docs/troubleshooting/operator.md
 
 ## Common Commands
 
 ```bash
 # Regenerate registry and indexes
 ./scripts/generate_skill_indexes.sh
+
+# Run colocated Node tests for off-device logic
+./scripts/test_all.sh
 
 # Validate shell script syntax quickly
 find skills -type f -path '*/scripts/*.sh' -print0 | xargs -0 -n1 bash -n
@@ -123,7 +139,8 @@ cp ./blocked-terms.txt.example ~/.clawperator/blocked-terms.txt
 ./scripts/scan_blocked_terms.sh
 ```
 
-Details: `docs/blocked-terms-policy.md`
+Use `AGENTS.md` as the local hygiene checklist while the final durable routing
+to main-repo docs is being finished.
 
 ## Privacy and Safety Rules
 
