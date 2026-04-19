@@ -79,16 +79,19 @@ Not intended:
 - `skills/skills-registry.json` generated canonical registry.
 - `skills/generated/` generated indexes (selected summary files committed).
 - `scripts/generate_skill_indexes.sh` regenerate registry/index artifacts.
+- `scripts/test_all.sh` canonical off-device `node --test` entrypoint.
 - `scripts/install_blocked_terms_hook.sh` install local PII/device-term pre-commit hook.
-- `docs/` supporting guidance for agent operators and skill authors.
 
-## Docs in This Repo
+## Local Authoring Entry Points
 
-- `docs/usage-model.md` - how agents should use skills with Clawperator.
-- `docs/skill-development-workflow.md` - shortest path from exploration to a reusable skill.
-- `docs/skill-authoring-guidelines.md` - conventions and quality bar for new skills.
-- `docs/device-prep-and-runtime-tips.md` - practical device/app prep and runtime reliability tips.
-- `docs/blocked-terms-policy.md` - shared blocked-terms hook and scan policy.
+This pack keeps durable workflow and authoring docs in the main
+`clawperator` repo under `docs/skills/`. While the final top-level routing is
+still landing, use these truthful surfaces in this checkout:
+
+- `AGENTS.md` - current local checklist seed and guardrails for runtime-skill authors.
+- `scripts/test_all.sh` - canonical off-device test entrypoint for Node-based skill logic.
+- `scripts/generate_skill_indexes.sh` - required registry and generated index refresh path.
+- main-repo docs - canonical runtime and public contract references.
 
 ## Main Repo Docs Cross-Reference
 
@@ -104,6 +107,9 @@ Not intended:
 ```bash
 # Regenerate registry and indexes
 ./scripts/generate_skill_indexes.sh
+
+# Run colocated Node tests for off-device logic
+./scripts/test_all.sh
 
 # Validate shell script syntax quickly
 find skills -type f -path '*/scripts/*.sh' -print0 | xargs -0 -n1 bash -n
@@ -123,7 +129,8 @@ cp ./blocked-terms.txt.example ~/.clawperator/blocked-terms.txt
 ./scripts/scan_blocked_terms.sh
 ```
 
-Details: `docs/blocked-terms-policy.md`
+Use `AGENTS.md` as the local hygiene checklist while the final durable routing
+to main-repo docs is being finished.
 
 ## Privacy and Safety Rules
 
