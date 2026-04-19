@@ -2,6 +2,15 @@
 
 Scope: PRD-3.5 skills audit and device verification for `clawperator-skills`.
 
+This file is an active migration and audit log. It is not the primary authoring
+guide for this repo.
+
+For the main contribution route, start with:
+
+- `README.md` for top-level entry points
+- `AGENTS.md` for the local checklist and recurring review failures
+- main-repo docs under `docs/skills/` for durable workflow and contract guidance
+
 Device used: `<device_serial>`
 
 Dry-run validation:

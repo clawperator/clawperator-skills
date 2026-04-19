@@ -6,12 +6,12 @@ This repository stores reusable Clawperator skill packages consumed by the Clawp
 
 Canonical runtime, API, and public skills docs live in the main repo:
 
-- https://github.com/clawperator/clawperator/docs/skills/overview.md
-- https://github.com/clawperator/clawperator/docs/skills/runtime.md
-- https://github.com/clawperator/clawperator/docs/skills/authoring.md
-- https://github.com/clawperator/clawperator/docs/skills/development.md
-- https://github.com/clawperator/clawperator/docs/api/overview.md
-- https://github.com/clawperator/clawperator/docs/api/actions.md
+- [Overview](https://github.com/clawperator/clawperator/blob/main/docs/skills/overview.md)
+- [Runtime](https://github.com/clawperator/clawperator/blob/main/docs/skills/runtime.md)
+- [Authoring](https://github.com/clawperator/clawperator/blob/main/docs/skills/authoring.md)
+- [Development workflow](https://github.com/clawperator/clawperator/blob/main/docs/skills/development.md)
+- [API overview](https://github.com/clawperator/clawperator/blob/main/docs/api/overview.md)
+- [API actions](https://github.com/clawperator/clawperator/blob/main/docs/api/actions.md)
 
 Use those pages as source of truth when behavior, contracts, or terminology are in question.
 
@@ -52,17 +52,24 @@ Notes:
 ## Current Author Route
 
 The durable workflow and authoring docs for runtime skills live in the main
-`clawperator` repo under `docs/skills/`. While the final top-level routing is
-still landing, start here when authoring or hardening a runtime skill in this
-repo:
+`clawperator` repo under `docs/skills/`. Use this route when authoring or
+hardening a runtime skill in this repo:
 
-1. Read this file for the local checklist seed and recurring review failures.
-2. Run `./scripts/test_all.sh` for off-device Node tests when the skill adds or
-   changes pure JS logic.
-3. Run `./scripts/generate_skill_indexes.sh` whenever registry-linked metadata
-   changes.
-4. Use the main-repo docs as the canonical contract source when behavior or
-   terminology is in question.
+1. Start with [Authoring](https://github.com/clawperator/clawperator/blob/main/docs/skills/authoring.md) for the durable workflow and runtime contract.
+2. Use [Development workflow](https://github.com/clawperator/clawperator/blob/main/docs/skills/development.md) for the local scaffold-edit-validate-run loop.
+3. Read this file for the local checklist seed, repo conventions, and recurring review failures.
+4. Run `./scripts/test_all.sh` for off-device Node tests when the skill adds or changes pure JS logic.
+5. Run `./scripts/generate_skill_indexes.sh` whenever registry-linked metadata changes.
+6. Use `skill-migration.md` only as a migration and audit log, not as the primary contribution guide.
+
+Structure and testing model:
+
+- Keep `scripts/run.js` thin when possible.
+- Extract testable off-device logic into importable modules under
+  `skills/**/scripts/` or `skills/utils/`.
+- Colocate `*.test.js` files where `./scripts/test_all.sh` can discover them.
+- Live-device proof still applies to selector, navigation, recording,
+  checkpoint, compare-baseline, and terminal-verification changes.
 
 ## Seed Authoring Guardrails
 
