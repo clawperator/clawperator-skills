@@ -42,6 +42,10 @@ Current authoring work distinguishes two active skill categories:
   - expected to carry stronger checkpointing, verification discipline, and
     result-shaping behavior over time
 
+These names are `clawperator-skill-type` frontmatter values. They do not rename
+skill IDs or folders, and the existing `*-replay` / `*-orchestrated` suffix
+convention still describes the common skill-id shape where authors use it.
+
 Current local rules:
 
 - declare `clawperator-skill-type` in `SKILL.md` frontmatter
@@ -69,7 +73,9 @@ Use this route when authoring or hardening a runtime skill in this repo:
 5. Use `clawperator skills new <skill_id>` only when you explicitly want the low-level manual scaffold.
 6. Run `clawperator skills validate <skill_id> --dry-run`.
 7. Run `./scripts/test_all.sh` for off-device `node --test` coverage when the change touches pure JS logic.
-8. Run shell syntax checks for `scripts/*.sh`.
+8. Run shell syntax checks for skill wrapper scripts under
+   `skills/**/scripts/*.sh`, and also for top-level `scripts/*.sh` when those
+   repo tooling scripts change.
 9. Run `./scripts/generate_skill_indexes.sh` whenever registry-linked metadata changes.
 10. Prove UI behavior with live-device proof on a real target device or emulator when the change affects selectors, navigation, recording, checkpoints, compare baselines, or terminal verification.
 11. Use `skill-migration.md` only as a migration and audit log, not as the primary contribution guide.
@@ -82,7 +88,7 @@ Use this matrix before opening a PR.
 | --- | --- | --- | --- | --- | --- | --- |
 | Pure JS parser, normalizer, helper, decoder, or output-shaping logic under `skills/**/scripts/*.js` or `skills/utils/*.js` | Yes | Yes | No | Yes | Only if registry-linked metadata changed | Only if the behavior also affects a real UI path |
 | `scripts/run.js` orchestration changes that only rewire existing helpers | Usually, if any off-device behavior changed | Yes | No | Yes | Only if registry-linked metadata changed | Yes when the orchestration changes selector, navigation, checkpoint, compare-baseline, or terminal-verification behavior |
-| `scripts/*.sh` wrapper changes | When the shell wrapper also changes JS-callable logic | When any JS module changed | Yes | Yes | Only if registry-linked metadata changed | Yes when the wrapper changes runtime behavior on device |
+| `skills/**/scripts/*.sh` wrapper changes | When the shell wrapper also changes JS-callable logic | When any JS module changed | Yes | Yes | Only if registry-linked metadata changed | Yes when the wrapper changes runtime behavior on device |
 | `skill.json`, `SKILL.md`, or registry-linked metadata changes | Only when the metadata change also changes JS behavior | Only when JS behavior changed | Only when shell wrappers changed | Yes | Yes when `skills/skills-registry.json` or generated outputs are affected | Only when the metadata change alters user-visible runtime behavior |
 | Selector, navigation, recording, checkpoint, compare-baseline, or terminal-verification changes | Yes when any off-device helper logic changed | Yes when any JS logic changed | Yes when shell wrappers changed | Yes | Only if registry-linked metadata changed | Yes, always |
 
