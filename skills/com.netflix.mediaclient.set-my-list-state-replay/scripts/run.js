@@ -103,24 +103,32 @@ function maybeSelectProfile(deviceId, operatorPackage, profile) {
   const raw = String(snap);
   const wanted = lower(profile);
 
-  const profileNodeRegex = /resource-id="promo_profile_gate_profile"[\s\S]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"[\s\S]*?<node[^>]*text="([^"]*)"[^>]*content-desc="([^"]*)"/gi;
+  const cards = raw.match(/resource-id="promo_profile_gate_profile"[\s\S]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/g) || [];
+  const labelRegex = /text="([^"]*)"[^>]*content-desc="([^"]*)"/g;
+  const labels = [...raw.matchAll(labelRegex)];
   const candidates = [];
-  let match;
-  while ((match = profileNodeRegex.exec(raw)) !== null) {
-    const left = Number(match[1]);
-    const top = Number(match[2]);
-    const right = Number(match[3]);
-    const bottom = Number(match[4]);
-    const textValue = match[5] || '';
-    const descValue = match[6] || '';
+
+  for (const label of labels) {
+    const textValue = label[1] || '';
+    const descValue = label[2] || '';
     const hay = lower(`${textValue} ${descValue}`);
-    if (hay.includes(wanted)) {
-      candidates.push({
-        x: Math.round((left + right) / 2),
-        y: Math.round((top + bottom) / 2),
-        label: textValue || descValue || profile,
-      });
-    }
+    if (!hay.includes(wanted)) continue;
+
+    const before = raw.slice(0, label.index || 0);
+    const lastCard = before.lastIndexOf('resource-id="promo_profile_gate_profile"');
+    if (lastCard === -1) continue;
+    const chunk = raw.slice(lastCard, (label.index || 0) + 400);
+    const boundsMatch = chunk.match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);
+    if (!boundsMatch) continue;
+    const left = Number(boundsMatch[1]);
+    const top = Number(boundsMatch[2]);
+    const right = Number(boundsMatch[3]);
+    const bottom = Number(boundsMatch[4]);
+    candidates.push({
+      x: Math.round((left + right) / 2),
+      y: Math.round((top + bottom) / 2),
+      label: textValue || descValue || profile,
+    });
   }
 
   if (candidates.length === 0) {
