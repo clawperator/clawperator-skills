@@ -2,11 +2,11 @@
 /**
  * com.android.vending.install-app
  *
- * Installs an app from its Google Play Store details page.
- * Assumes the device is already showing the app details page.
+ * Searches for an app in Google Play, opens the matching details page,
+ * and installs it if needed.
  *
  * Usage:
- *   node install_play_app.js <device_id> [operator_package]
+ *   node install_play_app.js <device_id> <app_name> [operator_package]
  *
  * Install state detection (discovered via live exploration):
  *   - Ready to install:     content-desc="Install" present, text="Open" absent
@@ -26,23 +26,155 @@
  *   - Uninstall (settled): textEquals "Uninstall"
  */
 
-const { runClawperator, resolveOperatorPackage, logSkillProgress } = require('../../utils/common');
+const { runClawperator, runClawperatorCommand, resolveOperatorPackage, logSkillProgress } = require('../../utils/common');
 const {
   detectOpenWithChooser,
   detectPlayDetailsSurface,
   parseInstallSignals,
 } = require('./install_play_app_parser');
+const {
+  mergeSearchResults,
+  isSearchResultsSurface,
+  normalizeWhitespace,
+} = require('../../com.android.vending.search-app/scripts/search_play_store_parser');
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
-const operatorPkg = resolveOperatorPackage(process.argv[3]);
+const rawQuery = process.argv[3] || process.env.QUERY || '';
+const query = rawQuery.trim();
+const operatorPkg = resolveOperatorPackage(process.argv[4]);
 
-if (!deviceId) {
-  console.error('Usage: node install_play_app.js <device_id> [operator_package]');
+if (!deviceId || !query) {
+  console.error('Usage: node install_play_app.js <device_id> <app_name> [operator_package]');
   process.exit(1);
 }
 
 const commandId = `skill-play-install-${Date.now()}`;
 const skillId = "com.android.vending.install-app";
+const MAX_SCROLLS = 3;
+const SCROLL_SETTLE_DELAY_MS = 1800;
+
+function buildSearchExecution() {
+  return {
+    commandId: `${commandId}-search`,
+    taskId: commandId,
+    source: 'clawperator-skill',
+    expectedFormat: 'android-ui-automator',
+    timeoutMs: 90000,
+    actions: [
+      { id: 'close', type: 'close_app', params: { applicationId: 'com.android.vending' } },
+      { id: 'wait-close', type: 'sleep', params: { durationMs: 1500 } },
+      { id: 'open', type: 'open_app', params: { applicationId: 'com.android.vending' } },
+      { id: 'wait-open', type: 'sleep', params: { durationMs: 4000 } },
+      { id: 'click-search-tab', type: 'click', params: { matcher: { textEquals: 'Search' } } },
+      { id: 'wait-search-tab', type: 'sleep', params: { durationMs: 1000 } },
+      { id: 'click-search-bar', type: 'click', params: { matcher: { contentDescEquals: 'Search Google Play' } } },
+      { id: 'wait-bar', type: 'sleep', params: { durationMs: 500 } },
+      {
+        id: 'enter-query',
+        type: 'enter_text',
+        params: { matcher: { role: 'textfield' }, text: query, submit: true }
+      },
+      { id: 'wait-results', type: 'sleep', params: { durationMs: 6000 } },
+      { id: 'snap', type: 'snapshot_ui' }
+    ]
+  };
+}
+
+function buildScrollExecution() {
+  return {
+    commandId: `${commandId}-scroll-${Date.now()}`,
+    taskId: commandId,
+    source: 'clawperator-skill',
+    expectedFormat: 'android-ui-automator',
+    timeoutMs: 30000,
+    actions: [
+      {
+        id: 'scroll',
+        type: 'scroll',
+        params: { direction: 'down', settleDelayMs: SCROLL_SETTLE_DELAY_MS }
+      }
+    ]
+  };
+}
+
+function buildOpenResultExecution(title) {
+  return {
+    commandId: `${commandId}-open-result`,
+    taskId: commandId,
+    source: 'clawperator-skill',
+    expectedFormat: 'android-ui-automator',
+    timeoutMs: 30000,
+    actions: [
+      {
+        id: 'open-result',
+        type: 'click',
+        params: { matcher: { contentDescContains: title } }
+      },
+      { id: 'wait-detail', type: 'sleep', params: { durationMs: 3000 } },
+      { id: 'snap', type: 'snapshot_ui' }
+    ]
+  };
+}
+
+function pressEnterKey() {
+  require('child_process').execFileSync('adb', ['-s', deviceId, 'shell', 'input', 'keyevent', '66'], {
+    stdio: ['pipe', 'pipe', 'pipe']
+  });
+}
+
+function sleepMs(durationMs) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, durationMs);
+}
+
+function captureDirectSnapshot(waitMs = 0) {
+  if (waitMs > 0) {
+    sleepMs(waitMs);
+  }
+
+  const outcome = runClawperatorCommand('snapshot', [
+    '--device',
+    deviceId,
+    '--operator-package',
+    operatorPkg,
+    '--json'
+  ], { encoding: 'utf8' });
+
+  if (!outcome.ok) {
+    return { ok: false, error: outcome.error };
+  }
+
+  try {
+    const parsed = JSON.parse(outcome.result);
+    const steps = (parsed && parsed.envelope && parsed.envelope.stepResults) || [];
+    const snapStep = steps.find((step) => step.id === 'snap');
+    return {
+      ok: true,
+      text: snapStep && snapStep.data ? snapStep.data.text || '' : '',
+    };
+  } catch (error) {
+    return { ok: false, error: `Failed to parse direct snapshot output: ${error.message}` };
+  }
+}
+
+function getSnapshotText(result) {
+  const steps = (result && result.envelope && result.envelope.stepResults) || [];
+  const snapStep = steps.find((step) => step.id === 'snap');
+  return snapStep && snapStep.data ? snapStep.data.text || '' : '';
+}
+
+function pickInstallCandidate(results, appQuery) {
+  const normalizedQuery = normalizeWhitespace(appQuery).toLowerCase();
+  const exact = results.find((result) => normalizeWhitespace(result.title).toLowerCase() === normalizedQuery);
+  if (exact) return exact;
+
+  const startsWith = results.find((result) => normalizeWhitespace(result.title).toLowerCase().startsWith(normalizedQuery));
+  if (startsWith) return startsWith;
+
+  const contains = results.find((result) => normalizeWhitespace(result.title).toLowerCase().includes(normalizedQuery));
+  if (contains) return contains;
+
+  return null;
+}
 
 /**
  * First, take a snapshot to detect the current state.
@@ -123,26 +255,75 @@ function buildInstallExecution() {
   };
 }
 
-// --- Preflight: detect current state ---
+// --- Search for target app and open its details page ---
 
-const preflightExec = buildPreflightExecution();
-logSkillProgress(skillId, "Checking current install state...");
-const { ok: prefOk, result: prefResult, error: prefError } = runClawperator(preflightExec, deviceId, operatorPkg);
+logSkillProgress(skillId, `Searching Play Store for "${query}"...`);
+const { ok: searchOk, result: searchResult, error: searchError } = runClawperator(buildSearchExecution(), deviceId, operatorPkg);
 
-if (!prefOk) {
-  console.error(`Preflight snapshot failed: ${prefError}`);
+if (!searchOk) {
+  console.error(`Search execution failed: ${searchError}`);
   process.exit(2);
 }
 
-const prefSteps = (prefResult && prefResult.envelope && prefResult.envelope.stepResults) || [];
-const prefSnap = prefSteps.find(s => s.id === 'snap');
-let prefText = prefSnap && prefSnap.data ? prefSnap.data.text : '';
+let searchText = getSnapshotText(searchResult);
+if (!searchText) {
+  console.error('Search snapshot returned empty.');
+  process.exit(2);
+}
 
-if (!prefText) {
-  console.error('Preflight snapshot returned empty. Is the device on the app details page?');
+if (!isSearchResultsSurface(searchText)) {
+  logSkillProgress(skillId, 'Typed search remained on suggestions. Sending Enter key...');
+  pressEnterKey();
+  const retry = captureDirectSnapshot(5000);
+  if (!retry.ok) {
+    console.error(`Follow-up snapshot after Enter fallback failed: ${retry.error}`);
+    process.exit(2);
+  }
+  searchText = retry.text;
+}
+
+if (!isSearchResultsSurface(searchText)) {
+  console.error('BLOCKED: no-search-results - Search did not reach a readable Play results surface.');
+  process.exit(2);
+}
+
+const searchSnapshots = [searchText];
+for (let scrollIndex = 0; scrollIndex < MAX_SCROLLS; scrollIndex += 1) {
+  const collected = mergeSearchResults(searchSnapshots);
+  if (pickInstallCandidate(collected, query)) {
+    break;
+  }
+
+  const { ok: scrollOk } = runClawperator(buildScrollExecution(), deviceId, operatorPkg);
+  if (!scrollOk) {
+    break;
+  }
+  const snap = captureDirectSnapshot(1500);
+  if (!snap.ok) {
+    break;
+  }
+  const scrolledText = snap.text;
+  if (!scrolledText || !isSearchResultsSurface(scrolledText)) {
+    break;
+  }
+  searchSnapshots.push(scrolledText);
+}
+
+const mergedResults = mergeSearchResults(searchSnapshots);
+const candidate = pickInstallCandidate(mergedResults, query);
+if (!candidate) {
+  console.error(`BLOCKED: app-not-found - No Play search result matched "${query}".`);
+  process.exit(2);
+}
+
+logSkillProgress(skillId, `Opening Play details for "${candidate.title}"...`);
+const { ok: openOk, result: openResult, error: openError } = runClawperator(buildOpenResultExecution(candidate.title), deviceId, operatorPkg);
+if (!openOk) {
+  console.error(`Failed to open Play result "${candidate.title}": ${openError}`);
   process.exit(3);
 }
 
+let prefText = getSnapshotText(openResult);
 if (detectOpenWithChooser(prefText)) {
   logSkillProgress(skillId, 'Open-with chooser detected; selecting Google Play Store...');
   const { ok, error } = runClawperator(buildChooserExecution(), deviceId, operatorPkg);
@@ -156,13 +337,11 @@ if (detectOpenWithChooser(prefText)) {
     console.error(`Follow-up preflight after chooser handling failed: ${retryError}`);
     process.exit(3);
   }
-  const retrySteps = (retryResult && retryResult.envelope && retryResult.envelope.stepResults) || [];
-  const retrySnap = retrySteps.find((step) => step.id === 'snap');
-  prefText = retrySnap && retrySnap.data ? retrySnap.data.text : '';
+  prefText = getSnapshotText(retryResult);
 }
 
 if (!detectPlayDetailsSurface(prefText)) {
-  console.error('BLOCKED: not-details-page - Current Play surface is not an app details page.');
+  console.error('BLOCKED: not-details-page - Search did not land on a Play app details page.');
   process.exit(7);
 }
 
@@ -249,12 +428,9 @@ const snapText = snapStep && snapStep.data ? snapStep.data.text : '';
 let finalHasOpen = false;
 let finalHasUninstall = false;
 if (snapText) {
-  snapText.split('\n').forEach(line => {
-    const t = findAttribute(line, 'text') || '';
-    const c = findAttribute(line, 'content-desc') || '';
-    if (c === 'Open' || t === 'Open') finalHasOpen = true;
-    if (c === 'Uninstall' || t === 'Uninstall') finalHasUninstall = true;
-  });
+  const finalSignals = parseInstallSignals(snapText);
+  finalHasOpen = finalSignals.hasOpen;
+  finalHasUninstall = finalSignals.hasUninstall;
 }
 
 if (finalHasOpen) {
