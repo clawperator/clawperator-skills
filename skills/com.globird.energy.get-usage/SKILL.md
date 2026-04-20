@@ -1,15 +1,35 @@
 ---
 name: com.globird.energy.get-usage
+clawperator-skill-type: replay
 description: Read GloBird energy usage summary from Android app (com.globird.energy), including Cost So Far, right-side summary value (Avg Cost Per Day where available), and Yesterday usage details when present.
 ---
 
 Use a fresh app session (script closes then re-opens app) for reliability.
 
-Run:
+Arguments:
+
+- required positional arg: `<device_id>`
+- optional positional arg: `[operator_package]`
+- direct script invocation also accepts `DEVICE_ID=<device_id>` from the environment, but the wrapper example below passes the device id explicitly and that is the preferred usage when multiple Android targets may be connected
+
+Run through the wrapper:
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-./skills/com.globird.energy.get-usage/scripts/get_globird_usage.sh
+./skills/com.globird.energy.get-usage/scripts/get_globird_usage.sh <device_serial>
+```
+
+Optional operator package override:
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+./skills/com.globird.energy.get-usage/scripts/get_globird_usage.sh <device_serial> com.clawperator.operator.dev
+```
+
+Direct local invocation:
+
+```bash
+node skills/com.globird.energy.get-usage/scripts/get_globird_usage.js <device_serial> [operator_package]
 ```
 
 Expected output lines:
