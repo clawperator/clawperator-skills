@@ -68,7 +68,7 @@ function clickText(deviceId, operatorPackage, text, timeoutMs = 15000) {
 }
 
 function clickPoint(deviceId, operatorPackage, x, y, timeoutMs = 15000) {
-  return action(deviceId, operatorPackage, [{ id: 'click', type: 'click', params: { x, y } }], timeoutMs);
+  return action(deviceId, operatorPackage, [{ id: 'click', type: 'click', params: { coordinate: { x, y } } }], timeoutMs);
 }
 
 function clickDesc(deviceId, operatorPackage, contentDescription, timeoutMs = 15000) {
@@ -80,7 +80,10 @@ function clickId(deviceId, operatorPackage, resourceId, timeoutMs = 15000) {
 }
 
 function typeText(deviceId, operatorPackage, text, timeoutMs = 15000) {
-  return action(deviceId, operatorPackage, [{ id: 'type', type: 'enter_text', params: { text, submit: false } }], timeoutMs);
+  return action(deviceId, operatorPackage, [
+    { id: 'focus_search', type: 'click', params: { coordinate: { x: 540, y: 330 } } },
+    { id: 'type', type: 'enter_text', params: { matcher: { role: 'textfield' }, text, submit: true } },
+  ], timeoutMs);
 }
 
 function parseCheckedState(snapshotText) {
@@ -100,47 +103,19 @@ function containsTitle(snapshotText, title) {
 function maybeSelectProfile(deviceId, operatorPackage, profile) {
   const snap = snapshot(deviceId);
   if (!lower(snap).includes('choose your profile')) return false;
-  const raw = String(snap);
-  const wanted = lower(profile);
-  const lowered = raw.toLowerCase();
-  let anchor = lowered.indexOf(`text=\"${wanted}\"`);
-  if (anchor === -1) {
-    anchor = lowered.indexOf(`content-desc=\"1 of 6 items. ${wanted}.\"`);
-  }
-  if (anchor === -1) {
-    anchor = lowered.indexOf(wanted);
-  }
-  if (anchor === -1) {
-    throw new Error(`Profile chooser is visible but profile ${profile} was not present`);
+
+  const wanted = lower(profile).trim();
+  const profileTapMap = {
+    chris: { x: 204, y: 1744 },
+  };
+
+  const tap = profileTapMap[wanted];
+  if (!tap) {
+    throw new Error(`Profile chooser is visible but no tap mapping is defined for profile ${profile}`);
   }
 
-  const before = raw.slice(0, anchor);
-  let cardStart = before.lastIndexOf('resource-id="promo_profile_gate_profile"');
-  if (cardStart === -1) {
-    cardStart = before.lastIndexOf('resource-id=\"promo_profile_gate_profile\"');
-  }
-  if (cardStart === -1) {
-    cardStart = before.lastIndexOf('promo_profile_gate_profile');
-  }
-  if (cardStart === -1) {
-    throw new Error(`Profile chooser is visible but profile ${profile} card could not be resolved`);
-  }
-
-  const chunk = raw.slice(cardStart, anchor + 800);
-  const boundsMatch = chunk.match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);
-  if (!boundsMatch) {
-    throw new Error(`Profile chooser is visible but profile ${profile} bounds could not be resolved`);
-  }
-
-  const left = Number(boundsMatch[1]);
-  const top = Number(boundsMatch[2]);
-  const right = Number(boundsMatch[3]);
-  const bottom = Number(boundsMatch[4]);
-  const x = Math.round((left + right) / 2);
-  const y = Math.round((top + bottom) / 2);
-
-  clickPoint(deviceId, operatorPackage, x, y);
-  sleep(deviceId, operatorPackage, 2500);
+  clickPoint(deviceId, operatorPackage, tap.x, tap.y);
+  sleep(deviceId, operatorPackage, 3000);
   const after = snapshot(deviceId);
   if (!lower(after).includes('choose your profile')) {
     return true;
@@ -150,6 +125,14 @@ function maybeSelectProfile(deviceId, operatorPackage, profile) {
 }
 
 function openSearch(deviceId, operatorPackage) {
+  try {
+    clickPoint(deviceId, operatorPackage, 1008, 159);
+    sleep(deviceId, operatorPackage, 2500);
+    const snap = snapshot(deviceId);
+    if (lower(snap).includes('searchondeppui') || lower(snap).includes('recommended tv shows') || lower(snap).includes('house of cards')) {
+      return;
+    }
+  } catch {}
   try {
     clickDesc(deviceId, operatorPackage, 'Search');
     sleep(deviceId, operatorPackage, 2500);
