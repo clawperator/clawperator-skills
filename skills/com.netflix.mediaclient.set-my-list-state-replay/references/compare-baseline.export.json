@@ -1,0 +1,133 @@
+{
+  "exportVersion": 1,
+  "session": {
+    "sessionId": "netflix-house-of-cards-my-list-20260420-062931",
+    "schemaVersion": 1,
+    "startedAt": 1776630589246,
+    "operatorPackage": "com.clawperator.operator.dev"
+  },
+  "snapshotMode": "omit",
+  "events": [
+    {
+      "seq": 4,
+      "ts": 1776634033346,
+      "deltaMsSincePrevious": 1609516,
+      "type": "window_change",
+      "packageName": "com.netflix.mediaclient",
+      "className": "android.widget.FrameLayout",
+      "title": "Application icon",
+      "snapshot": { "present": true, "xml": null }
+    },
+    {
+      "seq": 5,
+      "ts": 1776634033408,
+      "deltaMsSincePrevious": 62,
+      "type": "window_change",
+      "packageName": "com.netflix.mediaclient",
+      "className": "com.netflix.mediaclient.ui.launch.UIWebViewActivity",
+      "title": "Netflix",
+      "snapshot": { "present": true, "xml": null }
+    },
+    {
+      "seq": 6,
+      "ts": 1776634036525,
+      "deltaMsSincePrevious": 3117,
+      "type": "window_change",
+      "packageName": "com.netflix.mediaclient",
+      "className": "o.jGD",
+      "title": "Who's watching?",
+      "snapshot": { "present": true, "xml": null }
+    },
+    {
+      "seq": 8,
+      "ts": 1776634069879,
+      "deltaMsSincePrevious": 32779,
+      "type": "click",
+      "packageName": "com.netflix.mediaclient",
+      "resourceId": "promo_profile_gate_profile",
+      "text": null,
+      "contentDesc": null,
+      "bounds": { "left": 84, "top": 1664, "right": 324, "bottom": 1907 },
+      "snapshot": { "present": true, "xml": null }
+    },
+    {
+      "seq": 11,
+      "ts": 1776634094821,
+      "deltaMsSincePrevious": 23378,
+      "type": "click",
+      "packageName": "com.netflix.mediaclient",
+      "resourceId": "com.netflix.mediaclient:id/2131427347",
+      "text": null,
+      "contentDesc": "Search",
+      "bounds": { "left": 936, "top": 93, "right": 1080, "bottom": 225 },
+      "snapshot": { "present": true, "xml": null }
+    },
+    {
+      "seq": 14,
+      "ts": 1776634109744,
+      "deltaMsSincePrevious": 14269,
+      "type": "click",
+      "packageName": "com.netflix.mediaclient",
+      "resourceId": "PinotUIEntity:PinotHorizontalArtworkWithPlaybackEntityTreatment:Show:Video:70178217",
+      "text": null,
+      "contentDesc": null,
+      "bounds": { "left": 36, "top": 531, "right": 1044, "bottom": 734 },
+      "snapshot": { "present": true, "xml": null }
+    },
+    {
+      "seq": 16,
+      "ts": 1776634110197,
+      "deltaMsSincePrevious": 295,
+      "type": "window_change",
+      "packageName": "com.netflix.mediaclient",
+      "className": "o.jPc",
+      "title": "House of Cards",
+      "snapshot": { "present": true, "xml": null }
+    },
+    {
+      "seq": 18,
+      "ts": 1776634150255,
+      "deltaMsSincePrevious": 40047,
+      "type": "click",
+      "packageName": "com.netflix.mediaclient",
+      "resourceId": "com.netflix.mediaclient:id/2131428727",
+      "text": "My List",
+      "contentDesc": "My List",
+      "bounds": { "left": 42, "top": 1896, "right": 273, "bottom": 2118 },
+      "snapshot": { "present": true, "xml": null }
+    }
+  ],
+  "counts": {
+    "totalEvents": 19,
+    "byType": {
+      "window_change": 12,
+      "scroll": 3,
+      "click": 4
+    }
+  },
+  "packageTransitions": [
+    {
+      "seq": 4,
+      "ts": 1776634033346,
+      "fromPackageName": "com.solaxcloud.starter",
+      "toPackageName": "com.netflix.mediaclient"
+    },
+    {
+      "seq": 13,
+      "ts": 1776634095475,
+      "fromPackageName": "com.netflix.mediaclient",
+      "toPackageName": "com.samsung.android.honeyboard"
+    },
+    {
+      "seq": 14,
+      "ts": 1776634109744,
+      "fromPackageName": "com.samsung.android.honeyboard",
+      "toPackageName": "com.netflix.mediaclient"
+    }
+  ],
+  "timeline": {
+    "firstEventTs": 1776632417446,
+    "lastEventTs": 1776634150255,
+    "durationMs": 1732809
+  }
+}

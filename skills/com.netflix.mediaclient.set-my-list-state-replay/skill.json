@@ -1,0 +1,18 @@
+{
+  "id": "com.netflix.mediaclient.set-my-list-state-replay",
+  "applicationId": "com.netflix.mediaclient",
+  "intent": "set-my-list-state-replay",
+  "summary": "TODO: describe com.netflix.mediaclient.set-my-list-state-replay",
+  "path": "skills/com.netflix.mediaclient.set-my-list-state-replay",
+  "skillFile": "skills/com.netflix.mediaclient.set-my-list-state-replay/SKILL.md",
+  "scripts": [
+    "skills/com.netflix.mediaclient.set-my-list-state-replay/scripts/run.js",
+    "skills/com.netflix.mediaclient.set-my-list-state-replay/scripts/run.sh"
+  ],
+  "artifacts": [],
+  "contract": {
+    "inputs": {},
+    "goal": null,
+    "verification": null
+  }
+}
