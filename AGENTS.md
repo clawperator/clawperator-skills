@@ -70,15 +70,17 @@ Use this route when authoring or hardening a runtime skill in this repo:
 2. Use [Development workflow](https://github.com/clawperator/clawperator/blob/main/docs/skills/development.md) for the local scaffold-edit-validate-run loop.
 3. Use this file for the local checklist, testing matrix, and recurring PR failure patterns.
 4. Use `clawperator authoring-skills list --json` when you need to inspect installed guided authoring workflows on the current host.
-5. Use `clawperator skills new <skill_id>` only when you explicitly want the low-level manual scaffold.
-6. Run `clawperator skills validate <skill_id> --dry-run`.
-7. Run `./scripts/test_all.sh` for off-device `node --test` coverage when the change touches pure JS logic.
-8. Run shell syntax checks for skill wrapper scripts under
+5. If runtime-skill discovery found no clear match, start with `skill-author-by-agent-discovery` as the zero-results front door.
+6. Use `skill-author-by-recording` only after discovery returns `proceed_to_recording`, or when the route is already well understood.
+7. Use `clawperator skills new <skill_id>` only when you explicitly want the low-level manual scaffold.
+8. Run `clawperator skills validate <skill_id> --dry-run`.
+9. Run `./scripts/test_all.sh` for off-device `node --test` coverage when the change touches pure JS logic.
+10. Run shell syntax checks for skill wrapper scripts under
    `skills/**/scripts/*.sh`, and also for top-level `scripts/*.sh` when those
    repo tooling scripts change.
-9. Run `./scripts/generate_skill_indexes.sh` whenever registry-linked metadata changes.
-10. Prove UI behavior with live-device proof on a real target device or emulator when the change affects selectors, navigation, recording, checkpoints, compare-baseline, or terminal verification.
-11. Use `skill-migration.md` only as a migration and audit log, not as the primary contribution guide.
+11. Run `./scripts/generate_skill_indexes.sh` whenever registry-linked metadata changes.
+12. Prove UI behavior with live-device proof on a real target device or emulator when the change affects selectors, navigation, recording, checkpoints, compare-baseline, or terminal verification.
+13. Use `skill-migration.md` only as a migration and audit log, not as the primary contribution guide.
 
 ## Testing Matrix
 
