@@ -1,11 +1,13 @@
 ---
 name: com.android.vending.install-app
-description: Install an Android app from the Google Play Store app details page.
+clawperator-skill-type: replay
+description: Search for an Android app in Google Play and install it from the matching app details page.
 ---
 
-Installs an app from its Google Play Store details page and confirms the result.
-Assumes the device is already on the app details page (as left by
-`com.android.vending.search-app`).
+Searches Google Play for a named app, opens the matching app details page, and
+installs it if needed. The skill does not rely on Play suggestions; it submits
+the query, inspects the results surface, opens the matched result, and then
+verifies the install outcome from the details page.
 
 Validation commonly targets `com.actionlauncher.playstore` as the sample app to install.
 
@@ -26,12 +28,12 @@ Validation commonly targets `com.actionlauncher.playstore` as the sample app to 
 ## Usage
 
 ```bash
-./skills/com.android.vending.install-app/scripts/install_play_app.sh <device_id> [operator_package]
+./skills/com.android.vending.install-app/scripts/install_play_app.sh <device_id> <app_name> [operator_package]
 ```
 
 Example:
 ```bash
-./skills/com.android.vending.install-app/scripts/install_play_app.sh <device_serial>
+./skills/com.android.vending.install-app/scripts/install_play_app.sh <device_serial> "Spotify"
 ```
 
 ## Output
@@ -47,8 +49,12 @@ On success, prints:
 - The Install button node is `clickable=false` but its parent container is `clickable=true`.
   Clawperator clicks the center of the matched node's bounding box, which lands on the
   clickable parent. This works correctly.
-- For apps that take time to download, `wait_for_node` polling for `text="Open"` is more
-  robust than a fixed sleep. The default timeout in this skill is 120 seconds.
+- Search result matching prefers exact title match, then title prefix match, then
+  title substring match.
+- For apps that take time to download, the runtime verifies progress by repeatedly
+  running `clawperator snapshot` and evaluating the result with `parseInstallSignals`
+  until install-state signals such as `Open` appear, which is more robust than a
+  fixed sleep. The default timeout in this skill is 120 seconds.
 - Free apps with no in-app purchases install without prompts.
 - Apps with in-app purchases show a small "In-app purchases" label on the details page
   but this does not block the install.
