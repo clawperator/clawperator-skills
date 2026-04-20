@@ -43,80 +43,6 @@ function isSearchResultsSurface(snapshotText) {
     || snapshotText.includes('Downloaded ');
 }
 
-function isResultCandidateLine(line) {
-  const contentDesc = extractLineValue(line, "content-desc");
-  if (!contentDesc || !contentDesc.includes("\n")) {
-    return false;
-  }
-
-  const parts = contentDesc
-    .split("\n")
-    .map((part) => normalizeWhitespace(part))
-    .filter(Boolean);
-
-  if (parts.length < 2) {
-    return false;
-  }
-
-  const title = parts[0];
-  const secondaryText = parts[1];
-  const rejectStarts = [
-    "Search Google Play",
-    "Google Play Store",
-    "Navigate up",
-    "Voice Search",
-    "More options",
-    "Average rating",
-    "Downloaded ",
-    "Content rating",
-    "Can content be downloaded",
-    "What video and audio quality",
-    "Ask a question",
-  ];
-
-  if (rejectStarts.some((prefix) => title.startsWith(prefix))) {
-    return false;
-  }
-
-  if (!secondaryText || secondaryText === "Install" || secondaryText === "Open" || secondaryText === "Update") {
-    return false;
-  }
-
-  return true;
-}
-
-function inferInstallState(lines, startIndex) {
-  for (let index = startIndex; index < Math.min(lines.length, startIndex + 12); index += 1) {
-    const text = extractLineValue(lines[index], "text");
-    const contentDesc = extractLineValue(lines[index], "content-desc");
-    const values = [text, contentDesc];
-
-    if (values.includes("Install")) {
-      return "not-installed";
-    }
-    if (values.includes("Open")) {
-      return "installed";
-    }
-    if (values.includes("Update")) {
-      return "update-available";
-    }
-    if (values.includes("Installed")) {
-      return "installed";
-    }
-  }
-
-  return "unknown";
-}
-
-function inferSponsored(lines, index) {
-  const previousNode = lines[index - 1];
-  if (!previousNode) {
-    return false;
-  }
-
-  return extractLineValue(previousNode, "text") === "Sponsored";
-}
-
 function extractSearchResults(snapshotText) {
   if (!snapshotText) {
     return [];
@@ -212,6 +138,7 @@ function mergeSearchResults(snapshotTexts) {
 }
 
 module.exports = {
+  MAX_RESULTS,
   decodeXmlEntities,
   extractSearchResults,
   mergeSearchResults,

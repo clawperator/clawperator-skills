@@ -2,7 +2,7 @@
 
 const { execFileSync } = require('child_process');
 const { runClawperator, runClawperatorCommand, resolveOperatorPackage, logSkillProgress } = require('../../utils/common');
-const { mergeSearchResults, isSearchResultsSurface } = require('./search_play_store_parser');
+const { MAX_RESULTS, mergeSearchResults, isSearchResultsSurface } = require('./search_play_store_parser');
 
 const SKILL_RESULT_FRAME_PREFIX = '[Clawperator-Skill-Result]';
 const SKILL_RESULT_CONTRACT_VERSION = '1.0.0';
@@ -28,9 +28,10 @@ if (query.length > MAX_QUERY_LENGTH) {
 }
 
 function buildSearchExecution() {
+  const executionId = `skill-play-search-${Date.now()}`;
   return {
-    commandId: `skill-play-search-${Date.now()}`,
-    taskId: `skill-play-search-${Date.now()}`,
+    commandId: executionId,
+    taskId: executionId,
     source: 'clawperator-skill',
     expectedFormat: 'android-ui-automator',
     timeoutMs: 90000,
@@ -51,23 +52,6 @@ function buildSearchExecution() {
       { id: 'wait-results', type: 'sleep', params: { durationMs: 6000 } },
       { id: 'snap', type: 'snapshot_ui' }
     ]
-  };
-}
-
-function buildSnapshotExecution(waitMs = 0) {
-  const actions = [];
-  if (waitMs > 0) {
-    actions.push({ id: 'wait', type: 'sleep', params: { durationMs: waitMs } });
-  }
-  actions.push({ id: 'snap', type: 'snapshot_ui' });
-
-  return {
-    commandId: `skill-play-search-snapshot-${Date.now()}`,
-    taskId: `skill-play-search-snapshot-${Date.now()}`,
-    source: 'clawperator-skill',
-    expectedFormat: 'android-ui-automator',
-    timeoutMs: 30000,
-    actions,
   };
 }
 
@@ -118,10 +102,11 @@ function captureDirectSnapshot(waitMs = 0) {
   try {
     const parsed = JSON.parse(outcome.result);
     const steps = (parsed && parsed.envelope && parsed.envelope.stepResults) || [];
-    const snapStep = steps.find((step) => step.id === 'snap');
+    const snapStep = steps.find((step) => step && step.actionType === 'snapshot_ui')
+      || steps.find((step) => step && step.data && typeof step.data.text === 'string');
     return {
       ok: true,
-      text: snapStep && snapStep.data ? snapStep.data.text || '' : '',
+      text: snapStep && snapStep.data && typeof snapStep.data.text === 'string' ? snapStep.data.text : '',
     };
   } catch (error) {
     return { ok: false, error: `Failed to parse direct snapshot output: ${error.message}` };
@@ -259,7 +244,7 @@ logSkillProgress(skillId, `Reached Play Store results. Collecting additional row
 
 for (let scrollIndex = 0; scrollIndex < MAX_SCROLLS; scrollIndex += 1) {
   const collected = mergeSearchResults(snapshotSeries);
-  if (collected.length >= 5) {
+  if (collected.length >= MAX_RESULTS) {
     break;
   }
 
