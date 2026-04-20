@@ -54,6 +54,9 @@ const commandId = `skill-play-install-${Date.now()}`;
 const skillId = "com.android.vending.install-app";
 const MAX_SCROLLS = 3;
 const SCROLL_SETTLE_DELAY_MS = 1800;
+const SEARCH_SUBMIT_ATTEMPTS = 3;
+const INSTALL_POLL_INTERVAL_MS = 3000;
+const INSTALL_POLL_TIMEOUT_MS = 120000;
 const checkpoints = [];
 
 function writeSkillResult(payload) {
@@ -147,7 +150,6 @@ function buildSearchExecution() {
         params: { matcher: { role: 'textfield' }, text: query, submit: true }
       },
       { id: 'wait-results', type: 'sleep', params: { durationMs: 6000 } },
-      { id: 'snap', type: 'snapshot_ui' }
     ]
   };
 }
@@ -183,7 +185,24 @@ function buildOpenResultExecution(title) {
         params: { matcher: { contentDescContains: title } }
       },
       { id: 'wait-detail', type: 'sleep', params: { durationMs: 3000 } },
-      { id: 'snap', type: 'snapshot_ui' }
+    ]
+  };
+}
+
+function buildSubmitSearchSuggestionExecution() {
+  return {
+    commandId: `${commandId}-submit-suggestion-${Date.now()}`,
+    taskId: commandId,
+    source: 'clawperator-skill',
+    expectedFormat: 'android-ui-automator',
+    timeoutMs: 30000,
+    actions: [
+      {
+        id: 'submit-suggestion',
+        type: 'click',
+        params: { matcher: { contentDescContains: `Search for '${query}'` } }
+      },
+      { id: 'wait-results', type: 'sleep', params: { durationMs: 4000 } },
     ]
   };
 }
@@ -228,12 +247,6 @@ function captureDirectSnapshot(waitMs = 0) {
   }
 }
 
-function getSnapshotText(result) {
-  const steps = (result && result.envelope && result.envelope.stepResults) || [];
-  const snapStep = steps.find((step) => step.id === 'snap');
-  return snapStep && snapStep.data ? snapStep.data.text || '' : '';
-}
-
 function pickInstallCandidate(results, appQuery) {
   const normalizedQuery = normalizeWhitespace(appQuery).toLowerCase();
   const exact = results.find((result) => normalizeWhitespace(result.title).toLowerCase() === normalizedQuery);
@@ -246,6 +259,44 @@ function pickInstallCandidate(results, appQuery) {
   if (contains) return contains;
 
   return null;
+}
+
+function trySubmitSearchQuery(currentText) {
+  let snapshotText = currentText;
+
+  for (let attempt = 0; attempt < SEARCH_SUBMIT_ATTEMPTS; attempt += 1) {
+    if (isSearchResultsSurface(snapshotText)) {
+      return { ok: true, text: snapshotText, method: attempt === 0 ? 'initial-submit' : 'follow-up-submit' };
+    }
+
+    const trimmed = normalizeWhitespace(snapshotText);
+    const exactSuggestionVisible = trimmed.includes(`Search for '${query}'`)
+      || trimmed.includes(`Search for "${query}"`)
+      || trimmed.includes(`Search for &apos;${query}&apos;`);
+
+    if (exactSuggestionVisible) {
+      logSkillProgress(skillId, `Play is still on suggestions. Tapping the exact "${query}" search suggestion...`);
+      const { ok } = runClawperator(buildSubmitSearchSuggestionExecution(), deviceId, operatorPkg);
+      if (ok) {
+        const snap = captureDirectSnapshot(2000);
+        if (!snap.ok) {
+          return { ok: false, error: `Follow-up snapshot after tapping the search suggestion failed: ${snap.error}` };
+        }
+        snapshotText = snap.text;
+        continue;
+      }
+    }
+
+    logSkillProgress(skillId, 'Play is still on suggestions. Sending Enter to force query submission...');
+    pressEnterKey();
+    const retry = captureDirectSnapshot(5000);
+    if (!retry.ok) {
+      return { ok: false, error: `Follow-up snapshot after query submit failed: ${retry.error}` };
+    }
+    snapshotText = retry.text;
+  }
+
+  return { ok: isSearchResultsSurface(snapshotText), text: snapshotText };
 }
 
 /**
@@ -296,35 +347,58 @@ function buildChooserExecution() {
  *
  * Falls back to a 30-second sleep if the device is slow.
  */
-function buildInstallExecution() {
+function buildInstallExecution(actionLabel = 'Install') {
   return {
     commandId,
     taskId: commandId,
     source: 'clawperator-skill',
     expectedFormat: 'android-ui-automator',
-    timeoutMs: 120000,
+    timeoutMs: 30000,
     actions: [
-      // Click the Install button.
-      // content-desc="Install" targets the label node; the click coordinates land on
+      // Click the Install/Update button.
+      // content-desc targets the label node; the click coordinates land on
       // the clickable parent container (verified via live exploration).
       {
         id: 'click-install',
         type: 'click',
-        params: { matcher: { contentDescEquals: 'Install' } }
+        params: { matcher: { contentDescEquals: actionLabel } }
       },
-      // Wait for the "Open" button to appear, indicating install completion.
-      // Polls every 3 seconds up to 120 seconds total.
-      {
-        id: 'wait-open',
-        type: 'wait_for_node',
-        params: {
-          matcher: { textEquals: 'Open' },
-          timeoutMs: 90000
-        }
-      },
-      { id: 'snap', type: 'snapshot_ui' }
     ]
   };
+}
+
+function waitForInstalledState(appTitle) {
+  const deadline = Date.now() + INSTALL_POLL_TIMEOUT_MS;
+  let lastText = '';
+
+  while (Date.now() < deadline) {
+    const snap = captureDirectSnapshot(INSTALL_POLL_INTERVAL_MS);
+    if (!snap.ok) {
+      return { ok: false, error: `Direct snapshot polling failed: ${snap.error}` };
+    }
+
+    lastText = snap.text || '';
+    if (!lastText) {
+      continue;
+    }
+
+    const signals = parseInstallSignals(lastText);
+    if (signals.hasOpen) {
+      return {
+        ok: true,
+        text: lastText,
+        installState: signals.hasUninstall ? 'installed' : 'installed-transition',
+      };
+    }
+
+    if (signals.hasSignIn) {
+      return { ok: false, error: 'Play Store requested sign-in during install verification.', text: lastText };
+    }
+
+    logSkillProgress(skillId, `Waiting for "${appTitle}" to reach an Open button on the Play details page...`);
+  }
+
+  return { ok: false, error: 'Timed out waiting for the Play details page to show Open.', text: lastText };
 }
 
 // --- Search for target app and open its details page ---
@@ -337,7 +411,12 @@ if (!searchOk) {
   emitFailureAndExit(`Search execution failed: ${searchError}`, 2, { path: 'search' });
 }
 
-let searchText = getSnapshotText(searchResult);
+let initialSearchSnapshot = captureDirectSnapshot(1500);
+if (!initialSearchSnapshot.ok) {
+  checkpoints.push({ id: 'search_results_opened', status: 'failed', note: 'Initial search snapshot failed after query entry.' });
+  emitFailureAndExit(`Initial search snapshot failed: ${initialSearchSnapshot.error}`, 2, { path: 'search-post-submit-snapshot' });
+}
+let searchText = initialSearchSnapshot.text;
 if (!searchText) {
   checkpoints.push({ id: 'search_results_opened', status: 'failed', note: 'Search snapshot returned empty.' });
   emitFailureAndExit('Search snapshot returned empty.', 2, { path: 'search' });
@@ -345,14 +424,12 @@ if (!searchText) {
 checkpoints.push({ id: 'search_results_opened', status: 'ok', note: 'Submitted the Play Store query and captured the initial search surface.' });
 
 if (!isSearchResultsSurface(searchText)) {
-  logSkillProgress(skillId, 'Typed search remained on suggestions. Sending Enter key...');
-  pressEnterKey();
-  const retry = captureDirectSnapshot(5000);
-  if (!retry.ok) {
-    checkpoints.push({ id: 'search_results_collected', status: 'failed', note: 'Enter fallback ran, but follow-up snapshot failed.' });
-    emitFailureAndExit(`Follow-up snapshot after Enter fallback failed: ${retry.error}`, 2, { path: 'search-enter-fallback' });
+  const submitResult = trySubmitSearchQuery(searchText);
+  if (!submitResult.ok) {
+    checkpoints.push({ id: 'search_results_collected', status: 'failed', note: 'Query submission fallback did not reach Play results.' });
+    emitFailureAndExit(submitResult.error || 'Query submission fallback did not reach Play results.', 2, { path: 'search-submit-fallback' });
   }
-  searchText = retry.text;
+  searchText = submitResult.text;
 }
 
 if (!isSearchResultsSurface(searchText)) {
@@ -401,7 +478,12 @@ if (!openOk) {
   emitFailureAndExit(`Failed to open Play result "${candidate.title}": ${openError}`, 3, { path: 'open-result' });
 }
 
-let prefText = getSnapshotText(openResult);
+let detailSnapshot = captureDirectSnapshot(1000);
+if (!detailSnapshot.ok) {
+  checkpoints.push({ id: 'details_page_opened', status: 'failed', note: 'Direct snapshot after opening the Play result failed.' });
+  emitFailureAndExit(`Snapshot after opening Play result failed: ${detailSnapshot.error}`, 3, { path: 'open-result-snapshot' });
+}
+let prefText = detailSnapshot.text;
 if (detectOpenWithChooser(prefText)) {
   logSkillProgress(skillId, 'Open-with chooser detected; selecting Google Play Store...');
   const { ok, error } = runClawperator(buildChooserExecution(), deviceId, operatorPkg);
@@ -410,12 +492,12 @@ if (detectOpenWithChooser(prefText)) {
     emitFailureAndExit(`Open-with chooser handling failed: ${error}`, 3, { path: 'chooser' });
   }
 
-  const { ok: retryOk, result: retryResult, error: retryError } = runClawperator(buildPreflightExecution(), deviceId, operatorPkg);
-  if (!retryOk) {
+  const retrySnap = captureDirectSnapshot(1500);
+  if (!retrySnap.ok) {
     checkpoints.push({ id: 'details_page_opened', status: 'failed', note: 'Preflight after chooser handling failed.' });
-    emitFailureAndExit(`Follow-up preflight after chooser handling failed: ${retryError}`, 3, { path: 'chooser-preflight' });
+    emitFailureAndExit(`Follow-up preflight after chooser handling failed: ${retrySnap.error}`, 3, { path: 'chooser-preflight' });
   }
-  prefText = getSnapshotText(retryResult);
+  prefText = retrySnap.text;
 }
 
 if (!detectPlayDetailsSurface(prefText)) {
@@ -455,32 +537,16 @@ if (hasOpen && hasUninstall && !hasInstall) {
 }
 
 if (hasOpen && hasCancel) {
-  logSkillProgress(skillId, "Install already in progress; waiting for Open button...");
-  // Could wait_for_node here; simplified version: just snap the final state
-  const waitExec = {
-    commandId: `${commandId}-wait`,
-    taskId: commandId,
-    source: 'clawperator-skill',
-    expectedFormat: 'android-ui-automator',
-    timeoutMs: 120000,
-    actions: [
-      {
-        id: 'wait-open',
-        type: 'wait_for_node',
-        params: { matcher: { textEquals: 'Open' }, timeoutMs: 110000 }
-      },
-      { id: 'snap', type: 'snapshot_ui' }
-    ]
-  };
-  const { ok, result, error } = runClawperator(waitExec, deviceId, operatorPkg);
-  if (!ok) {
+  logSkillProgress(skillId, 'Install is already in progress. Polling the Play details page until Open appears...');
+  const waitResult = waitForInstalledState(candidate.title);
+  if (!waitResult.ok) {
     checkpoints.push({ id: 'install_state_verified', status: 'failed', note: 'Install was in progress but waiting for completion failed.' });
-    emitFailureAndExit(`Wait for completion failed: ${error}`, 5, { path: 'wait-for-open' });
+    emitFailureAndExit(`Wait for completion failed: ${waitResult.error}`, 5, { path: 'wait-for-open' });
   }
   checkpoints.push({ id: 'install_state_verified', status: 'ok', note: 'Install completed from an already-in-progress state.' });
   emitSuccessAndExit('✅ Install completed (was already in progress).', {
     appTitle: candidate.title,
-    installState: 'installed',
+    installState: waitResult.installState || 'installed',
     selectedResult: candidate,
   });
 }
@@ -498,10 +564,9 @@ checkpoints.push({ id: 'install_started', status: 'ok', note: hasUpdate ? 'Updat
 
 // --- Execute install ---
 
-const installExec = buildInstallExecution();
-logSkillProgress(skillId, "Installing from Play Store details page...");
-logSkillProgress(skillId, "Waiting for Open button...");
-const { ok, result, error } = runClawperator(installExec, deviceId, operatorPkg);
+const installExec = buildInstallExecution(hasUpdate ? 'Update' : 'Install');
+logSkillProgress(skillId, `Triggering Play ${hasUpdate ? 'update' : 'install'} action from the details page...`);
+const { ok, error } = runClawperator(installExec, deviceId, operatorPkg);
 
 if (!ok) {
   checkpoints.push({ id: 'install_completed', status: 'failed', note: 'Install execution did not reach a verified terminal state.' });
@@ -512,31 +577,12 @@ if (!ok) {
   });
 }
 
-const stepResults = (result && result.envelope && result.envelope.stepResults) || [];
-const snapStep = stepResults.find(s => s.id === 'snap');
-const snapText = snapStep && snapStep.data ? snapStep.data.text : '';
+logSkillProgress(skillId, 'Polling the Play details page until the action button becomes Open...');
+const installWaitResult = waitForInstalledState(candidate.title);
 
-// Verify final state
-let finalHasOpen = false;
-let finalHasUninstall = false;
-if (snapText) {
-  const finalSignals = parseInstallSignals(snapText);
-  finalHasOpen = finalSignals.hasOpen;
-  finalHasUninstall = finalSignals.hasUninstall;
-}
-
-if (finalHasOpen) {
-  logSkillProgress(skillId, "Verifying installation result...");
-  const state = finalHasUninstall ? 'installed (settled)' : 'installed (transition)';
-  checkpoints.push({ id: 'install_completed', status: 'ok', note: `Play Store reached ${state}.` });
-  emitSuccessAndExit(`✅ App installed. State: ${state}`, {
-    appTitle: candidate.title,
-    installState: finalHasUninstall ? 'installed' : 'installed-transition',
-    selectedResult: candidate,
-  });
-} else {
-  checkpoints.push({ id: 'install_completed', status: 'failed', note: 'Final snapshot did not contain an Open button.' });
-  emitFailureAndExit('WARNING: Install may have failed. "Open" button not found in final snapshot.', 9, {
+if (!installWaitResult.ok) {
+  checkpoints.push({ id: 'install_completed', status: 'failed', note: 'Final details-page polling did not observe Open.' });
+  emitFailureAndExit(`Install verification failed: ${installWaitResult.error}`, 9, {
     path: 'install-verification',
   }, {
     appTitle: candidate.title,
@@ -544,3 +590,11 @@ if (finalHasOpen) {
     selectedResult: candidate,
   });
 }
+
+const state = installWaitResult.installState === 'installed' ? 'installed (settled)' : 'installed (transition)';
+checkpoints.push({ id: 'install_completed', status: 'ok', note: `Play Store reached ${state}.` });
+emitSuccessAndExit(`✅ App installed. State: ${state}`, {
+  appTitle: candidate.title,
+  installState: installWaitResult.installState,
+  selectedResult: candidate,
+});
