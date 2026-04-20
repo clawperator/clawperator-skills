@@ -1,38 +1,21 @@
 #!/usr/bin/env node
-/**
- * com.android.vending.search-app
- *
- * Searches for a named app in the Google Play Store and navigates to its details page.
- *
- * Usage:
- *   node search_play_store.js <device_id> <query> [operator_package] [package_id]
- *
- * Arguments:
- *   device_id       - ADB device serial
- *   query           - App name to search for (e.g. "VLC")
- *   operator_package - Clawperator operator package (default: com.clawperator.operator)
- *   package_id      - Optional Android package ID for direct entry path (e.g. org.videolan.vlc)
- *
- * Selector notes (discovered via live exploration):
- *   - Play Store has NO resource-ids on interactive elements.
- *   - Search bar (inactive): contentDescEquals "Search Google Play"
- *   - Search input (active): role "textfield" (android.widget.EditText, no resource-id)
- *   - content-desc uses HTML entities (&apos; etc). Always use contentDescContains for
- *     substring matching to avoid encoding issues.
- *   - App entry in results: contentDescContains with the app name substring.
- */
 
 const { execFileSync } = require('child_process');
-const path = require('path');
-const { runClawperator, findAttribute, resolveOperatorPackage, logSkillProgress } = require('../../utils/common');
+const { runClawperator, runClawperatorCommand, resolveOperatorPackage, logSkillProgress } = require('../../utils/common');
+const { mergeSearchResults, isSearchResultsSurface } = require('./search_play_store_parser');
+
+const SKILL_RESULT_FRAME_PREFIX = '[Clawperator-Skill-Result]';
+const SKILL_RESULT_CONTRACT_VERSION = '1.0.0';
+const MAX_QUERY_LENGTH = 256;
+const MAX_SCROLLS = 3;
+const SCROLL_SETTLE_DELAY_MS = 1800;
+const skillId = "com.android.vending.search-app";
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const rawQuery = process.argv[3] || process.env.QUERY || '';
 const query = rawQuery.trim();
 const operatorPkg = resolveOperatorPackage(process.argv[4]);
 const packageId = process.argv[5] || process.env.PACKAGE_ID || '';
-
-const MAX_QUERY_LENGTH = 256;
 
 if (!deviceId || !query) {
   console.error('Usage: node search_play_store.js <device_id> <query> [operator_package] [package_id]');
@@ -44,32 +27,10 @@ if (query.length > MAX_QUERY_LENGTH) {
   process.exit(1);
 }
 
-const commandId = `skill-play-search-${Date.now()}`;
-const skillId = "com.android.vending.search-app";
-
-/**
- * Build an in-app search execution payload.
- * Flow: close -> open -> wait -> click Search tab -> click search bar ->
- *       enter text -> wait -> click first suggestion -> wait -> click first result -> snap
- *
- * Why this flow:
- * - Close+reopen ensures a clean state regardless of what was on screen.
- * - The "Search" tab must be clicked before the bar becomes tappable.
- * - contentDescEquals "Search Google Play" targets the inactive search bar.
- * - role: "textfield" targets the active EditText (no resource-id).
- * - contentDescContains "Search for" targets the first suggestion, avoiding HTML entity issues.
- * - contentDescContains with the query targets the first result app entry.
- *
- * Note on submit: true with enter_text - this submits the search immediately.
- * Alternatively, contentDescContains "Search for" can be used to tap the suggestion.
- */
-function buildSearchExecution(query) {
-  // Escape the query for use in contentDescContains
-  const queryLower = query.toLowerCase();
-
+function buildSearchExecution() {
   return {
-    commandId,
-    taskId: commandId,
+    commandId: `skill-play-search-${Date.now()}`,
+    taskId: `skill-play-search-${Date.now()}`,
     source: 'clawperator-skill',
     expectedFormat: 'android-ui-automator',
     timeoutMs: 90000,
@@ -88,161 +49,283 @@ function buildSearchExecution(query) {
         params: { matcher: { role: 'textfield' }, text: query, submit: true }
       },
       { id: 'wait-results', type: 'sleep', params: { durationMs: 6000 } },
-      // Click the first result that contains the query text in its content-desc.
-      // The app entry node has content-desc="<AppName>\n<Developer>\n" (multiline).
-      // contentDescContains on a substring of the app name is reliable.
-      {
-        id: 'click-first-result',
-        type: 'click',
-        params: { matcher: { contentDescContains: query } }
-      },
-      { id: 'wait-detail', type: 'sleep', params: { durationMs: 3000 } },
       { id: 'snap', type: 'snapshot_ui' }
     ]
   };
 }
 
-/**
- * Try to navigate directly to the app details page via adb market:// deep link.
- * This path requires package_id to be known.
- *
- * Limitation: Clawperator's open_app action does not support deep links or URI schemes.
- * The adb am start command is used outside the execution payload for this path.
- *
- * Blocking state: On devices with multiple app stores (e.g. Samsung Galaxy Store),
- * a "Open with" picker appears. This function handles it by clicking "Google Play Store"
- * then confirming with "Just once" if needed.
- */
-function buildDirectEntryExecution() {
+function buildSnapshotExecution(waitMs = 0) {
+  const actions = [];
+  if (waitMs > 0) {
+    actions.push({ id: 'wait', type: 'sleep', params: { durationMs: waitMs } });
+  }
+  actions.push({ id: 'snap', type: 'snapshot_ui' });
+
   return {
-    commandId,
-    taskId: commandId,
+    commandId: `skill-play-search-snapshot-${Date.now()}`,
+    taskId: `skill-play-search-snapshot-${Date.now()}`,
     source: 'clawperator-skill',
     expectedFormat: 'android-ui-automator',
-    timeoutMs: 60000,
+    timeoutMs: 30000,
+    actions,
+  };
+}
+
+function buildScrollExecution() {
+  return {
+    commandId: `skill-play-search-scroll-${Date.now()}`,
+    taskId: `skill-play-search-scroll-${Date.now()}`,
+    source: 'clawperator-skill',
+    expectedFormat: 'android-ui-automator',
+    timeoutMs: 30000,
     actions: [
-      { id: 'wait-open', type: 'sleep', params: { durationMs: 3000 } },
-      // Handle "Open with" picker if present (multi-store devices).
-      // wait_for_node would be cleaner but we use a snap+conditional approach here.
-      { id: 'snap-picker', type: 'snapshot_ui' },
-      // Attempt to click "Google Play Store" in picker; will fail gracefully if not present.
       {
-        id: 'click-play-store',
-        type: 'click',
-        params: { matcher: { textEquals: 'Google Play Store' } }
-      },
-      { id: 'wait-after-picker', type: 'sleep', params: { durationMs: 2000 } },
-      { id: 'snap', type: 'snapshot_ui' }
+        id: 'scroll',
+        type: 'scroll',
+        params: { direction: 'down', settleDelayMs: SCROLL_SETTLE_DELAY_MS }
+      }
     ]
   };
 }
 
-// --- Main execution ---
+function pressEnterKey() {
+  execFileSync('adb', ['-s', deviceId, 'shell', 'input', 'keyevent', '66'], {
+    stdio: ['pipe', 'pipe', 'pipe']
+  });
+}
 
-let result;
-let usedDirectPath = false;
+function sleepMs(durationMs) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, durationMs);
+}
 
-if (packageId) {
-  logSkillProgress(skillId, `Opening Play Store details for \"${query}\"...`);
-  // Attempt direct entry path via market:// deep link (outside Clawperator execution).
-  // This fires the intent synchronously; the Play Store opens asynchronously.
+function captureDirectSnapshot(waitMs = 0) {
+  if (waitMs > 0) {
+    sleepMs(waitMs);
+  }
+
+  const outcome = runClawperatorCommand('snapshot', [
+    '--device',
+    deviceId,
+    '--operator-package',
+    operatorPkg,
+    '--json'
+  ], { encoding: 'utf8' });
+
+  if (!outcome.ok) {
+    return { ok: false, error: outcome.error };
+  }
+
   try {
-    execFileSync('adb', ['-s', deviceId, 'shell', 'am', 'start',
-      '-a', 'android.intent.action.VIEW',
-      '-d', `market://details?id=${packageId}`
-    ], { stdio: 'pipe' });
-    usedDirectPath = true;
-  } catch (e) {
-    console.error(`Direct entry adb command failed: ${e.message}`);
-    console.error('Falling back to in-app search path.');
+    const parsed = JSON.parse(outcome.result);
+    const steps = (parsed && parsed.envelope && parsed.envelope.stepResults) || [];
+    const snapStep = steps.find((step) => step.id === 'snap');
+    return {
+      ok: true,
+      text: snapStep && snapStep.data ? snapStep.data.text || '' : '',
+    };
+  } catch (error) {
+    return { ok: false, error: `Failed to parse direct snapshot output: ${error.message}` };
   }
 }
 
-if (usedDirectPath) {
-  logSkillProgress(skillId, "Capturing app details...");
-  const execution = buildDirectEntryExecution();
-  const { ok, result: r, error } = runClawperator(execution, deviceId, operatorPkg);
-  if (!ok) {
-    console.error(`Direct entry execution failed: ${error}`);
-    console.error('Falling back to in-app search path.');
-    usedDirectPath = false;
-  } else {
-    result = r;
-  }
+function writeSkillResult(payload) {
+  console.log(SKILL_RESULT_FRAME_PREFIX);
+  console.log(JSON.stringify(payload));
 }
 
-if (!usedDirectPath) {
-  logSkillProgress(skillId, `Searching Play Store for \"${query}\"...`);
-  const execution = buildSearchExecution(query);
-  const { ok, result: r, error } = runClawperator(execution, deviceId, operatorPkg);
-  if (!ok) {
-    console.error(`Search execution failed: ${error}`);
-    process.exit(2);
-  }
-  result = r;
+function buildSkillResult({ status, checkpoints, terminalVerification, diagnostics, results }) {
+  return {
+    contractVersion: SKILL_RESULT_CONTRACT_VERSION,
+    skillId,
+    goal: {
+      kind: 'search_apps'
+    },
+    inputs: {
+      query,
+      packageId: packageId || null,
+    },
+    status,
+    checkpoints,
+    terminalVerification,
+    diagnostics,
+    results,
+  };
 }
 
-// --- Parse results ---
-
-const stepResults = (result && result.envelope && result.envelope.stepResults) || [];
-const snapStep = stepResults.find(s => s.id === 'snap');
-const snapText = snapStep && snapStep.data ? snapStep.data.text : null;
-
-if (!snapText) {
-  console.error('No snapshot returned. The app details page may not have loaded.');
-  process.exit(3);
+function emitFailureAndExit(message, checkpoints, diagnostics = {}) {
+  writeSkillResult(buildSkillResult({
+    status: 'failed',
+    checkpoints,
+    terminalVerification: {
+      status: 'failed',
+      expected: {
+        kind: 'text',
+        text: 'Readable Play Store search results'
+      },
+      observed: {
+        kind: 'text',
+        text: message
+      },
+      note: message
+    },
+    diagnostics,
+    results: []
+  }));
+  console.error(message);
+  process.exit(2);
 }
 
-// Check for login/account picker state
-const allText = snapText;
-if (allText.includes('Sign in') || allText.includes('Choose an account')) {
-  console.error('Login required. Please sign in to Google Play on the device.');
-  process.exit(4);
+logSkillProgress(skillId, `Searching Play Store for "${query}"...`);
+const checkpoints = [];
+const execution = buildSearchExecution();
+const { ok, result, error } = runClawperator(execution, deviceId, operatorPkg);
+
+if (!ok) {
+  checkpoints.push({
+    id: 'search_results_opened',
+    status: 'failed',
+    note: 'Play Store search execution failed before a readable results snapshot was captured.'
+  });
+  emitFailureAndExit(`Search execution failed: ${error}`, checkpoints, {
+    path: 'in-app search',
+  });
 }
 
-// Extract app details from snapshot
-const lines = snapText.split('\n');
-let appName = '';
-let developer = '';
-let installState = 'unknown';
-let rating = '';
-let downloads = '';
-
-lines.forEach(line => {
-  const t = findAttribute(line, 'text') || '';
-  const c = findAttribute(line, 'content-desc') || '';
-
-  // App name: typically appears as text at the top of the details page
-  if (!appName && t && t.toLowerCase().includes(query.toLowerCase()) && t.length < 80) {
-    appName = t;
-  }
-
-  // Developer name: appears after the app name
-  if (appName && !developer && t && !t.includes('$') && t.length < 50 &&
-      !['Uninstall', 'Install', 'Open', 'Update'].includes(t)) {
-    developer = t;
-  }
-
-  // Install state signals
-  if (c === 'Install' || t === 'Install') installState = 'not-installed';
-  if (c === 'Open' || t === 'Open') installState = 'installed';
-  if (t === 'Update') installState = 'update-available';
-
-  // Rating
-  if (c.includes('Average rating')) rating = c;
-
-  // Downloads
-  if (c.includes('Downloaded') && c.includes('times')) downloads = c;
+checkpoints.push({
+  id: 'search_results_opened',
+  status: 'ok',
+  note: 'Submitted the Play Store query and captured the results surface.'
 });
 
-const pathUsed = usedDirectPath ? 'direct (market://)' : 'in-app search';
+const stepResults = (result && result.envelope && result.envelope.stepResults) || [];
+const snapStep = stepResults.find((step) => step.id === 'snap');
+let snapText = snapStep && snapStep.data ? snapStep.data.text : '';
+const snapshotSeries = [];
 
-logSkillProgress(skillId, "Parsing app details...");
-console.log(`Path used: ${pathUsed}`);
-console.log(`App: ${appName || '(not extracted)'}`);
-console.log(`Developer: ${developer || '(not extracted)'}`);
-console.log(`Install state: ${installState}`);
-if (rating) console.log(`Rating: ${rating}`);
-if (downloads) console.log(`Downloads: ${downloads}`);
-console.log(`\nSnapshot saved to device. Ready for com.android.vending.install-app.`);
-console.log(`✅ App details page loaded`);
+if (!snapText) {
+  checkpoints.push({
+    id: 'results_collected',
+    status: 'failed',
+    note: 'No terminal Play Store snapshot text was returned.'
+  });
+  emitFailureAndExit('No search-results snapshot returned from Play Store.', checkpoints);
+}
+
+if (snapText.includes('Sign in') || snapText.includes('Choose an account')) {
+  checkpoints.push({
+    id: 'results_collected',
+    status: 'failed',
+    note: 'Google Play surfaced a login or account-picker requirement instead of search results.'
+  });
+  emitFailureAndExit('Login required. Please sign in to Google Play on the device.', checkpoints);
+}
+
+if (!isSearchResultsSurface(snapText)) {
+  logSkillProgress(skillId, 'Typed search remained on suggestions. Sending Enter key to reach results...');
+  try {
+    pressEnterKey();
+  } catch (error) {
+    checkpoints.push({
+      id: 'results_collected',
+      status: 'failed',
+      note: 'Failed to submit the Play Store query with an Enter key fallback.'
+    });
+    emitFailureAndExit(`Failed to submit Play Store search with Enter key: ${error.message}`, checkpoints);
+  }
+
+  const retry = captureDirectSnapshot(5000);
+  if (!retry.ok) {
+    checkpoints.push({
+      id: 'results_collected',
+      status: 'failed',
+      note: 'Enter-key fallback ran, but the follow-up direct snapshot failed.'
+    });
+    emitFailureAndExit(`Play Store follow-up snapshot failed after Enter fallback: ${retry.error}`, checkpoints);
+  }
+  snapText = retry.text;
+}
+
+if (!isSearchResultsSurface(snapText)) {
+  checkpoints.push({
+    id: 'results_collected',
+    status: 'failed',
+    note: 'Terminal snapshot still did not look like a readable Play Store search-results surface after Enter fallback.'
+  });
+  emitFailureAndExit('Play Store search did not reach a readable results surface.', checkpoints);
+}
+
+snapshotSeries.push(snapText);
+logSkillProgress(skillId, `Reached Play Store results. Collecting additional rows with up to ${MAX_SCROLLS} scrolls...`);
+
+for (let scrollIndex = 0; scrollIndex < MAX_SCROLLS; scrollIndex += 1) {
+  const collected = mergeSearchResults(snapshotSeries);
+  if (collected.length >= 5) {
+    break;
+  }
+
+  const scrolled = runClawperator(buildScrollExecution(), deviceId, operatorPkg);
+  if (!scrolled.ok) {
+    break;
+  }
+  const scrolledSnapshot = captureDirectSnapshot(1200);
+  if (!scrolledSnapshot.ok) {
+    break;
+  }
+  const scrolledText = scrolledSnapshot.text;
+  if (!scrolledText || !isSearchResultsSurface(scrolledText)) {
+    break;
+  }
+  snapshotSeries.push(scrolledText);
+}
+
+const results = mergeSearchResults(snapshotSeries);
+if (results.length === 0) {
+  checkpoints.push({
+    id: 'results_collected',
+    status: 'failed',
+    note: 'The results surface was visible, but no structured app rows were parsed.'
+  });
+  emitFailureAndExit('Play Store results were visible but no structured app rows were parsed.', checkpoints);
+}
+
+checkpoints.push({
+  id: 'results_collected',
+  status: 'ok',
+  evidence: {
+    kind: 'json',
+    value: {
+      resultCount: results.length,
+      snapshotsCollected: snapshotSeries.length
+    }
+  },
+  note: 'Parsed and merged Play Store app rows from the visible and scrolled search results surfaces.'
+});
+
+console.log(`✅ Play Store search results for '${query}':`);
+for (const [index, resultRow] of results.entries()) {
+  const sponsoredLabel = resultRow.sponsored ? ' [sponsored]' : '';
+  const installLabel = resultRow.installState !== 'unknown' ? ` (${resultRow.installState})` : '';
+  console.log(`${index + 1}. ${resultRow.title} — ${resultRow.developer || resultRow.secondaryText || 'Unknown details'}${sponsoredLabel}${installLabel}`);
+}
+
+writeSkillResult(buildSkillResult({
+  status: 'verified',
+  checkpoints,
+  terminalVerification: {
+    status: 'verified',
+    expected: {
+      kind: 'text',
+      text: 'Readable Play Store search results with structured app rows'
+    },
+    observed: {
+      kind: 'json',
+      results
+    },
+    note: 'Structured app rows were extracted from the visible Play Store search-results surface.'
+  },
+  diagnostics: {
+    path: 'in-app search',
+    ignoredPackageId: packageId || null,
+  },
+  results,
+}));
