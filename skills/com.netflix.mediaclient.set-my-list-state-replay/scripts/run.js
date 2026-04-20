@@ -102,48 +102,35 @@ function maybeSelectProfile(deviceId, operatorPackage, profile) {
   if (!lower(snap).includes('choose your profile')) return false;
   const raw = String(snap);
   const wanted = lower(profile);
-
-  const cards = raw.match(/resource-id="promo_profile_gate_profile"[\s\S]*?bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/g) || [];
-  const labelRegex = /text="([^"]*)"[^>]*content-desc="([^"]*)"/g;
-  const labels = [...raw.matchAll(labelRegex)];
-  const candidates = [];
-
-  for (const label of labels) {
-    const textValue = label[1] || '';
-    const descValue = label[2] || '';
-    const hay = lower(`${textValue} ${descValue}`);
-    if (!hay.includes(wanted)) continue;
-
-    const before = raw.slice(0, label.index || 0);
-    const lastCard = before.lastIndexOf('resource-id="promo_profile_gate_profile"');
-    if (lastCard === -1) continue;
-    const chunk = raw.slice(lastCard, (label.index || 0) + 400);
-    const boundsMatch = chunk.match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);
-    if (!boundsMatch) continue;
-    const left = Number(boundsMatch[1]);
-    const top = Number(boundsMatch[2]);
-    const right = Number(boundsMatch[3]);
-    const bottom = Number(boundsMatch[4]);
-    candidates.push({
-      x: Math.round((left + right) / 2),
-      y: Math.round((top + bottom) / 2),
-      label: textValue || descValue || profile,
-    });
-  }
-
-  if (candidates.length === 0) {
+  const anchor = raw.toLowerCase().indexOf(`text="${wanted}"`);
+  if (anchor === -1) {
     throw new Error(`Profile chooser is visible but profile ${profile} was not present`);
   }
 
-  for (const candidate of candidates) {
-    try {
-      clickPoint(deviceId, operatorPackage, candidate.x, candidate.y);
-      sleep(deviceId, operatorPackage, 2500);
-      const after = snapshot(deviceId);
-      if (!lower(after).includes('choose your profile')) {
-        return true;
-      }
-    } catch {}
+  const before = raw.slice(0, anchor);
+  const cardStart = before.lastIndexOf('resource-id="promo_profile_gate_profile"');
+  if (cardStart === -1) {
+    throw new Error(`Profile chooser is visible but profile ${profile} card could not be resolved`);
+  }
+
+  const chunk = raw.slice(cardStart, anchor + 800);
+  const boundsMatch = chunk.match(/bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"/);
+  if (!boundsMatch) {
+    throw new Error(`Profile chooser is visible but profile ${profile} bounds could not be resolved`);
+  }
+
+  const left = Number(boundsMatch[1]);
+  const top = Number(boundsMatch[2]);
+  const right = Number(boundsMatch[3]);
+  const bottom = Number(boundsMatch[4]);
+  const x = Math.round((left + right) / 2);
+  const y = Math.round((top + bottom) / 2);
+
+  clickPoint(deviceId, operatorPackage, x, y);
+  sleep(deviceId, operatorPackage, 2500);
+  const after = snapshot(deviceId);
+  if (!lower(after).includes('choose your profile')) {
+    return true;
   }
 
   throw new Error(`Profile chooser is visible but profile ${profile} could not be selected`);
