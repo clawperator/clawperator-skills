@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
@@ -51,10 +49,23 @@ test("extractSearchResults parses the first Play Store app rows in order", () =>
 test("isSearchResultsSurface detects a readable Play results snapshot", () => {
   const snapshotText = [
     '<node content-desc="Search Google Play" />',
+    '<node content-desc="HBO Max: Watch Movies &amp; TV\nWarnerMedia Global Digital Services, LLC\nContains ads\n" />',
     '<node text="Downloaded 100 million plus times" />',
   ].join("\n");
 
   assert.equal(isSearchResultsSurface(snapshotText), true);
+});
+
+test("isSearchResultsSurface rejects Play app details snapshots", () => {
+  const snapshotText = [
+    '<node content-desc="Search Google Play" />',
+    '<node text="HBO Max: Watch Movies & TV" />',
+    '<node text="Install" />',
+    '<node text="Ask Play about this app" />',
+    '<node text="Downloaded 100 million plus times" />',
+  ].join("\n");
+
+  assert.equal(isSearchResultsSurface(snapshotText), false);
 });
 
 test("mergeSearchResults preserves first-seen UI order across scrolled snapshots", () => {

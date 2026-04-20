@@ -229,6 +229,15 @@ if (!isSearchResultsSurface(snapText)) {
     emitFailureAndExit(`Play Store follow-up snapshot failed after Enter fallback: ${retry.error}`, checkpoints);
   }
   snapText = retry.text;
+
+  if (snapText.includes('Sign in') || snapText.includes('Choose an account')) {
+    checkpoints.push({
+      id: 'results_collected',
+      status: 'failed',
+      note: 'Enter-key fallback reached a login or account-picker requirement instead of search results.'
+    });
+    emitFailureAndExit('Login required. Please sign in to Google Play on the device.', checkpoints);
+  }
 }
 
 if (!isSearchResultsSurface(snapText)) {

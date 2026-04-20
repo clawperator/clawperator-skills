@@ -289,7 +289,14 @@ function trySubmitSearchQuery(currentText) {
     }
 
     logSkillProgress(skillId, 'Play is still on suggestions. Sending Enter to force query submission...');
-    pressEnterKey();
+    try {
+      pressEnterKey();
+    } catch (error) {
+      return {
+        ok: false,
+        error: `Submitting the query with Enter failed: ${error && error.message ? error.message : String(error)}`,
+      };
+    }
     const retry = captureDirectSnapshot(5000);
     if (!retry.ok) {
       return { ok: false, error: `Follow-up snapshot after query submit failed: ${retry.error}` };

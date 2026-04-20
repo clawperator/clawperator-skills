@@ -27,14 +27,34 @@ function decodeXmlEntities(value) {
     .replace(/&amp;/g, "&");
 }
 
+function hasSearchBar(snapshotText) {
+  return snapshotText.includes('text="Search"')
+    || snapshotText.includes('content-desc="Search Google Play"');
+}
+
+function hasSearchResultRows(snapshotText) {
+  return /<node\b[^>]*content-desc="[^"]*\n[^"]*"[^>]*\/>/.test(snapshotText);
+}
+
+function isDetailsSurface(snapshotText) {
+  return snapshotText.includes('Ask Play about this app')
+    || snapshotText.includes('text="Install"')
+    || snapshotText.includes('text="Update"')
+    || snapshotText.includes('text="Uninstall"')
+    || snapshotText.includes('text="Open"');
+}
+
 function isSearchResultsSurface(snapshotText) {
   if (!snapshotText) {
     return false;
   }
 
-  return snapshotText.includes('text="Search"')
-    || snapshotText.includes('content-desc="Search Google Play"')
-    || snapshotText.includes('Downloaded ');
+  if (isDetailsSurface(snapshotText)) {
+    return false;
+  }
+
+  return hasSearchBar(snapshotText)
+    && (hasSearchResultRows(snapshotText) || snapshotText.includes('Downloaded '));
 }
 
 function extractSearchResults(snapshotText) {
@@ -83,7 +103,9 @@ function extractSearchResults(snapshotText) {
 
     seenTitles.add(dedupeKey);
     const previousBoundary = candidateIndex > 0 ? candidates[candidateIndex - 1].index : 0;
-    const nextBoundary = candidateIndex + 1 < candidates.length ? candidates[candidateIndex + 1].index : candidate.index + 1200;
+    const nextBoundary = candidateIndex + 1 < candidates.length
+      ? candidates[candidateIndex + 1].index
+      : snapshotText.length;
     const beforeWindow = snapshotText.slice(previousBoundary, candidate.index);
     const afterWindow = snapshotText.slice(candidate.index, nextBoundary);
     results.push({
