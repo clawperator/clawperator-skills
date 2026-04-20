@@ -210,6 +210,24 @@ Negative example:
 - Better: import the shared helper and keep local glue code focused on the
   skill's app-specific behavior.
 
+### Public example namespace drift
+
+Rules:
+
+- Public `SKILL.md` invocation examples should prefer the default release
+  operator-package path.
+- Do not add `com.clawperator.operator.dev` or other debug or dev package names
+  to normal user-facing examples unless the document is explicitly debug-only.
+- If an override must be mentioned for completeness, describe it generically as
+  `[operator_package]` or `<operator_package>` instead of naming a dev package.
+
+Negative example:
+
+- Bad: add `com.clawperator.operator.dev` to a normal `SKILL.md` wrapper or env
+  example for routine usage.
+- Better: keep the public example on the default path, and if needed document
+  the override shape with a placeholder only.
+
 ### Diagnostics Truthfulness
 
 Rules:

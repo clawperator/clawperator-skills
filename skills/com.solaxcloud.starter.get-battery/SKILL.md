@@ -10,8 +10,7 @@ Arguments:
 
 - required positional arg: `<device_id>`
 - optional positional arg: `[operator_package]`
-- direct script invocation also accepts `DEVICE_ID=<device_id>` from the environment, but the wrapper examples below pass the device id explicitly and that is the preferred usage when multiple Android targets may be connected
-- if `DEVICE_ID` is provided via the environment and you also need to override the operator package, use `CLAWPERATOR_OPERATOR_PACKAGE=<operator_package>` rather than passing the operator package as the first positional argument
+- the public examples below pass the device id explicitly and stay on the default release operator package path
 
 Run through the wrapper:
 
@@ -20,24 +19,10 @@ cd "$(git rev-parse --show-toplevel)"
 ./skills/com.solaxcloud.starter.get-battery/scripts/get_solax_battery.sh <device_id>
 ```
 
-Optional operator package override:
-
-```bash
-cd "$(git rev-parse --show-toplevel)"
-./skills/com.solaxcloud.starter.get-battery/scripts/get_solax_battery.sh <device_id> com.clawperator.operator.dev
-```
-
 Direct local invocation:
 
 ```bash
 node skills/com.solaxcloud.starter.get-battery/scripts/get_solax_battery.js <device_id> [operator_package]
-```
-
-Direct local invocation with environment overrides:
-
-```bash
-DEVICE_ID=<device_id> CLAWPERATOR_OPERATOR_PACKAGE=com.clawperator.operator.dev \
-node skills/com.solaxcloud.starter.get-battery/scripts/get_solax_battery.js
 ```
 
 Expected output:
