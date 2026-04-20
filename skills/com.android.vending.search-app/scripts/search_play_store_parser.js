@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 
-const { findAttribute } = require("../../utils/common");
-
 const MAX_RESULTS = 5;
 
 function normalizeWhitespace(value) {
@@ -27,10 +25,6 @@ function decodeXmlEntities(value) {
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&amp;/g, "&");
-}
-
-function extractLineValue(line, attrName) {
-  return normalizeMultilineValue(decodeXmlEntities(findAttribute(line, attrName) || ""));
 }
 
 function isSearchResultsSurface(snapshotText) {
@@ -122,7 +116,13 @@ function mergeSearchResults(snapshotTexts) {
   for (const snapshotText of snapshotTexts) {
     const results = extractSearchResults(snapshotText);
     for (const result of results) {
-      const key = result.title.toLowerCase();
+      const title = typeof result.title === "string"
+        ? normalizeWhitespace(result.title)
+        : "";
+      if (!title) {
+        continue;
+      }
+      const key = title.toLowerCase();
       if (seenTitles.has(key)) {
         continue;
       }

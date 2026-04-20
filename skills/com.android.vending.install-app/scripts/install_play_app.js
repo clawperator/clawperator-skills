@@ -237,10 +237,11 @@ function captureDirectSnapshot(waitMs = 0) {
   try {
     const parsed = JSON.parse(outcome.result);
     const steps = (parsed && parsed.envelope && parsed.envelope.stepResults) || [];
-    const snapStep = steps.find((step) => step.id === 'snap');
+    const snapStep = steps.find((step) => step && step.actionType === 'snapshot_ui')
+      || steps.find((step) => step && step.data && typeof step.data.text === 'string');
     return {
       ok: true,
-      text: snapStep && snapStep.data ? snapStep.data.text || '' : '',
+      text: snapStep && snapStep.data && typeof snapStep.data.text === 'string' ? snapStep.data.text : '',
     };
   } catch (error) {
     return { ok: false, error: `Failed to parse direct snapshot output: ${error.message}` };

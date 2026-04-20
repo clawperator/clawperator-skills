@@ -51,8 +51,10 @@ On success, prints:
   clickable parent. This works correctly.
 - Search result matching prefers exact title match, then title prefix match, then
   title substring match.
-- For apps that take time to download, `wait_for_node` polling for `text="Open"` is more
-  robust than a fixed sleep. The default timeout in this skill is 120 seconds.
+- For apps that take time to download, the runtime verifies progress by repeatedly
+  running `clawperator snapshot` and evaluating the result with `parseInstallSignals`
+  until install-state signals such as `Open` appear, which is more robust than a
+  fixed sleep. The default timeout in this skill is 120 seconds.
 - Free apps with no in-app purchases install without prompts.
 - Apps with in-app purchases show a small "In-app purchases" label on the details page
   but this does not block the install.

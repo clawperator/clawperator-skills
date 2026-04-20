@@ -56,9 +56,10 @@ function buildSearchExecution() {
 }
 
 function buildScrollExecution() {
+  const executionId = `skill-play-search-scroll-${Date.now()}`;
   return {
-    commandId: `skill-play-search-scroll-${Date.now()}`,
-    taskId: `skill-play-search-scroll-${Date.now()}`,
+    commandId: executionId,
+    taskId: executionId,
     source: 'clawperator-skill',
     expectedFormat: 'android-ui-automator',
     timeoutMs: 30000,
