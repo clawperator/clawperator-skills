@@ -115,7 +115,10 @@ function maybeSelectProfile(deviceId, operatorPackage, profile) {
   }
 
   const before = raw.slice(0, anchor);
-  const cardStart = before.lastIndexOf('resource-id="promo_profile_gate_profile"');
+  let cardStart = before.lastIndexOf('resource-id="promo_profile_gate_profile"');
+  if (cardStart === -1) {
+    cardStart = before.lastIndexOf('resource-id=\"promo_profile_gate_profile\"');
+  }
   if (cardStart === -1) {
     throw new Error(`Profile chooser is visible but profile ${profile} card could not be resolved`);
   }
