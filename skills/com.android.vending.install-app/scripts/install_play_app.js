@@ -38,6 +38,8 @@ const {
   normalizeWhitespace,
 } = require('../../com.android.vending.search-app/scripts/search_play_store_parser');
 
+const SKILL_RESULT_FRAME_PREFIX = '[Clawperator-Skill-Result]';
+const SKILL_RESULT_CONTRACT_VERSION = '1.0.0';
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const rawQuery = process.argv[3] || process.env.QUERY || '';
 const query = rawQuery.trim();
@@ -52,6 +54,76 @@ const commandId = `skill-play-install-${Date.now()}`;
 const skillId = "com.android.vending.install-app";
 const MAX_SCROLLS = 3;
 const SCROLL_SETTLE_DELAY_MS = 1800;
+const checkpoints = [];
+
+function writeSkillResult(payload) {
+  console.log(SKILL_RESULT_FRAME_PREFIX);
+  console.log(JSON.stringify(payload));
+}
+
+function buildSkillResult({ status, terminalVerification, diagnostics = {}, result = null }) {
+  return {
+    contractVersion: SKILL_RESULT_CONTRACT_VERSION,
+    skillId,
+    goal: {
+      kind: 'install_app'
+    },
+    inputs: {
+      query,
+    },
+    status,
+    checkpoints,
+    terminalVerification,
+    diagnostics,
+    result,
+  };
+}
+
+function emitFailureAndExit(message, exitCode, diagnostics = {}, result = null) {
+  writeSkillResult(buildSkillResult({
+    status: 'failed',
+    terminalVerification: {
+      status: 'failed',
+      expected: {
+        kind: 'text',
+        text: 'Installed or already-installed Play Store app state'
+      },
+      observed: {
+        kind: 'text',
+        text: message
+      },
+      note: message
+    },
+    diagnostics,
+    result,
+  }));
+  console.error(message);
+  process.exit(exitCode);
+}
+
+function emitSuccessAndExit(summary, result) {
+  console.log(summary);
+  writeSkillResult(buildSkillResult({
+    status: 'success',
+    terminalVerification: {
+      status: 'verified',
+      expected: {
+        kind: 'text',
+        text: 'Play Store details page shows an installed state'
+      },
+      observed: {
+        kind: 'text',
+        text: summary
+      },
+      note: summary
+    },
+    diagnostics: {
+      path: 'search -> results -> details -> install'
+    },
+    result,
+  }));
+  process.exit(0);
+}
 
 function buildSearchExecution() {
   return {
@@ -261,31 +333,33 @@ logSkillProgress(skillId, `Searching Play Store for "${query}"...`);
 const { ok: searchOk, result: searchResult, error: searchError } = runClawperator(buildSearchExecution(), deviceId, operatorPkg);
 
 if (!searchOk) {
-  console.error(`Search execution failed: ${searchError}`);
-  process.exit(2);
+  checkpoints.push({ id: 'search_results_opened', status: 'failed', note: 'Play Store search execution failed.' });
+  emitFailureAndExit(`Search execution failed: ${searchError}`, 2, { path: 'search' });
 }
 
 let searchText = getSnapshotText(searchResult);
 if (!searchText) {
-  console.error('Search snapshot returned empty.');
-  process.exit(2);
+  checkpoints.push({ id: 'search_results_opened', status: 'failed', note: 'Search snapshot returned empty.' });
+  emitFailureAndExit('Search snapshot returned empty.', 2, { path: 'search' });
 }
+checkpoints.push({ id: 'search_results_opened', status: 'ok', note: 'Submitted the Play Store query and captured the initial search surface.' });
 
 if (!isSearchResultsSurface(searchText)) {
   logSkillProgress(skillId, 'Typed search remained on suggestions. Sending Enter key...');
   pressEnterKey();
   const retry = captureDirectSnapshot(5000);
   if (!retry.ok) {
-    console.error(`Follow-up snapshot after Enter fallback failed: ${retry.error}`);
-    process.exit(2);
+    checkpoints.push({ id: 'search_results_collected', status: 'failed', note: 'Enter fallback ran, but follow-up snapshot failed.' });
+    emitFailureAndExit(`Follow-up snapshot after Enter fallback failed: ${retry.error}`, 2, { path: 'search-enter-fallback' });
   }
   searchText = retry.text;
 }
 
 if (!isSearchResultsSurface(searchText)) {
-  console.error('BLOCKED: no-search-results - Search did not reach a readable Play results surface.');
-  process.exit(2);
+  checkpoints.push({ id: 'search_results_collected', status: 'failed', note: 'Play Store did not reach a readable search-results surface.' });
+  emitFailureAndExit('BLOCKED: no-search-results - Search did not reach a readable Play results surface.', 2, { path: 'search-results' });
 }
+checkpoints.push({ id: 'search_results_collected', status: 'ok', note: 'Reached a readable Play Store results surface.' });
 
 const searchSnapshots = [searchText];
 for (let scrollIndex = 0; scrollIndex < MAX_SCROLLS; scrollIndex += 1) {
@@ -312,15 +386,19 @@ for (let scrollIndex = 0; scrollIndex < MAX_SCROLLS; scrollIndex += 1) {
 const mergedResults = mergeSearchResults(searchSnapshots);
 const candidate = pickInstallCandidate(mergedResults, query);
 if (!candidate) {
-  console.error(`BLOCKED: app-not-found - No Play search result matched "${query}".`);
-  process.exit(2);
+  checkpoints.push({ id: 'target_result_selected', status: 'failed', note: 'No result matched the requested app query.' });
+  emitFailureAndExit(`BLOCKED: app-not-found - No Play search result matched "${query}".`, 2, {
+    path: 'result-selection',
+    availableResults: mergedResults.map((result) => result.title),
+  });
 }
+checkpoints.push({ id: 'target_result_selected', status: 'ok', note: `Selected "${candidate.title}" from Play Store search results.` });
 
 logSkillProgress(skillId, `Opening Play details for "${candidate.title}"...`);
 const { ok: openOk, result: openResult, error: openError } = runClawperator(buildOpenResultExecution(candidate.title), deviceId, operatorPkg);
 if (!openOk) {
-  console.error(`Failed to open Play result "${candidate.title}": ${openError}`);
-  process.exit(3);
+  checkpoints.push({ id: 'details_page_opened', status: 'failed', note: 'Failed to open the matched Play result.' });
+  emitFailureAndExit(`Failed to open Play result "${candidate.title}": ${openError}`, 3, { path: 'open-result' });
 }
 
 let prefText = getSnapshotText(openResult);
@@ -328,22 +406,23 @@ if (detectOpenWithChooser(prefText)) {
   logSkillProgress(skillId, 'Open-with chooser detected; selecting Google Play Store...');
   const { ok, error } = runClawperator(buildChooserExecution(), deviceId, operatorPkg);
   if (!ok) {
-    console.error(`Open-with chooser handling failed: ${error}`);
-    process.exit(3);
+    checkpoints.push({ id: 'details_page_opened', status: 'failed', note: 'Android chooser handling failed.' });
+    emitFailureAndExit(`Open-with chooser handling failed: ${error}`, 3, { path: 'chooser' });
   }
 
   const { ok: retryOk, result: retryResult, error: retryError } = runClawperator(buildPreflightExecution(), deviceId, operatorPkg);
   if (!retryOk) {
-    console.error(`Follow-up preflight after chooser handling failed: ${retryError}`);
-    process.exit(3);
+    checkpoints.push({ id: 'details_page_opened', status: 'failed', note: 'Preflight after chooser handling failed.' });
+    emitFailureAndExit(`Follow-up preflight after chooser handling failed: ${retryError}`, 3, { path: 'chooser-preflight' });
   }
   prefText = getSnapshotText(retryResult);
 }
 
 if (!detectPlayDetailsSurface(prefText)) {
-  console.error('BLOCKED: not-details-page - Search did not land on a Play app details page.');
-  process.exit(7);
+  checkpoints.push({ id: 'details_page_opened', status: 'failed', note: 'Search did not land on a Play details page.' });
+  emitFailureAndExit('BLOCKED: not-details-page - Search did not land on a Play app details page.', 7, { path: 'details-page' });
 }
+checkpoints.push({ id: 'details_page_opened', status: 'ok', note: `Opened the Play details page for "${candidate.title}".` });
 
 const {
   hasInstall,
@@ -357,8 +436,8 @@ const {
 
 // Handle blocking states
 if (hasSignIn) {
-  console.error('BLOCKED: Login required. Please sign in to Google Play on the device.');
-  process.exit(4);
+  checkpoints.push({ id: 'install_state_verified', status: 'failed', note: 'Play Store requires login before install can continue.' });
+  emitFailureAndExit('BLOCKED: Login required. Please sign in to Google Play on the device.', 4, { path: 'preflight' });
 }
 
 if (hasUpdate) {
@@ -367,8 +446,12 @@ if (hasUpdate) {
 }
 
 if (hasOpen && hasUninstall && !hasInstall) {
-  console.log('✅ Already installed. Nothing to do.');
-  process.exit(0);
+  checkpoints.push({ id: 'install_state_verified', status: 'ok', note: 'Play Store already showed a settled installed state.' });
+  emitSuccessAndExit('✅ Already installed. Nothing to do.', {
+    appTitle: candidate.title,
+    installState: 'already-installed',
+    selectedResult: candidate,
+  });
 }
 
 if (hasOpen && hasCancel) {
@@ -391,22 +474,27 @@ if (hasOpen && hasCancel) {
   };
   const { ok, result, error } = runClawperator(waitExec, deviceId, operatorPkg);
   if (!ok) {
-    console.error(`Wait for completion failed: ${error}`);
-    process.exit(5);
+    checkpoints.push({ id: 'install_state_verified', status: 'failed', note: 'Install was in progress but waiting for completion failed.' });
+    emitFailureAndExit(`Wait for completion failed: ${error}`, 5, { path: 'wait-for-open' });
   }
-  console.log('✅ Install completed (was already in progress).');
-  process.exit(0);
+  checkpoints.push({ id: 'install_state_verified', status: 'ok', note: 'Install completed from an already-in-progress state.' });
+  emitSuccessAndExit('✅ Install completed (was already in progress).', {
+    appTitle: candidate.title,
+    installState: 'installed',
+    selectedResult: candidate,
+  });
 }
 
 if (!hasInstall && !hasUpdate) {
   if (hasPriceText) {
-    console.error('BLOCKED: paid-app - This app requires purchase. Cannot install without payment.');
-    process.exit(6);
+    checkpoints.push({ id: 'install_started', status: 'failed', note: 'The matched app appears to be paid.' });
+    emitFailureAndExit('BLOCKED: paid-app - This app requires purchase. Cannot install without payment.', 6, { path: 'preflight' });
   }
 
-  console.error('BLOCKED: no-install-button - Install button not found. Device may not be on app details page.');
-  process.exit(7);
+  checkpoints.push({ id: 'install_started', status: 'failed', note: 'No install action was available on the details page.' });
+  emitFailureAndExit('BLOCKED: no-install-button - Install button not found. Device may not be on app details page.', 7, { path: 'preflight' });
 }
+checkpoints.push({ id: 'install_started', status: 'ok', note: hasUpdate ? 'Update action was available and install flow can proceed.' : 'Install action was available on the Play details page.' });
 
 // --- Execute install ---
 
@@ -416,8 +504,12 @@ logSkillProgress(skillId, "Waiting for Open button...");
 const { ok, result, error } = runClawperator(installExec, deviceId, operatorPkg);
 
 if (!ok) {
-  console.error(`Install execution failed: ${error}`);
-  process.exit(8);
+  checkpoints.push({ id: 'install_completed', status: 'failed', note: 'Install execution did not reach a verified terminal state.' });
+  emitFailureAndExit(`Install execution failed: ${error}`, 8, { path: 'install' }, {
+    appTitle: candidate.title,
+    installState: 'install-failed',
+    selectedResult: candidate,
+  });
 }
 
 const stepResults = (result && result.envelope && result.envelope.stepResults) || [];
@@ -436,11 +528,19 @@ if (snapText) {
 if (finalHasOpen) {
   logSkillProgress(skillId, "Verifying installation result...");
   const state = finalHasUninstall ? 'installed (settled)' : 'installed (transition)';
-  if (!finalHasUninstall) {
-    console.log('Uninstall button not yet visible - this is normal immediately after install.');
-  }
-  console.log(`✅ App installed. State: ${state}`);
+  checkpoints.push({ id: 'install_completed', status: 'ok', note: `Play Store reached ${state}.` });
+  emitSuccessAndExit(`✅ App installed. State: ${state}`, {
+    appTitle: candidate.title,
+    installState: finalHasUninstall ? 'installed' : 'installed-transition',
+    selectedResult: candidate,
+  });
 } else {
-  console.error('WARNING: Install may have failed. "Open" button not found in final snapshot.');
-  process.exit(9);
+  checkpoints.push({ id: 'install_completed', status: 'failed', note: 'Final snapshot did not contain an Open button.' });
+  emitFailureAndExit('WARNING: Install may have failed. "Open" button not found in final snapshot.', 9, {
+    path: 'install-verification',
+  }, {
+    appTitle: candidate.title,
+    installState: 'unverified',
+    selectedResult: candidate,
+  });
 }

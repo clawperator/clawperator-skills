@@ -309,7 +309,7 @@ for (const [index, resultRow] of results.entries()) {
 }
 
 writeSkillResult(buildSkillResult({
-  status: 'verified',
+  status: 'success',
   checkpoints,
   terminalVerification: {
     status: 'verified',
@@ -319,7 +319,7 @@ writeSkillResult(buildSkillResult({
     },
     observed: {
       kind: 'json',
-      results
+      value: results
     },
     note: 'Structured app rows were extracted from the visible Play Store search-results surface.'
   },
