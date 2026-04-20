@@ -26,7 +26,12 @@
  *   - Uninstall (settled): textEquals "Uninstall"
  */
 
-const { runClawperator, findAttribute, resolveOperatorPackage, logSkillProgress } = require('../../utils/common');
+const { runClawperator, resolveOperatorPackage, logSkillProgress } = require('../../utils/common');
+const {
+  detectOpenWithChooser,
+  detectPlayDetailsSurface,
+  parseInstallSignals,
+} = require('./install_play_app_parser');
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const operatorPkg = resolveOperatorPackage(process.argv[3]);
@@ -53,6 +58,29 @@ function buildPreflightExecution() {
     timeoutMs: 20000,
     actions: [
       { id: 'snap', type: 'snapshot_ui' }
+    ]
+  };
+}
+
+function buildChooserExecution() {
+  return {
+    commandId: `${commandId}-chooser`,
+    taskId: commandId,
+    source: 'clawperator-skill',
+    expectedFormat: 'android-ui-automator',
+    timeoutMs: 20000,
+    actions: [
+      {
+        id: 'pick-play-store',
+        type: 'click',
+        params: { matcher: { textEquals: 'Google Play Store' } }
+      },
+      { id: 'wait-choice', type: 'sleep', params: { durationMs: 500 } },
+      {
+        id: 'pick-just-once',
+        type: 'click',
+        params: { matcher: { textEquals: 'Just once' } }
+      }
     ]
   };
 }
@@ -108,32 +136,45 @@ if (!prefOk) {
 
 const prefSteps = (prefResult && prefResult.envelope && prefResult.envelope.stepResults) || [];
 const prefSnap = prefSteps.find(s => s.id === 'snap');
-const prefText = prefSnap && prefSnap.data ? prefSnap.data.text : '';
+let prefText = prefSnap && prefSnap.data ? prefSnap.data.text : '';
 
 if (!prefText) {
   console.error('Preflight snapshot returned empty. Is the device on the app details page?');
   process.exit(3);
 }
 
-// Parse preflight state
-const lines = prefText.split('\n');
-let hasInstall = false;
-let hasOpen = false;
-let hasUninstall = false;
-let hasUpdate = false;
-let hasCancel = false;
-let hasSignIn = false;
+if (detectOpenWithChooser(prefText)) {
+  logSkillProgress(skillId, 'Open-with chooser detected; selecting Google Play Store...');
+  const { ok, error } = runClawperator(buildChooserExecution(), deviceId, operatorPkg);
+  if (!ok) {
+    console.error(`Open-with chooser handling failed: ${error}`);
+    process.exit(3);
+  }
 
-lines.forEach(line => {
-  const t = findAttribute(line, 'text') || '';
-  const c = findAttribute(line, 'content-desc') || '';
-  if (c === 'Install' || t === 'Install') hasInstall = true;
-  if (c === 'Open' || t === 'Open') hasOpen = true;
-  if (c === 'Uninstall' || t === 'Uninstall') hasUninstall = true;
-  if (c === 'Update' || t === 'Update') hasUpdate = true;
-  if (c === 'Cancel' || t === 'Cancel') hasCancel = true;
-  if (t.includes('Sign in') || c.includes('Sign in')) hasSignIn = true;
-});
+  const { ok: retryOk, result: retryResult, error: retryError } = runClawperator(buildPreflightExecution(), deviceId, operatorPkg);
+  if (!retryOk) {
+    console.error(`Follow-up preflight after chooser handling failed: ${retryError}`);
+    process.exit(3);
+  }
+  const retrySteps = (retryResult && retryResult.envelope && retryResult.envelope.stepResults) || [];
+  const retrySnap = retrySteps.find((step) => step.id === 'snap');
+  prefText = retrySnap && retrySnap.data ? retrySnap.data.text : '';
+}
+
+if (!detectPlayDetailsSurface(prefText)) {
+  console.error('BLOCKED: not-details-page - Current Play surface is not an app details page.');
+  process.exit(7);
+}
+
+const {
+  hasInstall,
+  hasOpen,
+  hasUninstall,
+  hasUpdate,
+  hasCancel,
+  hasSignIn,
+  hasPriceText,
+} = parseInstallSignals(prefText);
 
 // Handle blocking states
 if (hasSignIn) {
@@ -179,11 +220,6 @@ if (hasOpen && hasCancel) {
 }
 
 if (!hasInstall && !hasUpdate) {
-  // Check for paywall: price text like "$4.99"
-  const hasPriceText = lines.some(line => {
-    const t = findAttribute(line, 'text') || '';
-    return /\$[0-9]+\.[0-9]{2}/.test(t);
-  });
   if (hasPriceText) {
     console.error('BLOCKED: paid-app - This app requires purchase. Cannot install without payment.');
     process.exit(6);
