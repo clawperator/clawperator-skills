@@ -102,7 +102,14 @@ function maybeSelectProfile(deviceId, operatorPackage, profile) {
   if (!lower(snap).includes('choose your profile')) return false;
   const raw = String(snap);
   const wanted = lower(profile);
-  const anchor = raw.toLowerCase().indexOf(`text="${wanted}"`);
+  const lowered = raw.toLowerCase();
+  let anchor = lowered.indexOf(`text=\"${wanted}\"`);
+  if (anchor === -1) {
+    anchor = lowered.indexOf(`content-desc=\"1 of 6 items. ${wanted}.\"`);
+  }
+  if (anchor === -1) {
+    anchor = lowered.indexOf(wanted);
+  }
   if (anchor === -1) {
     throw new Error(`Profile chooser is visible but profile ${profile} was not present`);
   }
