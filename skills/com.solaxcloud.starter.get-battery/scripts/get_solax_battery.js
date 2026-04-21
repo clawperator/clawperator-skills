@@ -101,7 +101,7 @@ if (!ok) {
       note: "Clawperator execution failed before the battery level could be read.",
     },
     diagnostics: {
-      raw,
+      error,
     },
   }));
   process.exit(2);
@@ -162,6 +162,10 @@ if (val) {
     },
     diagnostics: {
       raw,
+      batteryLevelText: val,
+      batteryUnitText: unit,
+      readBatteryValueStepId: valStep ? valStep.id : null,
+      readBatteryUnitStepId: unitStep ? unitStep.id : null,
     },
   }));
   process.exit(2);

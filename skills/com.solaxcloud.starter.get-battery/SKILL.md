@@ -30,7 +30,7 @@ Expected output:
 - `✅ SolaX battery level: <value>%`
 - a terminal `[Clawperator-Skill-Result]` frame with the parsed battery level in `result`
 
-If parse fails, the skill emits a failed terminal `SkillResult` and reports the latest `read-battery-value` and `read-battery-unit` values in diagnostics.
+If parse fails, the skill emits a failed terminal `SkillResult` and includes the latest `read-battery-value` and `read-battery-unit` values in diagnostics.
 
 Prerequisite:
 - Ensure `adb` is installed and available on `PATH`.
