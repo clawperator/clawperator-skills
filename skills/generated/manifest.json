@@ -1,22 +1,22 @@
 {
   "schemaVersion": "1.0",
-  "generatedAt": "2026-04-18T09:41:01Z",
-  "totalSkills": 19,
+  "generatedAt": "2026-04-21T02:42:43Z",
+  "totalSkills": 20,
   "artifacts": {
     "registry": {
       "file": "skills/skills-registry.json",
-      "sha256": "cebed81258cbed48921764616966277a47c882a0a77498dc540d40f5dc45c2f5",
-      "count": 19
+      "sha256": "7d0381b403efbb3f23ba1012b8bb1a7b2335caa6c6c93c3120d7c15e8a82de69",
+      "count": 20
     },
     "minIndex": {
       "file": "skills/generated/skills-index.min.json",
-      "sha256": "44cb5caa9e6706bbfe549bdb048f4f4ddfdd514dfc436b966be93bfa9008bf3e",
-      "count": 19
+      "sha256": "ae2a4bff6ce89f4e71f13516c5bb0759df6d2403fea2b91aea75e92d1a7fde9f",
+      "count": 20
     },
     "jsonlIndex": {
       "file": "skills/generated/skills-index.jsonl",
-      "sha256": "35e1ce0a4272baf8c610799592081b59a00e249b4139f022ca0e60820368611d",
-      "count": 19
+      "sha256": "e19b8a18205585234f7171dbdb78760041cd396d3a58c8ae8c631c470c0f553d",
+      "count": 20
     }
   },
   "shards": {
@@ -24,73 +24,79 @@
       {
         "applicationId": "au.com.polyaire.airtouch5",
         "file": "skills/generated/by-app/au.com.polyaire.airtouch5.json",
-        "sha256": "1c380d6dc09db30cf553a4fc7882614c305686f1e6f9ab060253feaaf9db6d06",
+        "sha256": "c5aea17bae519d5e989ce28be112006b5eaaa613a42843030756f1ac6b83a1ae",
         "count": 1
       },
       {
         "applicationId": "com.amazon.mShop.android.shopping",
         "file": "skills/generated/by-app/com.amazon.mShop.android.shopping.json",
-        "sha256": "af964c4516695e7232c023376dc0ea959d491dd89f6ea4577be59611415b2f63",
+        "sha256": "f2768caa2b558322e2cf01747aae43e0661ad730959549078a3b6e239b0c4c21",
         "count": 1
       },
       {
         "applicationId": "com.android.settings",
         "file": "skills/generated/by-app/com.android.settings.json",
-        "sha256": "9bd5b5eff4c374ebec2783fc8784b9674a6b8ad9c2cf983e902f3b50045ac5a7",
+        "sha256": "4e3f377904895dbd6be34eea6d85070e2ac434786977a0385654113c1bf7e9a2",
         "count": 1
       },
       {
         "applicationId": "com.android.vending",
         "file": "skills/generated/by-app/com.android.vending.json",
-        "sha256": "7c8923b50fc5796f2adfbcf88506a9f72edaa3e28cb468411be8105921790c0d",
+        "sha256": "737a29841b744749eeac4a2de43d2658b65f036cdc7d38ab6a92a6815c731103",
         "count": 2
       },
       {
         "applicationId": "com.coles.android.shopmate",
         "file": "skills/generated/by-app/com.coles.android.shopmate.json",
-        "sha256": "112b8847212286cb8951c86c9d8b37191db53ce552d5cec48943ae9e6dde1ac6",
+        "sha256": "2717c2adff9c2a43cc35ec236cd9ce56dc78743e46a94d30c59490d39985c833",
         "count": 1
       },
       {
         "applicationId": "com.globird.energy",
         "file": "skills/generated/by-app/com.globird.energy.json",
-        "sha256": "ab60cc87b6f05ac591dd603fc95b49e331a7573195f14142660a0e6ece70fd59",
+        "sha256": "ecb5c7ee151d864ec61c7fb3c7c4c6ed748a63e3d635daf69453dbf84bf25355",
         "count": 2
       },
       {
         "applicationId": "com.google.android.apps.chromecast.app",
         "file": "skills/generated/by-app/com.google.android.apps.chromecast.app.json",
-        "sha256": "3d83de105fc86df77d0bcebe36dd31c9cf8a167f1ca482c33c8dac78cc544ee8",
+        "sha256": "b76ec37ef142e7a33844b98aca7be2a90ecd5924c15a2be20d40e3c539ec4585",
         "count": 4
       },
       {
         "applicationId": "com.life360.android.safetymapd",
         "file": "skills/generated/by-app/com.life360.android.safetymapd.json",
-        "sha256": "614cf0d5cd83e58c2e8479dad3ff954353a50cf2812c6b4238ffb7b701d17832",
+        "sha256": "794fc9efe234b74b45e8f54521f9576331e92ff0b4640b35a196d0bd59fd2f05",
+        "count": 1
+      },
+      {
+        "applicationId": "com.netflix.mediaclient",
+        "file": "skills/generated/by-app/com.netflix.mediaclient.json",
+        "sha256": "ae74032a564f224fafc97e2a7966fe9da9133da28d9ef5d0775524ce71f58261",
         "count": 1
       },
       {
         "applicationId": "com.solaxcloud.starter",
         "file": "skills/generated/by-app/com.solaxcloud.starter.json",
-        "sha256": "920e5a5d2b67672dff29bf3f53923e450d9705476f48fae5382601ba561efe25",
+        "sha256": "fc4ec6f70fb2a22183ec541df5bb2eb668a3c9678dd6e02be9602ac0c2674ff0",
         "count": 3
       },
       {
         "applicationId": "com.theswitchbot.switchbot",
         "file": "skills/generated/by-app/com.theswitchbot.switchbot.json",
-        "sha256": "07f2df522cc3003fdc2a513f76a73104626b13fef0b795979968229fd46c6c06",
+        "sha256": "51b6bab793c1993cfaf41a54a30968ebc564c94b14db00a93eef59a5d26b4052",
         "count": 1
       },
       {
         "applicationId": "com.woolworths",
         "file": "skills/generated/by-app/com.woolworths.json",
-        "sha256": "4a9a2682e47684f157fb958cb5b85168d0e88505d677fa0d99614848b81c717f",
+        "sha256": "345f6eecda7eaa8429e0489cf27e3f54851b40a06ecf9970d8127c0010e3d504",
         "count": 1
       },
       {
         "applicationId": "utils",
         "file": "skills/generated/by-app/utils.json",
-        "sha256": "ffbb0221e5e2489871a7a2e1c2fe19e9a8b9d16bf129b7c0edb9f52d5304e99c",
+        "sha256": "e6a254f1f9b43081b3c2246758ed8be4d1b74f7f917b6adae2066bab542065c6",
         "count": 1
       }
     ],
@@ -98,109 +104,115 @@
       {
         "prefix": "1d",
         "file": "skills/generated/by-prefix/1d.json",
-        "sha256": "e5fdfb6618213f5153e7a5ff44279dd8ddadcb2f41e849931ba67905e121d37f",
+        "sha256": "41f8fac9b4ba25cb822ca7651f3d109a9117e2fdcf491d090a8764941ffa5032",
         "count": 1
       },
       {
         "prefix": "21",
         "file": "skills/generated/by-prefix/21.json",
-        "sha256": "8f6d6cea4ae13adc88afbce341c11a75cccab707499825938162a75189b19d08",
+        "sha256": "3ffa1d59dae969c0833231594d950ddc7481f59bed3aeda4885875b7f84062d8",
         "count": 1
       },
       {
         "prefix": "2f",
         "file": "skills/generated/by-prefix/2f.json",
-        "sha256": "cb592d63bacd83c771bbee96b745e555b0eb2a25a2b8c4d5e97cec913a72e8a8",
+        "sha256": "ff776151ec4ef82a76b3e611517f5b4ab8df2b2afd568ee4838233579275015f",
         "count": 1
       },
       {
         "prefix": "33",
         "file": "skills/generated/by-prefix/33.json",
-        "sha256": "96e2c0b716ab3941d5f17fafa17f9913b5c7cd49051bc3e62056e4fa53cbc117",
+        "sha256": "bf9fd4ebe134ad63c3cdf0a4dccd9c391dbaf1d9b87e583b2676a9a2681f949d",
         "count": 2
       },
       {
         "prefix": "39",
         "file": "skills/generated/by-prefix/39.json",
-        "sha256": "8727ff7a674d72bb82b8810bda3e9d2ec5799ca0f63976b35794563c3a701780",
+        "sha256": "3d7f4a09c9f0aac1d327fdd8709237aedf41ee81fe2c82dad14b1f78fd799ecf",
         "count": 1
       },
       {
         "prefix": "44",
         "file": "skills/generated/by-prefix/44.json",
-        "sha256": "87eaf970633964a85c1d62d73799b6d0c0c4e6a5870f31b90502ee13396f9983",
+        "sha256": "b3acd9114ffc3a41581c8c1ce0bbddb948abf82e232890498825bbec6e75e352",
         "count": 1
       },
       {
         "prefix": "6b",
         "file": "skills/generated/by-prefix/6b.json",
-        "sha256": "de285afdaad24e88c217d18a11af10f62f587d06594b1ed4ac2f99b498511ad4",
+        "sha256": "e0ae09198d8c17d5f303ac4d1594f182a97714aa56e30f9adc7dcbef0cba1d9a",
         "count": 1
       },
       {
         "prefix": "75",
         "file": "skills/generated/by-prefix/75.json",
-        "sha256": "c3f05353d7dabf14e32f98c8db9565fdaa7d456db863422c12aa8ad11e1164a3",
+        "sha256": "c19d1453e827e76d6e6b49cd24b6fac7038cb352cb3b40b320262b7cc456b3df",
         "count": 1
       },
       {
         "prefix": "83",
         "file": "skills/generated/by-prefix/83.json",
-        "sha256": "7d91e9197cef14a9792515a8ccf86a3c93bcd12a69cf82a913f63c5efbe14096",
+        "sha256": "78c3a2a9d4613d8869f7ecc7a7124ec0f6696c5b179cedcf5f4665603af6eb09",
         "count": 1
       },
       {
         "prefix": "8d",
         "file": "skills/generated/by-prefix/8d.json",
-        "sha256": "47c3dfa8ceab1a443c48f18cea8054133f4f760af4af63c71ebdee1084cef4a3",
+        "sha256": "a421b0c2d36a21594f02d9bfca504b357ce4fff9d4ac4ecc507856b0573d7834",
         "count": 1
       },
       {
         "prefix": "8e",
         "file": "skills/generated/by-prefix/8e.json",
-        "sha256": "caac040f40e5000e44fd5df5f4a2f07501f138ad064243b06c4750e80d439279",
+        "sha256": "53baf3c49fc21905a6a68219a43eb452c53a14ea46edd90bda3ec178d103aa6a",
         "count": 1
       },
       {
         "prefix": "a2",
         "file": "skills/generated/by-prefix/a2.json",
-        "sha256": "65584718a253a7bee7684152d656f3a82c61b94ec101826614f534d70af5e758",
+        "sha256": "dc33973e3bc4ad02a29190f0929bd1bda0fd88b233b82ec0307fb07730906c05",
         "count": 1
       },
       {
         "prefix": "a6",
         "file": "skills/generated/by-prefix/a6.json",
-        "sha256": "98a338912d45dc602899e23ae169df3d3bd509ef8e387669c5ad3583f63779f1",
+        "sha256": "3909b0ed58843662cda50f85fe8396b22c0990b6f39d115a09c2291fab7a9945",
         "count": 1
       },
       {
         "prefix": "b8",
         "file": "skills/generated/by-prefix/b8.json",
-        "sha256": "8d9f5e348159a441f00fd8d1e9b0d962be0e2714968c809209c0f14212c96c20",
+        "sha256": "6881adb56897c22ee4ffdd443fa272fd80f9175fb655775d88b43efbaefec411",
         "count": 1
       },
       {
         "prefix": "ba",
         "file": "skills/generated/by-prefix/ba.json",
-        "sha256": "db699e69e09b885786e47edaf5ae4ba7cd92530acd4071e2d105a3f6e1795212",
+        "sha256": "853c64be65d1856633dc8ee8204d65563b651006a290befc7c3793f751973e66",
         "count": 1
       },
       {
         "prefix": "be",
         "file": "skills/generated/by-prefix/be.json",
-        "sha256": "dd2c87202b36dc2e8d787b051d59540347a810feac3d4327285f01d9091f8434",
+        "sha256": "99509282f74cfbc2f5756a86546c84072d8a91804f78a238b1adaf2b52b0d9c8",
+        "count": 1
+      },
+      {
+        "prefix": "c4",
+        "file": "skills/generated/by-prefix/c4.json",
+        "sha256": "5bd2ea7327f12f2ede3e3416f7c6dce8761a6e221249f7b5778447490d309bb0",
         "count": 1
       },
       {
         "prefix": "d2",
         "file": "skills/generated/by-prefix/d2.json",
-        "sha256": "421278f0c0ef2f58fb3cd85d8e75b8bdc4c3aa659a930688a5d08c4bfc84116a",
+        "sha256": "9672cf20a9a0ad9f3ad837a4c2fe84189a1eeb16edd540df46b0707eca5bbe09",
         "count": 1
       },
       {
         "prefix": "f8",
         "file": "skills/generated/by-prefix/f8.json",
-        "sha256": "1386c121fd8371a0e16ffa4e37b8433e58211af29b875a52d78c82a165915f51",
+        "sha256": "4e5ed75dabeacafa5eb98b0e26fdbc5bba9b538bc73cee525af6a1cfb0974668",
         "count": 1
       }
     ]

@@ -1,0 +1,13 @@
+{
+  "id": "com.netflix.mediaclient.set-my-list-state-replay",
+  "applicationId": "com.netflix.mediaclient",
+  "intent": "set-my-list-state-replay",
+  "summary": "Set the Netflix My List state for a requested title under a requested profile using live UI navigation.",
+  "path": "skills/com.netflix.mediaclient.set-my-list-state-replay",
+  "skillFile": "skills/com.netflix.mediaclient.set-my-list-state-replay/SKILL.md",
+  "scripts": [
+    "skills/com.netflix.mediaclient.set-my-list-state-replay/scripts/run.js",
+    "skills/com.netflix.mediaclient.set-my-list-state-replay/scripts/run.sh"
+  ],
+  "artifacts": []
+}
