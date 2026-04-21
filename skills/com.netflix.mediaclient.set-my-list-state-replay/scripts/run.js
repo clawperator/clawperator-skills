@@ -74,10 +74,28 @@ function runClawperator(args, timeout = 120000) {
   return run(CLAWPERATOR_COMMAND.cmd, [...CLAWPERATOR_COMMAND.args, ...args], timeout);
 }
 
+function getStepResults(parsed) {
+  if (Array.isArray(parsed?.envelope?.stepResults)) {
+    return parsed.envelope.stepResults;
+  }
+  if (Array.isArray(parsed?.envelope?.envelope?.stepResults)) {
+    return parsed.envelope.envelope.stepResults;
+  }
+  return [];
+}
+
 function extractSnapshotText(snapshotOutput) {
   try {
     const parsed = JSON.parse(snapshotOutput);
-    return parsed?.envelope?.stepResults?.[0]?.data?.text || snapshotOutput;
+    const snapshotStep = getStepResults(parsed).find((step) => step?.actionType === "snapshot_ui" && typeof step?.data?.text === "string");
+    if (snapshotStep?.data?.text) {
+      return snapshotStep.data.text;
+    }
+    const firstTextStep = getStepResults(parsed).find((step) => typeof step?.data?.text === "string");
+    if (firstTextStep?.data?.text) {
+      return firstTextStep.data.text;
+    }
+    return snapshotOutput;
   } catch {
     return snapshotOutput;
   }
@@ -113,8 +131,13 @@ function sleep(deviceId, operatorPackage, durationMs) {
   );
 }
 
-function snapshot(deviceId) {
-  return runClawperator(["snapshot", "--device", deviceId, "--output", "json"]);
+function snapshot(deviceId, operatorPackage) {
+  return runClawperator([
+    "snapshot",
+    "--device", deviceId,
+    "--operator-package", operatorPackage,
+    "--json",
+  ]);
 }
 
 function clickId(deviceId, operatorPackage, resourceId, timeoutMs = 15000) {
@@ -146,6 +169,11 @@ function typeText(deviceId, operatorPackage, text, timeoutMs = 25000) {
     ],
     timeoutMs,
   );
+}
+
+function isSearchSurface(snapshotText) {
+  const normalized = lower(snapshotText);
+  return normalized.includes(NETFLIX_SEARCH_FIELD_ID);
 }
 
 function parseBoundsFromLine(line) {
@@ -203,7 +231,7 @@ function containsTitle(snapshotText, title) {
 }
 
 function maybeSelectProfile(deviceId, operatorPackage, profile) {
-  const snap = snapshot(deviceId);
+  const snap = snapshot(deviceId, operatorPackage);
   const snapText = extractSnapshotText(snap);
   if (!lower(snapText).includes("choose your profile") && !lower(snapText).includes("promo_profile_gate_profile")) {
     return false;
@@ -223,7 +251,7 @@ function maybeSelectProfile(deviceId, operatorPackage, profile) {
     ],
     30000,
   );
-  const after = snapshot(deviceId);
+  const after = snapshot(deviceId, operatorPackage);
   if (!lower(extractSnapshotText(after)).includes("choose your profile")) {
     return true;
   }
@@ -242,8 +270,8 @@ function openSearch(deviceId, operatorPackage) {
       ],
       25000,
     );
-    const snap = extractSnapshotText(snapshot(deviceId));
-    if (lower(snap).includes("searchondeppui") || lower(snap).includes(NETFLIX_SEARCH_FIELD_ID)) {
+    const snap = extractSnapshotText(snapshot(deviceId, operatorPackage));
+    if (isSearchSurface(snap)) {
       return;
     }
   } catch {}
@@ -257,13 +285,8 @@ function openSearch(deviceId, operatorPackage) {
       ],
       25000,
     );
-    const snap = extractSnapshotText(snapshot(deviceId));
-    if (
-      lower(snap).includes("searchondeppui") ||
-      lower(snap).includes(NETFLIX_SEARCH_FIELD_ID) ||
-      lower(snap).includes("recommended tv shows") ||
-      lower(snap).includes("house of cards")
-    ) {
+    const snap = extractSnapshotText(snapshot(deviceId, operatorPackage));
+    if (isSearchSurface(snap)) {
       return;
     }
   } catch {}
@@ -358,21 +381,12 @@ function parseArgs(argv) {
 
 (function main() {
   const { deviceId, operatorPackageArg, actionArg, titleArg, profileArg } = parseArgs(process.argv);
-  if (!deviceId) {
-    console.error("Usage: node run.js <device_id> [--action <add|remove>] [--title <title>] [--profile <name>] [--operator-package <pkg>]");
-    process.exit(1);
-  }
-
-  const operatorPackage = resolveOperatorPackage(operatorPackageArg);
   const inputs = getInputs();
-  const actionInput = lower(actionArg ?? requireInput(inputs, "action"));
-  if (actionInput !== "add" && actionInput !== "remove") {
-    throw new Error("Input 'action' must be 'add' or 'remove'");
-  }
-  const actionName = actionInput;
-  const desiredState = actionName === "remove" ? "off" : "on";
-  const title = typeof titleArg === "string" && titleArg.trim().length > 0 ? titleArg.trim() : requireInput(inputs, "title");
-  const profile = typeof profileArg === "string" && profileArg.trim().length > 0 ? profileArg.trim() : requireInput(inputs, "profile");
+  const operatorPackage = resolveOperatorPackage(operatorPackageArg);
+  let actionName;
+  let desiredState;
+  let title;
+  let profile;
   const checkpoints = [];
   const hints = [
     "This skill uses live Clawperator navigation from the current Netflix UI, not a human-operated recording handoff.",
@@ -381,6 +395,18 @@ function parseArgs(argv) {
   ];
 
   try {
+    if (!deviceId) {
+      throw new Error("Usage: node run.js <device_id> [--action <add|remove>] [--title <title>] [--profile <name>] [--operator-package <pkg>]");
+    }
+    const actionInput = lower(actionArg ?? requireInput(inputs, "action"));
+    if (actionInput !== "add" && actionInput !== "remove") {
+      throw new Error("Input 'action' must be 'add' or 'remove'");
+    }
+    actionName = actionInput;
+    desiredState = actionName === "remove" ? "off" : "on";
+    title = typeof titleArg === "string" && titleArg.trim().length > 0 ? titleArg.trim() : requireInput(inputs, "title");
+    profile = typeof profileArg === "string" && profileArg.trim().length > 0 ? profileArg.trim() : requireInput(inputs, "profile");
+
     logSkillProgress(SKILL_ID, "Opening Netflix...");
     action(
       deviceId,
@@ -414,7 +440,7 @@ function parseArgs(argv) {
 
     logSkillProgress(SKILL_ID, `Opening ${title} details...`);
     openTitle(deviceId, operatorPackage, title);
-    const titleSnapshot = snapshot(deviceId);
+    const titleSnapshot = snapshot(deviceId, operatorPackage);
     if (!containsTitle(titleSnapshot, title)) {
       throw new Error(`Expected title page for ${title} was not observed`);
     }
@@ -438,7 +464,7 @@ function parseArgs(argv) {
       logSkillProgress(SKILL_ID, `My List already ${desiredState}.`);
     }
 
-    const finalSnapshot = snapshot(deviceId);
+    const finalSnapshot = snapshot(deviceId, operatorPackage);
     const finalState = parseCheckedState(finalSnapshot);
     if (finalState !== desiredState) {
       throw new Error(`Final My List verification failed, expected ${desiredState} but observed ${finalState}`);
@@ -470,9 +496,9 @@ function parseArgs(argv) {
   } catch (error) {
     checkpoints.push({ id: "run-failed", status: "failed", note: error.message });
     emitResult({
-      actionName,
-      title,
-      profile,
+      actionName: actionName ?? (typeof actionArg === "string" ? lower(actionArg) : undefined),
+      title: title ?? (typeof titleArg === "string" && titleArg.trim().length > 0 ? titleArg.trim() : undefined),
+      profile: profile ?? (typeof profileArg === "string" && profileArg.trim().length > 0 ? profileArg.trim() : undefined),
       desiredState,
       status: "failed",
       checkpoints,
