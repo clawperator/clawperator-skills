@@ -28,8 +28,9 @@ node skills/com.solaxcloud.starter.get-battery/scripts/get_solax_battery.js <dev
 Expected output:
 
 - `✅ SolaX battery level: <value>%`
+- a terminal `[Clawperator-Skill-Result]` frame with the parsed battery level in `result`
 
-If parse fails, inspect recent `cmd-solax-battery-*` logs and report the latest `read-battery-value` and `read-battery-unit` values.
+If parse fails, the skill emits a failed terminal `SkillResult` and reports the latest `read-battery-value` and `read-battery-unit` values in diagnostics.
 
 Prerequisite:
 - Ensure `adb` is installed and available on `PATH`.
