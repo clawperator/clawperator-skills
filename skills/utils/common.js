@@ -198,7 +198,7 @@ function logSkillProgress(skillId, message) {
  * Run a Clawperator CLI command (screenshot, snapshot, click, etc.)
  * Returns { ok: boolean, result: Buffer | string, error: string }
  */
-function runClawperatorCommand(command, args, { encoding = null, throwOnNonZero = true } = {}) {
+function runClawperatorCommand(command, args, { encoding = null, throwOnNonZero = true, timeoutMs = null } = {}) {
   const resolved = resolveClawperatorBin();
   const cmd = resolved.cmd;
   const cmdArgs = [...resolved.args, command, ...args];
@@ -206,7 +206,8 @@ function runClawperatorCommand(command, args, { encoding = null, throwOnNonZero 
   try {
     const output = execFileSync(cmd, cmdArgs, {
       encoding: encoding || 'buffer',
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      ...(timeoutMs ? { timeout: timeoutMs } : {}),
     });
     return { ok: true, result: output };
   } catch (e) {
