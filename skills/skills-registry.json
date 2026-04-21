@@ -1,7 +1,7 @@
 {
   "$schema": "./skills-registry.schema.json",
   "schemaVersion": "1.0",
-  "generatedAt": "2026-04-18T09:41:01Z",
+  "generatedAt": "2026-04-21T02:42:43Z",
   "skills": [
     {
       "id": "au.com.polyaire.airtouch5.set-zone-state",
@@ -271,6 +271,19 @@
       "skillFile": "skills/com.life360.android.safetymapd.get-location/SKILL.md",
       "scripts": [
         "skills/com.life360.android.safetymapd.get-location/scripts/get_life360_location.sh"
+      ],
+      "artifacts": []
+    },
+    {
+      "id": "com.netflix.mediaclient.set-my-list-state-replay",
+      "applicationId": "com.netflix.mediaclient",
+      "intent": "set-my-list-state-replay",
+      "summary": "Set the Netflix My List state for a requested title under a requested profile using live UI navigation.",
+      "path": "skills/com.netflix.mediaclient.set-my-list-state-replay",
+      "skillFile": "skills/com.netflix.mediaclient.set-my-list-state-replay/SKILL.md",
+      "scripts": [
+        "skills/com.netflix.mediaclient.set-my-list-state-replay/scripts/run.js",
+        "skills/com.netflix.mediaclient.set-my-list-state-replay/scripts/run.sh"
       ],
       "artifacts": []
     },
