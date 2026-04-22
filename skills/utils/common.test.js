@@ -4,7 +4,7 @@ const { mkdtemp, rm, writeFile } = require('node:fs/promises');
 const { join } = require('node:path');
 const { tmpdir } = require('node:os');
 
-const { normalizeTimeoutMs, resolveClawperatorBin, resolveOperatorPackage } = require('./common');
+const { normalizeTimeoutMs, resolveClawperatorBin, resolveOperatorPackage, runClawperatorCommand, setExecFileSyncForTest } = require('./common');
 
 test('resolveOperatorPackage prefers an explicit package over env var', () => {
   const original = process.env.CLAWPERATOR_OPERATOR_PACKAGE;
@@ -144,4 +144,41 @@ test('normalizeTimeoutMs only accepts finite positive timeout values', () => {
   assert.strictEqual(normalizeTimeoutMs(Number.NaN), null);
   assert.strictEqual(normalizeTimeoutMs('30000'), null);
   assert.strictEqual(normalizeTimeoutMs(undefined), null);
+});
+
+test('runClawperatorCommand forwards normalized timeoutMs to execFileSync', () => {
+  const calls = [];
+  setExecFileSyncForTest((cmd, args, options) => {
+    calls.push({ cmd, args, options });
+    return Buffer.from('ok');
+  });
+
+  try {
+    const result = runClawperatorCommand('snapshot', ['--json'], { timeoutMs: 30000 });
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(calls.length, 1);
+    assert.strictEqual(calls[0].options.timeout, 30000);
+    assert.deepStrictEqual(calls[0].options.stdio, ['pipe', 'pipe', 'pipe']);
+  } finally {
+    setExecFileSyncForTest(null);
+  }
+});
+
+test('runClawperatorCommand returns a bounded error when execFileSync times out', () => {
+  setExecFileSyncForTest(() => {
+    const error = new Error('spawnSync clawperator ETIMEDOUT');
+    error.stderr = Buffer.from('timed out');
+    error.stdout = Buffer.from('partial output');
+    throw error;
+  });
+
+  try {
+    const result = runClawperatorCommand('snapshot', ['--json'], { timeoutMs: 1 });
+    assert.strictEqual(result.ok, false);
+    assert.match(result.error, /ETIMEDOUT/);
+    assert.match(result.error, /timed out/);
+    assert.match(result.error, /partial output/);
+  } finally {
+    setExecFileSyncForTest(null);
+  }
 });

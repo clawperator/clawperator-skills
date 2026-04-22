@@ -1,9 +1,19 @@
-const { mkdtemp, readFile, rm } = require("node:fs/promises");
+const { mkdtemp, rm } = require("node:fs/promises");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
-const zlib = require("node:zlib");
 
 const { resolveOperatorPackage, runClawperatorCommand } = require("./common.js");
+const {
+  averageRgba,
+  boundsCenter,
+  boundsHeight,
+  boundsKey,
+  boundsWidth,
+  classifyPowerState,
+  extractSnapshotXml,
+  parseXmlNodes,
+  readPngRgba,
+} = require("./airtouch5_snapshot.js");
 
 const AIRTOUCH_PACKAGE = "au.com.polyaire.airtouch5";
 const MODE_VALUES = ["cool", "heat", "fan", "dry", "auto"];
@@ -122,84 +132,6 @@ function parseChoiceArg(args, { flag, allowedValues }) {
   return null;
 }
 
-function decodeEntities(value) {
-  return String(value || "")
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, "\"")
-    .replace(/&apos;/g, "'")
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/gi, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
-}
-
-function parseBounds(raw) {
-  const match = /^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$/.exec(String(raw || ""));
-  if (!match) {
-    return null;
-  }
-  return {
-    left: Number.parseInt(match[1], 10),
-    top: Number.parseInt(match[2], 10),
-    right: Number.parseInt(match[3], 10),
-    bottom: Number.parseInt(match[4], 10),
-  };
-}
-
-function boundsKey(bounds) {
-  return `${bounds.left},${bounds.top},${bounds.right},${bounds.bottom}`;
-}
-
-function boundsWidth(bounds) {
-  return Math.max(0, bounds.right - bounds.left);
-}
-
-function boundsHeight(bounds) {
-  return Math.max(0, bounds.bottom - bounds.top);
-}
-
-function boundsCenter(bounds) {
-  return {
-    x: Math.round((bounds.left + bounds.right) / 2),
-    y: Math.round((bounds.top + bounds.bottom) / 2),
-  };
-}
-
-function parseXmlNodes(xml) {
-  const nodes = [];
-  const nodeRegex = /<node\s+([^>]*?)(?:\/>|>)/g;
-  let match;
-  while ((match = nodeRegex.exec(xml)) !== null) {
-    const attributes = {};
-    const attrRegex = /([A-Za-z0-9_:-]+)="([^"]*)"/g;
-    let attrMatch;
-    while ((attrMatch = attrRegex.exec(match[1])) !== null) {
-      attributes[attrMatch[1]] = decodeEntities(attrMatch[2]);
-    }
-    const bounds = parseBounds(attributes.bounds);
-    if (!bounds) {
-      continue;
-    }
-    nodes.push({
-      text: attributes.text || "",
-      resourceId: attributes["resource-id"] || "",
-      className: attributes.class || "",
-      packageName: attributes.package || "",
-      clickable: attributes.clickable === "true",
-      bounds,
-    });
-  }
-  return nodes;
-}
-
-function extractSnapshotXml(rawResult) {
-  const xml = rawResult?.envelope?.stepResults?.find((step) => step.actionType === "snapshot_ui")?.data?.text;
-  if (typeof xml !== "string" || xml.length === 0) {
-    throw new Error("snapshot did not return hierarchy XML");
-  }
-  return xml;
-}
-
 function extractForegroundPackage(rawResult) {
   const foregroundPackage = rawResult?.envelope?.stepResults?.find((step) => step.actionType === "snapshot_ui")?.data?.foreground_package;
   return typeof foregroundPackage === "string" ? foregroundPackage : "";
@@ -237,171 +169,6 @@ function takeScreenshot(deviceId, operatorPackage, path) {
   return runJsonCommand("screenshot", ["--device", deviceId, "--operator-package", operatorPackage, "--path", path, "--json"]);
 }
 
-function paethPredictor(a, b, c) {
-  const prediction = a + b - c;
-  const pa = Math.abs(prediction - a);
-  const pb = Math.abs(prediction - b);
-  const pc = Math.abs(prediction - c);
-  if (pa <= pb && pa <= pc) {
-    return a;
-  }
-  if (pb <= pc) {
-    return b;
-  }
-  return c;
-}
-
-async function readPngRgba(path) {
-  const data = await readFile(path);
-  if (data.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a") {
-    throw new Error(`not a png: ${path}`);
-  }
-
-  let offset = 8;
-  let width = 0;
-  let height = 0;
-  let sawIhdr = false;
-  const idatChunks = [];
-
-  while (offset < data.length) {
-    const length = data.readUInt32BE(offset);
-    offset += 4;
-    const type = data.subarray(offset, offset + 4).toString("ascii");
-    offset += 4;
-    const chunk = data.subarray(offset, offset + length);
-    offset += length + 4;
-
-    if (type === "IHDR") {
-      if (chunk.length < 13) {
-        throw new Error(`png IHDR chunk too short: ${path}`);
-      }
-      width = chunk.readUInt32BE(0);
-      height = chunk.readUInt32BE(4);
-      sawIhdr = true;
-      const bitDepth = chunk[8];
-      const colorType = chunk[9];
-      if (bitDepth !== 8 || colorType !== 6) {
-        throw new Error(`expected RGBA png, got bitDepth=${bitDepth} colorType=${colorType}`);
-      }
-    } else if (type === "IDAT") {
-      idatChunks.push(chunk);
-    } else if (type === "IEND") {
-      break;
-    }
-  }
-
-  if (!sawIhdr || width <= 0 || height <= 0) {
-    throw new Error(`png missing valid IHDR dimensions: ${path}`);
-  }
-  if (idatChunks.length === 0) {
-    throw new Error(`png missing IDAT data: ${path}`);
-  }
-
-  const raw = zlib.inflateSync(Buffer.concat(idatChunks));
-  const stride = width * 4;
-  const out = Buffer.alloc(height * stride);
-  let inputOffset = 0;
-  let previousScanline = Buffer.alloc(stride);
-
-  for (let y = 0; y < height; y += 1) {
-    const filter = raw[inputOffset];
-    inputOffset += 1;
-    const scanline = Buffer.from(raw.subarray(inputOffset, inputOffset + stride));
-    inputOffset += stride;
-
-    if (filter === 1) {
-      for (let x = 0; x < stride; x += 1) {
-        const left = x >= 4 ? scanline[x - 4] : 0;
-        scanline[x] = (scanline[x] + left) & 255;
-      }
-    } else if (filter === 2) {
-      for (let x = 0; x < stride; x += 1) {
-        scanline[x] = (scanline[x] + previousScanline[x]) & 255;
-      }
-    } else if (filter === 3) {
-      for (let x = 0; x < stride; x += 1) {
-        const left = x >= 4 ? scanline[x - 4] : 0;
-        const up = previousScanline[x];
-        scanline[x] = (scanline[x] + Math.floor((left + up) / 2)) & 255;
-      }
-    } else if (filter === 4) {
-      for (let x = 0; x < stride; x += 1) {
-        const left = x >= 4 ? scanline[x - 4] : 0;
-        const up = previousScanline[x];
-        const upLeft = x >= 4 ? previousScanline[x - 4] : 0;
-        scanline[x] = (scanline[x] + paethPredictor(left, up, upLeft)) & 255;
-      }
-    } else if (filter !== 0) {
-      throw new Error(`unsupported png filter ${filter}`);
-    }
-
-    scanline.copy(out, y * stride);
-    previousScanline = scanline;
-  }
-
-  return { width, height, rgba: out };
-}
-
-function clampBounds(bounds, width, height) {
-  return {
-    left: Math.max(0, Math.min(width - 1, bounds.left)),
-    top: Math.max(0, Math.min(height - 1, bounds.top)),
-    right: Math.max(1, Math.min(width, bounds.right)),
-    bottom: Math.max(1, Math.min(height, bounds.bottom)),
-  };
-}
-
-function averageRgba(image, bounds) {
-  const region = clampBounds(bounds, image.width, image.height);
-  if (region.left >= region.right || region.top >= region.bottom) {
-    throw new Error(`empty screenshot region after clamping: ${JSON.stringify(region)}`);
-  }
-  let red = 0;
-  let green = 0;
-  let blue = 0;
-  let alpha = 0;
-  let count = 0;
-  for (let y = region.top; y < region.bottom; y += 1) {
-    const rowOffset = y * image.width * 4;
-    for (let x = region.left; x < region.right; x += 1) {
-      const index = rowOffset + x * 4;
-      red += image.rgba[index];
-      green += image.rgba[index + 1];
-      blue += image.rgba[index + 2];
-      alpha += image.rgba[index + 3];
-      count += 1;
-    }
-  }
-  if (count === 0) {
-    throw new Error(`screenshot region contained no pixels: ${JSON.stringify(region)}`);
-  }
-  return {
-    region,
-    pixelCount: count,
-    avgRgba: [
-      Number((red / count).toFixed(2)),
-      Number((green / count).toFixed(2)),
-      Number((blue / count).toFixed(2)),
-      Number((alpha / count).toFixed(2)),
-    ],
-  };
-}
-
-function classifyPowerState(stats) {
-  const [red, green, blue] = stats.avgRgba;
-  const brightness = (red + green + blue) / 3;
-  const blueDominance = blue - ((red + green) / 2);
-  const isOn = brightness > 70 && blueDominance > 25;
-  return {
-    state: isOn ? "on" : "off",
-    metrics: {
-      brightness: Number(brightness.toFixed(2)),
-      blueDominance: Number(blueDominance.toFixed(2)),
-      avgRgba: stats.avgRgba,
-      region: stats.region,
-    },
-  };
-}
 
 function computeViewport(nodes) {
   let right = 0;
@@ -448,7 +215,7 @@ function detectControlSlots(nodes, homeRootBounds) {
     uniqueCandidates.push(node.bounds);
   }
 
-  return uniqueCandidates.sort((left, right) => left.left - right.left).slice(0, 3);
+  return uniqueCandidates.sort((left, right) => left.left - right.left);
 }
 
 function buildFallbackControlSlots(viewport) {
@@ -491,6 +258,43 @@ function findValueAboveControl(nodes, controlBounds, allowedValues) {
   return candidates.length > 0 ? candidates[0].normalized : null;
 }
 
+function selectLabeledControlBounds(nodes, candidateBounds, allowedValues, excludedBounds = []) {
+  const excludedKeys = new Set(excludedBounds.map((bounds) => boundsKey(bounds)));
+  const matches = candidateBounds
+    .filter((bounds) => !excludedKeys.has(boundsKey(bounds)))
+    .map((bounds) => ({
+      bounds,
+      value: findValueAboveControl(nodes, bounds, allowedValues),
+    }))
+    .filter((entry) => entry.value);
+
+  return matches.length > 0 ? matches[0].bounds : null;
+}
+
+function selectPowerControlBounds(candidateBounds, labeledBounds, fallbackBounds) {
+  const usedKeys = new Set(labeledBounds.filter(Boolean).map((bounds) => boundsKey(bounds)));
+  const remaining = candidateBounds
+    .filter((bounds) => !usedKeys.has(boundsKey(bounds)))
+    .sort((left, right) => left.left - right.left);
+
+  if (remaining.length === 0) {
+    return fallbackBounds;
+  }
+  if (!labeledBounds[0]) {
+    return remaining[0];
+  }
+
+  const modeCenterX = boundsCenter(labeledBounds[0]).x;
+  const leftOfMode = remaining.filter((bounds) => boundsCenter(bounds).x < modeCenterX);
+  if (leftOfMode.length === 0) {
+    return remaining[0];
+  }
+
+  return leftOfMode.sort(
+    (left, right) => Math.abs(modeCenterX - boundsCenter(left).x) - Math.abs(modeCenterX - boundsCenter(right).x),
+  )[0];
+}
+
 function extractChoiceDialogState(xml, allowedValues) {
   const nodes = parseXmlNodes(xml);
   const dialog = nodes.find((node) => node.className === "android.app.AlertDialog");
@@ -525,8 +329,9 @@ function extractHomeScreenState(xml) {
   const homeRoot = nodes.find((node) => node.resourceId === "comp-home-single-ac");
   const detectedSlots = homeRoot ? detectControlSlots(nodes, homeRoot.bounds) : [];
   const fallbackSlots = buildFallbackControlSlots(viewport);
-  const modeBounds = detectedSlots[1] || fallbackSlots.mode;
-  const fanBounds = detectedSlots[2] || fallbackSlots.fan;
+  const modeBounds = selectLabeledControlBounds(nodes, detectedSlots, MODE_VALUES) || detectedSlots[1] || fallbackSlots.mode;
+  const fanBounds = selectLabeledControlBounds(nodes, detectedSlots, FAN_LEVEL_VALUES, [modeBounds]) || detectedSlots[2] || fallbackSlots.fan;
+  const powerBounds = selectPowerControlBounds(detectedSlots, [modeBounds, fanBounds], fallbackSlots.power);
   const modeValue = findValueAboveControl(nodes, modeBounds, MODE_VALUES);
   const fanLevelValue = findValueAboveControl(nodes, fanBounds, FAN_LEVEL_VALUES);
   const setPointVisible = nodes.some((node) => normalizeChoiceValue(node.text) === "set point");
@@ -539,7 +344,7 @@ function extractHomeScreenState(xml) {
     isHomeScreen: navCount >= 4 && (Boolean(homeRoot) || Boolean(modeValue) || Boolean(fanLevelValue) || setPointVisible),
     homeRootBounds: homeRoot ? homeRoot.bounds : null,
     controlSlots: {
-      power: detectedSlots[0] || fallbackSlots.power,
+      power: powerBounds,
       mode: modeBounds,
       fan: fanBounds,
     },
@@ -607,6 +412,31 @@ async function waitForChoiceDialog(deviceId, operatorPackage, allowedValues, { m
   throw new Error("AirTouch selector dialog did not appear after tapping the Home control.");
 }
 
+function describeSelectedDevice() {
+  return "the selected device";
+}
+
+function appendAppOpenedCheckpoint(result) {
+  appendCheckpoint(result, "app_opened", "ok", `Opened ${AIRTOUCH_PACKAGE} on ${describeSelectedDevice()}.`);
+}
+
+function shouldRetryPowerToggle(initialState, observedStates) {
+  return observedStates.length >= 2 && observedStates.every((state) => state === initialState);
+}
+
+async function samplePowerState(deviceId, operatorPackage, powerBounds, runDir, screenshotName, waitMs) {
+  if (waitMs > 0) {
+    await sleep(waitMs);
+  }
+  const homeState = await waitForHomeState(deviceId, operatorPackage, { maxAttempts: 6 });
+  const screenshotPath = join(runDir, screenshotName);
+  takeScreenshot(deviceId, operatorPackage, screenshotPath);
+  const image = await readPngRgba(screenshotPath);
+  const stats = averageRgba(image, powerBounds);
+  const classified = classifyPowerState(stats);
+  return { homeState, classified };
+}
+
 async function runCyclingSettingSkill({
   skillId,
   goalKind,
@@ -629,7 +459,7 @@ async function runCyclingSettingSkill({
     ...(result.diagnostics || {}),
     runtimeState: "healthy",
     operatorPackage,
-    deviceId,
+    deviceSelected: true,
     allowedValues,
     transitions: [],
   };
@@ -637,7 +467,7 @@ async function runCyclingSettingSkill({
   try {
     openApp(deviceId, operatorPackage);
     await sleep(1800);
-    appendCheckpoint(result, "app_opened", "ok", `Opened ${AIRTOUCH_PACKAGE} on ${deviceId}.`);
+    appendAppOpenedCheckpoint(result);
 
     let homeState = await waitForHomeState(deviceId, operatorPackage);
     appendCheckpoint(result, "home_screen_ready", "ok", "Opened the AirTouch Home screen.");
@@ -742,7 +572,7 @@ async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
     ...(result.diagnostics || {}),
     runtimeState: "healthy",
     operatorPackage,
-    deviceId,
+    deviceSelected: true,
     heuristics: [
       "Power is classified from the screenshot crop around the Home power control.",
     ],
@@ -751,7 +581,7 @@ async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
   try {
     openApp(deviceId, operatorPackage);
     await sleep(1800);
-    appendCheckpoint(result, "app_opened", "ok", `Opened ${AIRTOUCH_PACKAGE} on ${deviceId}.`);
+    appendAppOpenedCheckpoint(result);
 
     let homeState = await waitForHomeState(deviceId, operatorPackage);
     appendCheckpoint(result, "home_screen_ready", "ok", "Opened the AirTouch Home screen.");
@@ -780,18 +610,44 @@ async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
     let tapsApplied = 0;
     let actionNote = `No tap was needed because power was already ${requestedState}.`;
 
-    for (let attempt = 0; currentState !== requestedState && attempt < 2; attempt += 1) {
+    if (currentState !== requestedState) {
       clickCoordinate(deviceId, operatorPackage, center.x, center.y);
       tapsApplied += 1;
-      await sleep(2500);
-      homeState = await waitForHomeState(deviceId, operatorPackage, { maxAttempts: 6 });
-      const afterPath = join(runDir, `power-after-${attempt + 1}.png`);
-      takeScreenshot(deviceId, operatorPackage, afterPath);
-      const afterImage = await readPngRgba(afterPath);
-      const afterStats = averageRgba(afterImage, powerBounds);
-      const afterState = classifyPowerState(afterStats);
-      currentState = afterState.state;
-      result.diagnostics.lastPowerMetrics = afterState.metrics;
+      const observations = [];
+
+      for (let observation = 0; observation < 3 && currentState !== requestedState; observation += 1) {
+        const sample = await samplePowerState(
+          deviceId,
+          operatorPackage,
+          powerBounds,
+          runDir,
+          `power-after-1-${observation + 1}.png`,
+          observation === 0 ? 2500 : 1200,
+        );
+        homeState = sample.homeState;
+        currentState = sample.classified.state;
+        observations.push(currentState);
+        result.diagnostics.lastPowerMetrics = sample.classified.metrics;
+      }
+
+      if (currentState !== requestedState && shouldRetryPowerToggle(beforeState.state, observations)) {
+        clickCoordinate(deviceId, operatorPackage, center.x, center.y);
+        tapsApplied += 1;
+
+        for (let observation = 0; observation < 3 && currentState !== requestedState; observation += 1) {
+          const sample = await samplePowerState(
+            deviceId,
+            operatorPackage,
+            powerBounds,
+            runDir,
+            `power-after-2-${observation + 1}.png`,
+            observation === 0 ? 2500 : 1200,
+          );
+          homeState = sample.homeState;
+          currentState = sample.classified.state;
+          result.diagnostics.lastPowerMetrics = sample.classified.metrics;
+        }
+      }
     }
 
     if (tapsApplied > 0) {
@@ -853,4 +709,5 @@ module.exports = {
   parseXmlNodes,
   runCyclingSettingSkill,
   runPowerStateSkill,
+  shouldRetryPowerToggle,
 };

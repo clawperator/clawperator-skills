@@ -1,7 +1,9 @@
-const { execFileSync } = require('child_process');
+const childProcess = require('child_process');
 const { writeFileSync, existsSync, unlinkSync } = require('fs');
 const { join, resolve, extname } = require('path');
 const { tmpdir } = require('os');
+
+let execFileSyncImpl = childProcess.execFileSync;
 
 /**
  * Binary preference order:
@@ -177,7 +179,7 @@ function runClawperator(execution, deviceId, operatorPkg, clawBinOverride) {
   const args = [...extraArgs, 'exec', tmpFile, '--device', deviceId, '--operator-package', effectiveOperatorPkg];
 
   try {
-    const output = execFileSync(cmd, args, { encoding: 'utf-8' });
+    const output = execFileSyncImpl(cmd, args, { encoding: 'utf-8' });
     // unlinkSync(tmpFile); // Uncomment to enable cleanup
     const result = JSON.parse(output);
     warnOnSnapshotExtractionFailure(result);
@@ -198,6 +200,10 @@ function normalizeTimeoutMs(timeoutMs) {
   return Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : null;
 }
 
+function setExecFileSyncForTest(impl) {
+  execFileSyncImpl = impl || childProcess.execFileSync;
+}
+
 /**
  * Run a Clawperator CLI command (screenshot, snapshot, click, etc.)
  * Returns { ok: boolean, result: Buffer | string, error: string }
@@ -209,7 +215,7 @@ function runClawperatorCommand(command, args, { encoding = null, throwOnNonZero 
   const normalizedTimeoutMs = normalizeTimeoutMs(timeoutMs);
 
   try {
-    const output = execFileSync(cmd, cmdArgs, {
+    const output = execFileSyncImpl(cmd, cmdArgs, {
       encoding: encoding || 'buffer',
       stdio: ['pipe', 'pipe', 'pipe'],
       ...(normalizedTimeoutMs ? { timeout: normalizedTimeoutMs } : {}),
@@ -233,4 +239,4 @@ function findAttribute(line, attrName) {
   return match[1] === '' ? null : match[1];
 }
 
-module.exports = { runClawperator, runClawperatorCommand, findAttribute, resolveClawperatorBin, resolveOperatorPackage, parseCommandSpec, logSkillProgress, normalizeTimeoutMs };
+module.exports = { runClawperator, runClawperatorCommand, findAttribute, resolveClawperatorBin, resolveOperatorPackage, parseCommandSpec, logSkillProgress, normalizeTimeoutMs, setExecFileSyncForTest };
