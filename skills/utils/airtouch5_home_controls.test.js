@@ -6,6 +6,9 @@ const {
   extractChoiceDialogState,
   extractHomeScreenState,
   parseChoiceArg,
+  runCyclingSettingSkill,
+  runPowerStateSkill,
+  setAirTouchHomeControlsDepsForTest,
   shouldRetryPowerToggle,
 } = require("./airtouch5_home_controls.js");
 
@@ -46,6 +49,8 @@ const HOME_OFF_XML = [
   "</hierarchy>",
 ].join("\n");
 
+const HOME_HEAT_XML = HOME_XML.replace('text="Cool"', 'text="Heat"');
+
 const HOME_WITH_PLACEHOLDER_XML = [
   "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>",
   "<hierarchy rotation=\"0\">",
@@ -83,6 +88,32 @@ const MODE_DIALOG_XML = [
   "  </node>",
   "</hierarchy>",
 ].join("\n");
+
+function buildSnapshotResult(xml, foregroundPackage = "au.com.polyaire.airtouch5") {
+  return JSON.stringify({
+    envelope: {
+      stepResults: [
+        {
+          actionType: "snapshot_ui",
+          data: {
+            foreground_package: foregroundPackage,
+            text: xml,
+          },
+        },
+      ],
+    },
+  });
+}
+
+function buildJsonResult(data = {}) {
+  return JSON.stringify(data);
+}
+
+function captureSkillResult(logLines) {
+  const markerIndex = logLines.lastIndexOf("[Clawperator-Skill-Result]");
+  assert.notStrictEqual(markerIndex, -1, "expected a skill result marker");
+  return JSON.parse(logLines[markerIndex + 1]);
+}
 
 test("parseChoiceArg prefers an explicit named flag over positional fallbacks", () => {
   assert.strictEqual(
@@ -153,8 +184,155 @@ test("classifyPowerState distinguishes the observed AirTouch off and on button m
   );
 });
 
-test("shouldRetryPowerToggle only retries after repeated unchanged readings", () => {
-  assert.strictEqual(shouldRetryPowerToggle("off", ["off", "off"]), true);
-  assert.strictEqual(shouldRetryPowerToggle("off", ["off"]), false);
-  assert.strictEqual(shouldRetryPowerToggle("off", ["off", "on"]), false);
+test("shouldRetryPowerToggle waits for a stable unchanged tail before retrying", () => {
+  assert.strictEqual(shouldRetryPowerToggle("off", ["off", "off", "off"]), false);
+  assert.strictEqual(shouldRetryPowerToggle("off", ["off", "off", "off", "off"]), true);
+  assert.strictEqual(shouldRetryPowerToggle("off", ["off", "off", "off", "on"]), false);
+});
+
+test("runCyclingSettingSkill opens the selector and verifies the requested mode", async () => {
+  const commandCalls = [];
+  const snapshotResponses = [
+    buildSnapshotResult(HOME_XML),
+    buildSnapshotResult(MODE_DIALOG_XML),
+    buildSnapshotResult(HOME_HEAT_XML),
+  ];
+  const logLines = [];
+  const originalLog = console.log;
+
+  setAirTouchHomeControlsDepsForTest({
+    runClawperatorCommand: (command, args) => {
+      commandCalls.push({ command, args });
+      if (command === "snapshot") {
+        return { ok: true, result: snapshotResponses.shift() };
+      }
+      return { ok: true, result: buildJsonResult() };
+    },
+    sleep: async () => {},
+  });
+  console.log = (...args) => {
+    logLines.push(args.join(" "));
+  };
+
+  try {
+    const exitCode = await runCyclingSettingSkill({
+      skillId: "au.com.polyaire.airtouch5.set-mode",
+      goalKind: "set_mode",
+      inputKey: "mode",
+      requestedValue: "heat",
+      allowedValues: ["cool", "heat", "fan", "dry", "auto"],
+      deviceId: "<device_serial>",
+    });
+
+    const skillResult = captureSkillResult(logLines);
+    assert.strictEqual(exitCode, 0);
+    assert.strictEqual(skillResult.status, "success");
+    assert.strictEqual(skillResult.terminalVerification.status, "verified");
+    assert.strictEqual(skillResult.diagnostics.finalValue, "heat");
+    assert.deepStrictEqual(
+      skillResult.checkpoints.map((checkpoint) => checkpoint.id),
+      ["app_opened", "home_screen_ready", "current_value_read", "action_applied", "terminal_state_verified"],
+    );
+    assert.strictEqual(commandCalls.filter((call) => call.command === "click").length, 2);
+  } finally {
+    console.log = originalLog;
+    setAirTouchHomeControlsDepsForTest(null);
+  }
+});
+
+test("runCyclingSettingSkill downgrades runtimeState when the Home controls never expose live values", async () => {
+  const logLines = [];
+  const originalLog = console.log;
+
+  setAirTouchHomeControlsDepsForTest({
+    runClawperatorCommand: (command) => {
+      if (command === "snapshot") {
+        return { ok: true, result: buildSnapshotResult(HOME_OFF_XML) };
+      }
+      return { ok: true, result: buildJsonResult() };
+    },
+    sleep: async () => {},
+  });
+  console.log = (...args) => {
+    logLines.push(args.join(" "));
+  };
+
+  try {
+    const exitCode = await runCyclingSettingSkill({
+      skillId: "au.com.polyaire.airtouch5.set-mode",
+      goalKind: "set_mode",
+      inputKey: "mode",
+      requestedValue: "heat",
+      allowedValues: ["cool", "heat", "fan", "dry", "auto"],
+      deviceId: "<device_serial>",
+    });
+
+    const skillResult = captureSkillResult(logLines);
+    assert.strictEqual(exitCode, 1);
+    assert.strictEqual(skillResult.status, "failed");
+    assert.strictEqual(skillResult.diagnostics.runtimeState, "unknown");
+    assert.strictEqual(skillResult.checkpoints.at(-1).id, "home_controls_visible");
+  } finally {
+    console.log = originalLog;
+    setAirTouchHomeControlsDepsForTest(null);
+  }
+});
+
+test("runPowerStateSkill retries only after a stable unchanged observation window", async () => {
+  const commandCalls = [];
+  const snapshotResponses = [
+    buildSnapshotResult(HOME_OFF_XML),
+    buildSnapshotResult(HOME_OFF_XML),
+    buildSnapshotResult(HOME_OFF_XML),
+    buildSnapshotResult(HOME_OFF_XML),
+    buildSnapshotResult(HOME_OFF_XML),
+    buildSnapshotResult(HOME_XML),
+  ];
+  const classifiedStates = ["off", "off", "off", "off", "off", "on"];
+  const logLines = [];
+  const originalLog = console.log;
+
+  setAirTouchHomeControlsDepsForTest({
+    averageRgba: (_, bounds) => ({ avgRgba: [0, 0, 0, 255], region: bounds }),
+    classifyPowerState: () => {
+      const state = classifiedStates.shift();
+      return {
+        state,
+        metrics: { brightness: state === "on" ? 100 : 40, blueDominance: state === "on" ? 60 : 4 },
+      };
+    },
+    mkdtemp: async () => "/tmp/clawperator-airtouch-test",
+    readPngRgba: async () => ({ width: 1, height: 1, rgba: Buffer.alloc(4) }),
+    rm: async () => {},
+    runClawperatorCommand: (command, args) => {
+      commandCalls.push({ command, args });
+      if (command === "snapshot") {
+        return { ok: true, result: snapshotResponses.shift() };
+      }
+      return { ok: true, result: buildJsonResult() };
+    },
+    sleep: async () => {},
+  });
+  console.log = (...args) => {
+    logLines.push(args.join(" "));
+  };
+
+  try {
+    const exitCode = await runPowerStateSkill({
+      skillId: "au.com.polyaire.airtouch5.set-power-state",
+      requestedState: "on",
+      deviceId: "<device_serial>",
+    });
+
+    const skillResult = captureSkillResult(logLines);
+    assert.strictEqual(exitCode, 0);
+    assert.strictEqual(skillResult.status, "success");
+    assert.strictEqual(skillResult.diagnostics.finalState, "on");
+    assert.deepStrictEqual(skillResult.diagnostics.firstTapObservations, ["off", "off", "off", "off"]);
+    assert.deepStrictEqual(skillResult.diagnostics.secondTapObservations, ["on"]);
+    assert.strictEqual(commandCalls.filter((call) => call.command === "click").length, 2);
+  } finally {
+    console.log = originalLog;
+    setAirTouchHomeControlsDepsForTest(null);
+  }
 });

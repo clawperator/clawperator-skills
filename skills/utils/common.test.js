@@ -166,9 +166,9 @@ test('runClawperatorCommand forwards normalized timeoutMs to execFileSync', () =
 
 test('runClawperatorCommand returns a bounded error when execFileSync times out', () => {
   setExecFileSyncForTest(() => {
-    const error = new Error('spawnSync clawperator ETIMEDOUT');
-    error.stderr = Buffer.from('timed out');
-    error.stdout = Buffer.from('partial output');
+    const error = new Error('spawnSync clawperator --device device-123 /Users/admin/tmp ETIMEDOUT');
+    error.stderr = Buffer.from('timed out for /Users/admin/device-logs');
+    error.stdout = Buffer.from('partial output from --device device-123');
     throw error;
   });
 
@@ -176,8 +176,12 @@ test('runClawperatorCommand returns a bounded error when execFileSync times out'
     const result = runClawperatorCommand('snapshot', ['--json'], { timeoutMs: 1 });
     assert.strictEqual(result.ok, false);
     assert.match(result.error, /ETIMEDOUT/);
-    assert.match(result.error, /timed out/);
-    assert.match(result.error, /partial output/);
+    assert.match(result.error, /--device <device_serial>/);
+    assert.match(result.error, /\/Users\/<local_user>/);
+    assert.match(result.error, /STDERR: \[redacted \d+ bytes\]/);
+    assert.match(result.error, /STDOUT: \[redacted \d+ bytes\]/);
+    assert.doesNotMatch(result.error, /partial output/);
+    assert.doesNotMatch(result.error, /device-123/);
   } finally {
     setExecFileSyncForTest(null);
   }

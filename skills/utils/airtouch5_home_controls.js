@@ -47,6 +47,26 @@ function summarizeError(error) {
   return truncateText(String(error));
 }
 
+const defaultDependencies = {
+  averageRgba,
+  classifyPowerState,
+  mkdtemp,
+  readPngRgba,
+  rm,
+  runClawperatorCommand,
+  sleep,
+};
+
+let dependencyOverrides = {};
+
+function getDependency(name) {
+  return dependencyOverrides[name] || defaultDependencies[name];
+}
+
+function setAirTouchHomeControlsDepsForTest(overrides) {
+  dependencyOverrides = overrides ? { ...overrides } : {};
+}
+
 function appendCheckpoint(result, id, status, note, evidence) {
   const checkpoint = { id, status, observedAt: nowIso() };
   if (note) {
@@ -61,9 +81,13 @@ function appendCheckpoint(result, id, status, note, evidence) {
 function failResult(result, id, note, diagnostics = {}) {
   appendCheckpoint(result, id, "failed", note);
   result.status = "failed";
+  const failureRuntimeState = diagnostics.runtimeState
+    || ((result.diagnostics && result.diagnostics.runtimeState) === "healthy" ? "unknown" : (result.diagnostics && result.diagnostics.runtimeState))
+    || "unknown";
   result.diagnostics = {
     ...(result.diagnostics || {}),
     ...diagnostics,
+    runtimeState: failureRuntimeState,
   };
   emitSkillResult(result);
   return 1;
@@ -138,7 +162,7 @@ function extractForegroundPackage(rawResult) {
 }
 
 function runJsonCommand(command, args) {
-  const response = runClawperatorCommand(command, args, { encoding: "utf-8", timeoutMs: 30000 });
+  const response = getDependency("runClawperatorCommand")(command, args, { encoding: "utf-8", timeoutMs: 30000 });
   if (!response.ok) {
     throw new Error(truncateText(response.error));
   }
@@ -381,7 +405,7 @@ async function waitForHomeState(deviceId, operatorPackage, { maxAttempts = 8 } =
       openApp(deviceId, operatorPackage);
     }
 
-    await sleep(1500);
+    await getDependency("sleep")(1500);
   }
 
   throw new Error(
@@ -397,7 +421,7 @@ async function waitForChoiceDialog(deviceId, operatorPackage, allowedValues, { m
 
     if (foregroundPackage !== AIRTOUCH_PACKAGE) {
       openApp(deviceId, operatorPackage);
-      await sleep(1200);
+      await getDependency("sleep")(1200);
       continue;
     }
 
@@ -406,7 +430,7 @@ async function waitForChoiceDialog(deviceId, operatorPackage, allowedValues, { m
       return dialogState;
     }
 
-    await sleep(800);
+    await getDependency("sleep")(800);
   }
 
   throw new Error("AirTouch selector dialog did not appear after tapping the Home control.");
@@ -421,20 +445,45 @@ function appendAppOpenedCheckpoint(result) {
 }
 
 function shouldRetryPowerToggle(initialState, observedStates) {
-  return observedStates.length >= 2 && observedStates.every((state) => state === initialState);
+  return observedStates.length >= 4 && observedStates.slice(-4).every((state) => state === initialState);
 }
 
 async function samplePowerState(deviceId, operatorPackage, powerBounds, runDir, screenshotName, waitMs) {
   if (waitMs > 0) {
-    await sleep(waitMs);
+    await getDependency("sleep")(waitMs);
   }
   const homeState = await waitForHomeState(deviceId, operatorPackage, { maxAttempts: 6 });
   const screenshotPath = join(runDir, screenshotName);
   takeScreenshot(deviceId, operatorPackage, screenshotPath);
-  const image = await readPngRgba(screenshotPath);
-  const stats = averageRgba(image, powerBounds);
-  const classified = classifyPowerState(stats);
+  const image = await getDependency("readPngRgba")(screenshotPath);
+  const stats = getDependency("averageRgba")(image, powerBounds);
+  const classified = getDependency("classifyPowerState")(stats);
   return { homeState, classified };
+}
+
+async function observePowerTransition(deviceId, operatorPackage, powerBounds, runDir, attemptPrefix, requestedState) {
+  const observations = [];
+  const delaysMs = [2500, 1400, 1800, 2200];
+  let homeState = null;
+  let currentState = "unknown";
+  let lastMetrics = null;
+
+  for (let observation = 0; observation < delaysMs.length && currentState !== requestedState; observation += 1) {
+    const sample = await samplePowerState(
+      deviceId,
+      operatorPackage,
+      powerBounds,
+      runDir,
+      `${attemptPrefix}-${observation + 1}.png`,
+      delaysMs[observation],
+    );
+    homeState = sample.homeState;
+    currentState = sample.classified.state;
+    lastMetrics = sample.classified.metrics;
+    observations.push(currentState);
+  }
+
+  return { currentState, homeState, lastMetrics, observations };
 }
 
 async function runCyclingSettingSkill({
@@ -466,7 +515,7 @@ async function runCyclingSettingSkill({
 
   try {
     openApp(deviceId, operatorPackage);
-    await sleep(1800);
+    await getDependency("sleep")(1800);
     appendAppOpenedCheckpoint(result);
 
     let homeState = await waitForHomeState(deviceId, operatorPackage);
@@ -500,7 +549,7 @@ async function runCyclingSettingSkill({
 
     if (currentValue !== requestedValue) {
       clickCoordinate(deviceId, operatorPackage, center.x, center.y);
-      await sleep(1400);
+      await getDependency("sleep")(1400);
 
       const dialogState = await waitForChoiceDialog(deviceId, operatorPackage, allowedValues);
       const targetOption = dialogState.options.find((option) => option.normalized === requestedValue);
@@ -513,7 +562,7 @@ async function runCyclingSettingSkill({
       });
       const optionCenter = boundsCenter(targetOption.bounds);
       clickCoordinate(deviceId, operatorPackage, optionCenter.x, optionCenter.y);
-      await sleep(1800);
+      await getDependency("sleep")(1800);
       homeState = await waitForHomeState(deviceId, operatorPackage, { maxAttempts: 6 });
       currentValue = inputKey === "mode" ? homeState.modeValue : homeState.fanLevelValue;
       actionNote = `Opened the ${inputKey.replace("_", " ")} selector at (${center.x},${center.y}) and chose ${requestedValue}.`;
@@ -580,7 +629,7 @@ async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
 
   try {
     openApp(deviceId, operatorPackage);
-    await sleep(1800);
+    await getDependency("sleep")(1800);
     appendAppOpenedCheckpoint(result);
 
     let homeState = await waitForHomeState(deviceId, operatorPackage);
@@ -591,12 +640,12 @@ async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
       return failResult(result, "control_bounds_derived", "Could not derive the power control bounds from the Home screen.");
     }
 
-    runDir = await mkdtemp(join(tmpdir(), "clawperator-airtouch-power-"));
+    runDir = await getDependency("mkdtemp")(join(tmpdir(), "clawperator-airtouch-power-"));
     const beforePath = join(runDir, "power-before.png");
     takeScreenshot(deviceId, operatorPackage, beforePath);
-    const beforeImage = await readPngRgba(beforePath);
-    const beforeStats = averageRgba(beforeImage, powerBounds);
-    const beforeState = classifyPowerState(beforeStats);
+    const beforeImage = await getDependency("readPngRgba")(beforePath);
+    const beforeStats = getDependency("averageRgba")(beforeImage, powerBounds);
+    const beforeState = getDependency("classifyPowerState")(beforeStats);
     let currentState = beforeState.state;
     appendCheckpoint(
       result,
@@ -613,40 +662,34 @@ async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
     if (currentState !== requestedState) {
       clickCoordinate(deviceId, operatorPackage, center.x, center.y);
       tapsApplied += 1;
-      const observations = [];
+      const firstAttempt = await observePowerTransition(
+        deviceId,
+        operatorPackage,
+        powerBounds,
+        runDir,
+        "power-after-1",
+        requestedState,
+      );
+      homeState = firstAttempt.homeState || homeState;
+      currentState = firstAttempt.currentState;
+      result.diagnostics.lastPowerMetrics = firstAttempt.lastMetrics;
+      result.diagnostics.firstTapObservations = firstAttempt.observations;
 
-      for (let observation = 0; observation < 3 && currentState !== requestedState; observation += 1) {
-        const sample = await samplePowerState(
+      if (currentState !== requestedState && shouldRetryPowerToggle(beforeState.state, firstAttempt.observations)) {
+        clickCoordinate(deviceId, operatorPackage, center.x, center.y);
+        tapsApplied += 1;
+        const secondAttempt = await observePowerTransition(
           deviceId,
           operatorPackage,
           powerBounds,
           runDir,
-          `power-after-1-${observation + 1}.png`,
-          observation === 0 ? 2500 : 1200,
+          "power-after-2",
+          requestedState,
         );
-        homeState = sample.homeState;
-        currentState = sample.classified.state;
-        observations.push(currentState);
-        result.diagnostics.lastPowerMetrics = sample.classified.metrics;
-      }
-
-      if (currentState !== requestedState && shouldRetryPowerToggle(beforeState.state, observations)) {
-        clickCoordinate(deviceId, operatorPackage, center.x, center.y);
-        tapsApplied += 1;
-
-        for (let observation = 0; observation < 3 && currentState !== requestedState; observation += 1) {
-          const sample = await samplePowerState(
-            deviceId,
-            operatorPackage,
-            powerBounds,
-            runDir,
-            `power-after-2-${observation + 1}.png`,
-            observation === 0 ? 2500 : 1200,
-          );
-          homeState = sample.homeState;
-          currentState = sample.classified.state;
-          result.diagnostics.lastPowerMetrics = sample.classified.metrics;
-        }
+        homeState = secondAttempt.homeState || homeState;
+        currentState = secondAttempt.currentState;
+        result.diagnostics.lastPowerMetrics = secondAttempt.lastMetrics;
+        result.diagnostics.secondTapObservations = secondAttempt.observations;
       }
     }
 
@@ -692,7 +735,7 @@ async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
     return failResult(result, "runtime_execution", summarizeError(error), { runtimeState: "poisoned" });
   } finally {
     if (runDir) {
-      await rm(runDir, { recursive: true, force: true }).catch(() => {});
+      await getDependency("rm")(runDir, { recursive: true, force: true }).catch(() => {});
     }
   }
 }
@@ -709,5 +752,6 @@ module.exports = {
   parseXmlNodes,
   runCyclingSettingSkill,
   runPowerStateSkill,
+  setAirTouchHomeControlsDepsForTest,
   shouldRetryPowerToggle,
 };
