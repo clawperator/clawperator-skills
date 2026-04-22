@@ -1,0 +1,22 @@
+{
+  "id": "au.com.polyaire.airtouch5.set-power-state",
+  "applicationId": "au.com.polyaire.airtouch5",
+  "intent": "set-power-state",
+  "summary": "Set the AirTouch 5 system power state to on or off from the Home screen.",
+  "path": "skills/au.com.polyaire.airtouch5.set-power-state",
+  "skillFile": "skills/au.com.polyaire.airtouch5.set-power-state/SKILL.md",
+  "scripts": [
+    "skills/au.com.polyaire.airtouch5.set-power-state/scripts/run.js",
+    "skills/au.com.polyaire.airtouch5.set-power-state/scripts/run.sh"
+  ],
+  "artifacts": [],
+  "contract": {
+    "inputs": {
+      "state": "string"
+    },
+    "goal": {
+      "kind": "set_power_state"
+    },
+    "verification": null
+  }
+}

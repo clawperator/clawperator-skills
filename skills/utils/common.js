@@ -1,7 +1,10 @@
-const { execFileSync } = require('child_process');
+const childProcess = require('child_process');
 const { writeFileSync, existsSync, unlinkSync } = require('fs');
 const { join, resolve, extname } = require('path');
 const { tmpdir } = require('os');
+
+let execFileSyncImpl = childProcess.execFileSync;
+const DEFAULT_ERROR_PREVIEW_LENGTH = 220;
 
 /**
  * Binary preference order:
@@ -177,16 +180,13 @@ function runClawperator(execution, deviceId, operatorPkg, clawBinOverride) {
   const args = [...extraArgs, 'exec', tmpFile, '--device', deviceId, '--operator-package', effectiveOperatorPkg];
 
   try {
-    const output = execFileSync(cmd, args, { encoding: 'utf-8' });
+    const output = execFileSyncImpl(cmd, args, { encoding: 'utf-8' });
     // unlinkSync(tmpFile); // Uncomment to enable cleanup
     const result = JSON.parse(output);
     warnOnSnapshotExtractionFailure(result);
     return { ok: true, result, raw: output };
   } catch (e) {
-    let msg = e.message;
-    if (e.stderr) msg += '\nSTDERR: ' + Buffer.from(e.stderr).toString();
-    if (e.stdout) msg += '\nSTDOUT: ' + Buffer.from(e.stdout).toString();
-    return { ok: false, error: msg };
+    return { ok: false, error: buildExecErrorMessage(e) };
   }
 }
 
@@ -194,29 +194,89 @@ function logSkillProgress(skillId, message) {
   console.log(`[skill:${skillId}] ${message}`);
 }
 
+function normalizeTimeoutMs(timeoutMs) {
+  return Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : null;
+}
+
+function setExecFileSyncForTest(impl) {
+  execFileSyncImpl = impl || childProcess.execFileSync;
+}
+
+function decodeExecOutput(value) {
+  if (value === undefined || value === null) {
+    return '';
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  return Buffer.from(value).toString('utf-8');
+}
+
+function sanitizeSubprocessText(value) {
+  return String(value || '')
+    .replace(/--device\s+\S+/g, '--device <device_serial>')
+    .replace(/(\bdevice(?:Id)?=)\S+/gi, '$1<device_serial>')
+    .replace(/\/Users\/[^/\s]+/g, '/Users/<local_user>')
+    .replace(/\/var\/folders\/\S+/g, '<tmp_path>');
+}
+
+function truncateSubprocessText(value, maxLength = DEFAULT_ERROR_PREVIEW_LENGTH) {
+  const text = sanitizeSubprocessText(value).trim().replace(/\s+/g, ' ');
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, maxLength - 3)}...`;
+}
+
+function summarizeSubprocessStream(label, value) {
+  const text = decodeExecOutput(value);
+  if (!text.trim()) {
+    return null;
+  }
+  return `${label}: [redacted ${Buffer.byteLength(text, 'utf-8')} bytes]`;
+}
+
+function buildExecErrorMessage(error) {
+  const parts = [
+    truncateSubprocessText((error && error.message) || 'Clawperator command failed'),
+  ];
+  const stderrSummary = summarizeSubprocessStream('STDERR', error && error.stderr);
+  const stdoutSummary = summarizeSubprocessStream('STDOUT', error && error.stdout);
+
+  if (stderrSummary) {
+    parts.push(stderrSummary);
+  }
+  if (stdoutSummary) {
+    parts.push(stdoutSummary);
+  }
+  if (Number.isInteger(error && error.status)) {
+    parts.push(`exitCode: ${error.status}`);
+  }
+  return parts.join('\n');
+}
+
 /**
  * Run a Clawperator CLI command (screenshot, snapshot, click, etc.)
  * Returns { ok: boolean, result: Buffer | string, error: string }
  */
-function runClawperatorCommand(command, args, { encoding = null, throwOnNonZero = true } = {}) {
+function runClawperatorCommand(command, args, { encoding = null, throwOnNonZero = true, timeoutMs = null } = {}) {
   const resolved = resolveClawperatorBin();
   const cmd = resolved.cmd;
   const cmdArgs = [...resolved.args, command, ...args];
+  const normalizedTimeoutMs = normalizeTimeoutMs(timeoutMs);
 
   try {
-    const output = execFileSync(cmd, cmdArgs, {
+    const output = execFileSyncImpl(cmd, cmdArgs, {
       encoding: encoding || 'buffer',
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      ...(normalizedTimeoutMs ? { timeout: normalizedTimeoutMs } : {}),
     });
     return { ok: true, result: output };
   } catch (e) {
     if (!throwOnNonZero && e.status && e.status !== 0) {
-      return { ok: false, error: e.message, exitCode: e.status };
+      return { ok: false, error: buildExecErrorMessage(e), exitCode: e.status };
     }
-    let msg = e.message;
-    if (e.stderr) msg += '\nSTDERR: ' + Buffer.from(e.stderr).toString();
-    if (e.stdout) msg += '\nSTDOUT: ' + Buffer.from(e.stdout).toString();
-    return { ok: false, error: msg };
+    return { ok: false, error: buildExecErrorMessage(e) };
   }
 }
 
@@ -227,4 +287,14 @@ function findAttribute(line, attrName) {
   return match[1] === '' ? null : match[1];
 }
 
-module.exports = { runClawperator, runClawperatorCommand, findAttribute, resolveClawperatorBin, resolveOperatorPackage, parseCommandSpec, logSkillProgress };
+module.exports = {
+  runClawperator,
+  runClawperatorCommand,
+  findAttribute,
+  resolveClawperatorBin,
+  resolveOperatorPackage,
+  parseCommandSpec,
+  logSkillProgress,
+  normalizeTimeoutMs,
+  setExecFileSyncForTest,
+};

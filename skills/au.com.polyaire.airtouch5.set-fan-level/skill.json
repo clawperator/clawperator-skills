@@ -1,0 +1,22 @@
+{
+  "id": "au.com.polyaire.airtouch5.set-fan-level",
+  "applicationId": "au.com.polyaire.airtouch5",
+  "intent": "set-fan-level",
+  "summary": "Set the AirTouch 5 fan level to auto, low, medium, or high from the Home screen.",
+  "path": "skills/au.com.polyaire.airtouch5.set-fan-level",
+  "skillFile": "skills/au.com.polyaire.airtouch5.set-fan-level/SKILL.md",
+  "scripts": [
+    "skills/au.com.polyaire.airtouch5.set-fan-level/scripts/run.js",
+    "skills/au.com.polyaire.airtouch5.set-fan-level/scripts/run.sh"
+  ],
+  "artifacts": [],
+  "contract": {
+    "inputs": {
+      "fan_level": "string"
+    },
+    "goal": {
+      "kind": "set_fan_level"
+    },
+    "verification": null
+  }
+}
