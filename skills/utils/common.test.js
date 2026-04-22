@@ -4,8 +4,6 @@ const { mkdtemp, rm, writeFile } = require('node:fs/promises');
 const { join } = require('node:path');
 const { tmpdir } = require('node:os');
 
-process.env.NODE_ENV = 'test';
-
 const { normalizeTimeoutMs, resolveClawperatorBin, resolveOperatorPackage, runClawperatorCommand, setExecFileSyncForTest } = require('./common');
 
 test('resolveOperatorPackage prefers an explicit package over env var', () => {
