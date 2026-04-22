@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  classifyPowerState,
   extractChoiceDialogState,
   extractHomeScreenState,
   parseChoiceArg,
@@ -101,4 +102,22 @@ test("extractChoiceDialogState reads clickable option labels from the AirTouch s
 
   assert.ok(dialog);
   assert.deepStrictEqual(dialog.options.map((option) => option.normalized), ["cool", "auto", "heat", "dry", "fan"]);
+});
+
+test("classifyPowerState distinguishes the observed AirTouch off and on button metrics", () => {
+  assert.strictEqual(
+    classifyPowerState({
+      avgRgba: [41.31, 42.67, 46.6, 255],
+      region: { left: 48, top: 462, right: 312, bottom: 726 },
+    }).state,
+    "off",
+  );
+
+  assert.strictEqual(
+    classifyPowerState({
+      avgRgba: [62.29, 105.23, 144.81, 255],
+      region: { left: 48, top: 462, right: 312, bottom: 726 },
+    }).state,
+    "on",
+  );
 });

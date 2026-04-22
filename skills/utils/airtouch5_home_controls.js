@@ -1,3 +1,8 @@
+const { mkdtemp, readFile, rm } = require("node:fs/promises");
+const { tmpdir } = require("node:os");
+const { join } = require("node:path");
+const zlib = require("node:zlib");
+
 const { resolveOperatorPackage, runClawperatorCommand } = require("./common.js");
 
 const AIRTOUCH_PACKAGE = "au.com.polyaire.airtouch5";
@@ -226,6 +231,176 @@ function clickText(deviceId, operatorPackage, text) {
 
 function clickCoordinate(deviceId, operatorPackage, x, y) {
   return runJsonCommand("click", ["--coordinate", String(x), String(y), "--device", deviceId, "--operator-package", operatorPackage, "--json"]);
+}
+
+function takeScreenshot(deviceId, operatorPackage, path) {
+  return runJsonCommand("screenshot", ["--device", deviceId, "--operator-package", operatorPackage, "--path", path, "--json"]);
+}
+
+function paethPredictor(a, b, c) {
+  const prediction = a + b - c;
+  const pa = Math.abs(prediction - a);
+  const pb = Math.abs(prediction - b);
+  const pc = Math.abs(prediction - c);
+  if (pa <= pb && pa <= pc) {
+    return a;
+  }
+  if (pb <= pc) {
+    return b;
+  }
+  return c;
+}
+
+async function readPngRgba(path) {
+  const data = await readFile(path);
+  if (data.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a") {
+    throw new Error(`not a png: ${path}`);
+  }
+
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  let sawIhdr = false;
+  const idatChunks = [];
+
+  while (offset < data.length) {
+    const length = data.readUInt32BE(offset);
+    offset += 4;
+    const type = data.subarray(offset, offset + 4).toString("ascii");
+    offset += 4;
+    const chunk = data.subarray(offset, offset + length);
+    offset += length + 4;
+
+    if (type === "IHDR") {
+      if (chunk.length < 13) {
+        throw new Error(`png IHDR chunk too short: ${path}`);
+      }
+      width = chunk.readUInt32BE(0);
+      height = chunk.readUInt32BE(4);
+      sawIhdr = true;
+      const bitDepth = chunk[8];
+      const colorType = chunk[9];
+      if (bitDepth !== 8 || colorType !== 6) {
+        throw new Error(`expected RGBA png, got bitDepth=${bitDepth} colorType=${colorType}`);
+      }
+    } else if (type === "IDAT") {
+      idatChunks.push(chunk);
+    } else if (type === "IEND") {
+      break;
+    }
+  }
+
+  if (!sawIhdr || width <= 0 || height <= 0) {
+    throw new Error(`png missing valid IHDR dimensions: ${path}`);
+  }
+  if (idatChunks.length === 0) {
+    throw new Error(`png missing IDAT data: ${path}`);
+  }
+
+  const raw = zlib.inflateSync(Buffer.concat(idatChunks));
+  const stride = width * 4;
+  const out = Buffer.alloc(height * stride);
+  let inputOffset = 0;
+  let previousScanline = Buffer.alloc(stride);
+
+  for (let y = 0; y < height; y += 1) {
+    const filter = raw[inputOffset];
+    inputOffset += 1;
+    const scanline = Buffer.from(raw.subarray(inputOffset, inputOffset + stride));
+    inputOffset += stride;
+
+    if (filter === 1) {
+      for (let x = 0; x < stride; x += 1) {
+        const left = x >= 4 ? scanline[x - 4] : 0;
+        scanline[x] = (scanline[x] + left) & 255;
+      }
+    } else if (filter === 2) {
+      for (let x = 0; x < stride; x += 1) {
+        scanline[x] = (scanline[x] + previousScanline[x]) & 255;
+      }
+    } else if (filter === 3) {
+      for (let x = 0; x < stride; x += 1) {
+        const left = x >= 4 ? scanline[x - 4] : 0;
+        const up = previousScanline[x];
+        scanline[x] = (scanline[x] + Math.floor((left + up) / 2)) & 255;
+      }
+    } else if (filter === 4) {
+      for (let x = 0; x < stride; x += 1) {
+        const left = x >= 4 ? scanline[x - 4] : 0;
+        const up = previousScanline[x];
+        const upLeft = x >= 4 ? previousScanline[x - 4] : 0;
+        scanline[x] = (scanline[x] + paethPredictor(left, up, upLeft)) & 255;
+      }
+    } else if (filter !== 0) {
+      throw new Error(`unsupported png filter ${filter}`);
+    }
+
+    scanline.copy(out, y * stride);
+    previousScanline = scanline;
+  }
+
+  return { width, height, rgba: out };
+}
+
+function clampBounds(bounds, width, height) {
+  return {
+    left: Math.max(0, Math.min(width - 1, bounds.left)),
+    top: Math.max(0, Math.min(height - 1, bounds.top)),
+    right: Math.max(1, Math.min(width, bounds.right)),
+    bottom: Math.max(1, Math.min(height, bounds.bottom)),
+  };
+}
+
+function averageRgba(image, bounds) {
+  const region = clampBounds(bounds, image.width, image.height);
+  if (region.left >= region.right || region.top >= region.bottom) {
+    throw new Error(`empty screenshot region after clamping: ${JSON.stringify(region)}`);
+  }
+  let red = 0;
+  let green = 0;
+  let blue = 0;
+  let alpha = 0;
+  let count = 0;
+  for (let y = region.top; y < region.bottom; y += 1) {
+    const rowOffset = y * image.width * 4;
+    for (let x = region.left; x < region.right; x += 1) {
+      const index = rowOffset + x * 4;
+      red += image.rgba[index];
+      green += image.rgba[index + 1];
+      blue += image.rgba[index + 2];
+      alpha += image.rgba[index + 3];
+      count += 1;
+    }
+  }
+  if (count === 0) {
+    throw new Error(`screenshot region contained no pixels: ${JSON.stringify(region)}`);
+  }
+  return {
+    region,
+    pixelCount: count,
+    avgRgba: [
+      Number((red / count).toFixed(2)),
+      Number((green / count).toFixed(2)),
+      Number((blue / count).toFixed(2)),
+      Number((alpha / count).toFixed(2)),
+    ],
+  };
+}
+
+function classifyPowerState(stats) {
+  const [red, green, blue] = stats.avgRgba;
+  const brightness = (red + green + blue) / 3;
+  const blueDominance = blue - ((red + green) / 2);
+  const isOn = brightness > 70 && blueDominance > 25;
+  return {
+    state: isOn ? "on" : "off",
+    metrics: {
+      brightness: Number(brightness.toFixed(2)),
+      blueDominance: Number(blueDominance.toFixed(2)),
+      avgRgba: stats.avgRgba,
+      region: stats.region,
+    },
+  };
 }
 
 function computeViewport(nodes) {
@@ -554,6 +729,7 @@ async function runCyclingSettingSkill({
 async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
   const operatorPackage = resolveOperatorPackage();
   const result = buildSkillResult(skillId, "set_power_state", { state: requestedState }, requestedState);
+  let runDir = null;
 
   if (!deviceId) {
     return failResult(result, "device_selected", "No device id was provided to the skill.");
@@ -568,7 +744,7 @@ async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
     operatorPackage,
     deviceId,
     heuristics: [
-      "Power is inferred from whether the Home screen exposes live mode, fan, or Set Point values.",
+      "Power is classified from the screenshot crop around the Home power control.",
     ],
   };
 
@@ -585,13 +761,19 @@ async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
       return failResult(result, "control_bounds_derived", "Could not derive the power control bounds from the Home screen.");
     }
 
-    let currentState = homeState.looksPoweredOn ? "on" : "off";
+    runDir = await mkdtemp(join(tmpdir(), "clawperator-airtouch-power-"));
+    const beforePath = join(runDir, "power-before.png");
+    takeScreenshot(deviceId, operatorPackage, beforePath);
+    const beforeImage = await readPngRgba(beforePath);
+    const beforeStats = averageRgba(beforeImage, powerBounds);
+    const beforeState = classifyPowerState(beforeStats);
+    let currentState = beforeState.state;
     appendCheckpoint(
       result,
       "current_value_read",
       "ok",
       `AirTouch power looked ${currentState} before action.`,
-      { kind: "json", value: { powerBounds, setPointVisible: homeState.setPointVisible, modeValue: homeState.modeValue, fanLevelValue: homeState.fanLevelValue } },
+      { kind: "json", value: { powerBounds, screenshotMetrics: beforeState.metrics, setPointVisible: homeState.setPointVisible, modeValue: homeState.modeValue, fanLevelValue: homeState.fanLevelValue } },
     );
 
     const center = boundsCenter(powerBounds);
@@ -603,7 +785,13 @@ async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
       tapsApplied += 1;
       await sleep(2500);
       homeState = await waitForHomeState(deviceId, operatorPackage, { maxAttempts: 6 });
-      currentState = homeState.looksPoweredOn ? "on" : "off";
+      const afterPath = join(runDir, `power-after-${attempt + 1}.png`);
+      takeScreenshot(deviceId, operatorPackage, afterPath);
+      const afterImage = await readPngRgba(afterPath);
+      const afterStats = averageRgba(afterImage, powerBounds);
+      const afterState = classifyPowerState(afterStats);
+      currentState = afterState.state;
+      result.diagnostics.lastPowerMetrics = afterState.metrics;
     }
 
     if (tapsApplied > 0) {
@@ -621,6 +809,7 @@ async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
     result.diagnostics = {
       ...(result.diagnostics || {}),
       powerBounds,
+      beforePowerMetrics: beforeState.metrics,
       finalState: currentState,
       finalSnapshot: {
         setPointVisible: homeState.setPointVisible,
@@ -641,9 +830,15 @@ async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
       { kind: "text", text: requestedState },
     );
     result.status = "success";
+    if (runDir) {
+      await rm(runDir, { recursive: true, force: true });
+    }
     emitSkillResult(result);
     return 0;
   } catch (error) {
+    if (runDir) {
+      await rm(runDir, { recursive: true, force: true }).catch(() => {});
+    }
     return failResult(result, "runtime_execution", summarizeError(error), { runtimeState: "poisoned" });
   }
 }
@@ -653,6 +848,7 @@ module.exports = {
   FAN_LEVEL_VALUES,
   MODE_VALUES,
   boundsCenter,
+  classifyPowerState,
   extractChoiceDialogState,
   extractHomeScreenState,
   parseChoiceArg,
