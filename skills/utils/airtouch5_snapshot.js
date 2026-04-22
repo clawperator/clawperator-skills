@@ -147,6 +147,9 @@ async function readPngRgba(path) {
   let previousScanline = Buffer.alloc(stride);
 
   for (let y = 0; y < height; y += 1) {
+    if (inputOffset + 1 + stride > raw.length) {
+      throw new Error(`png scanline ${y} truncated: expected ${1 + stride} bytes, found ${Math.max(0, raw.length - inputOffset)}`);
+    }
     const filter = raw[inputOffset];
     inputOffset += 1;
     const scanline = Buffer.from(raw.subarray(inputOffset, inputOffset + stride));

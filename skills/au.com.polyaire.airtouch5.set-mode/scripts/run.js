@@ -16,4 +16,7 @@ runCyclingSettingSkill({
   deviceId,
 }).then((exitCode) => {
   process.exitCode = typeof exitCode === "number" ? exitCode : 0;
+}).catch((error) => {
+  console.error("runCyclingSettingSkill failed:", error && error.message ? error.message : error);
+  process.exitCode = 1;
 });

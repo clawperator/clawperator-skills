@@ -13,4 +13,7 @@ runPowerStateSkill({
   deviceId,
 }).then((exitCode) => {
   process.exitCode = typeof exitCode === "number" ? exitCode : 0;
+}).catch((error) => {
+  console.error("runPowerStateSkill failed:", error && error.message ? error.message : error);
+  process.exitCode = 1;
 });

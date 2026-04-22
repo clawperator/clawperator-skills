@@ -287,4 +287,17 @@ function findAttribute(line, attrName) {
   return match[1] === '' ? null : match[1];
 }
 
-module.exports = { runClawperator, runClawperatorCommand, findAttribute, resolveClawperatorBin, resolveOperatorPackage, parseCommandSpec, logSkillProgress, normalizeTimeoutMs, setExecFileSyncForTest };
+module.exports = {
+  runClawperator,
+  runClawperatorCommand,
+  findAttribute,
+  resolveClawperatorBin,
+  resolveOperatorPackage,
+  parseCommandSpec,
+  logSkillProgress,
+  normalizeTimeoutMs,
+};
+
+if (process.env.NODE_ENV === 'test') {
+  module.exports.setExecFileSyncForTest = setExecFileSyncForTest;
+}

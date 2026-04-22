@@ -4,6 +4,8 @@ const { mkdtemp, rm, writeFile } = require('node:fs/promises');
 const { join } = require('node:path');
 const { tmpdir } = require('node:os');
 
+process.env.NODE_ENV = 'test';
+
 const { normalizeTimeoutMs, resolveClawperatorBin, resolveOperatorPackage, runClawperatorCommand, setExecFileSyncForTest } = require('./common');
 
 test('resolveOperatorPackage prefers an explicit package over env var', () => {
@@ -166,8 +168,8 @@ test('runClawperatorCommand forwards normalized timeoutMs to execFileSync', () =
 
 test('runClawperatorCommand returns a bounded error when execFileSync times out', () => {
   setExecFileSyncForTest(() => {
-    const error = new Error('spawnSync clawperator --device device-123 /Users/admin/tmp ETIMEDOUT');
-    error.stderr = Buffer.from('timed out for /Users/admin/device-logs');
+    const error = new Error('spawnSync clawperator --device <device_serial> /Users/<local_user>/tmp ETIMEDOUT');
+    error.stderr = Buffer.from('timed out for /Users/<local_user>/device-logs');
     error.stdout = Buffer.from('partial output from --device device-123');
     throw error;
   });
