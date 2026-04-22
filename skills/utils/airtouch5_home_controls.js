@@ -830,16 +830,14 @@ async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
       { kind: "text", text: requestedState },
     );
     result.status = "success";
-    if (runDir) {
-      await rm(runDir, { recursive: true, force: true });
-    }
     emitSkillResult(result);
     return 0;
   } catch (error) {
+    return failResult(result, "runtime_execution", summarizeError(error), { runtimeState: "poisoned" });
+  } finally {
     if (runDir) {
       await rm(runDir, { recursive: true, force: true }).catch(() => {});
     }
-    return failResult(result, "runtime_execution", summarizeError(error), { runtimeState: "poisoned" });
   }
 }
 

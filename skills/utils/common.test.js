@@ -4,7 +4,7 @@ const { mkdtemp, rm, writeFile } = require('node:fs/promises');
 const { join } = require('node:path');
 const { tmpdir } = require('node:os');
 
-const { resolveClawperatorBin, resolveOperatorPackage } = require('./common');
+const { normalizeTimeoutMs, resolveClawperatorBin, resolveOperatorPackage } = require('./common');
 
 test('resolveOperatorPackage prefers an explicit package over env var', () => {
   const original = process.env.CLAWPERATOR_OPERATOR_PACKAGE;
@@ -135,4 +135,13 @@ test('resolveClawperatorBin falls back to the global binary when canonical overr
       process.env.CLAWPERATOR_CLI_PATH = originalCliPath;
     }
   }
+});
+
+test('normalizeTimeoutMs only accepts finite positive timeout values', () => {
+  assert.strictEqual(normalizeTimeoutMs(30000), 30000);
+  assert.strictEqual(normalizeTimeoutMs(0), null);
+  assert.strictEqual(normalizeTimeoutMs(-1), null);
+  assert.strictEqual(normalizeTimeoutMs(Number.NaN), null);
+  assert.strictEqual(normalizeTimeoutMs('30000'), null);
+  assert.strictEqual(normalizeTimeoutMs(undefined), null);
 });

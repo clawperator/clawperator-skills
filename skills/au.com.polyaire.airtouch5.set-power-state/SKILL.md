@@ -21,7 +21,7 @@ Current behavior:
 - opens `au.com.polyaire.airtouch5`
 - waits for the `Home` surface to stabilize
 - derives the power button hitbox from the live Home layout, with a geometry fallback when the WebView exposes fewer semantics than usual
-- infers current power from whether the Home screen exposes live `Set Point`, mode, or fan values
+- infers current power from the average color of a screenshot crop over the power control
 - taps the power control only when the inferred state differs from the requested state
 - emits exactly one terminal `[Clawperator-Skill-Result]` frame with `contractVersion: "1.0.0"`
 - omits `source` from the emitted frame; `runSkill` injects `source: { "kind": "script" }`
@@ -29,7 +29,7 @@ Current behavior:
 Known caveats:
 
 - verification is heuristic because the AirTouch Home power button does not expose a semantic on/off value through the WebView tree
-- the skill treats visible `Set Point`, mode, or fan values as evidence that the system is on
+- the skill classifies the power button from screenshot color metrics instead of a semantic WebView state
 - if the Home layout changes materially, the geometry fallback may need to be updated
 
 Run through the wrapper:

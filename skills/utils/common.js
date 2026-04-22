@@ -194,6 +194,10 @@ function logSkillProgress(skillId, message) {
   console.log(`[skill:${skillId}] ${message}`);
 }
 
+function normalizeTimeoutMs(timeoutMs) {
+  return Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : null;
+}
+
 /**
  * Run a Clawperator CLI command (screenshot, snapshot, click, etc.)
  * Returns { ok: boolean, result: Buffer | string, error: string }
@@ -202,12 +206,13 @@ function runClawperatorCommand(command, args, { encoding = null, throwOnNonZero 
   const resolved = resolveClawperatorBin();
   const cmd = resolved.cmd;
   const cmdArgs = [...resolved.args, command, ...args];
+  const normalizedTimeoutMs = normalizeTimeoutMs(timeoutMs);
 
   try {
     const output = execFileSync(cmd, cmdArgs, {
       encoding: encoding || 'buffer',
       stdio: ['pipe', 'pipe', 'pipe'],
-      ...(timeoutMs ? { timeout: timeoutMs } : {}),
+      ...(normalizedTimeoutMs ? { timeout: normalizedTimeoutMs } : {}),
     });
     return { ok: true, result: output };
   } catch (e) {
@@ -228,4 +233,4 @@ function findAttribute(line, attrName) {
   return match[1] === '' ? null : match[1];
 }
 
-module.exports = { runClawperator, runClawperatorCommand, findAttribute, resolveClawperatorBin, resolveOperatorPackage, parseCommandSpec, logSkillProgress };
+module.exports = { runClawperator, runClawperatorCommand, findAttribute, resolveClawperatorBin, resolveOperatorPackage, parseCommandSpec, logSkillProgress, normalizeTimeoutMs };
