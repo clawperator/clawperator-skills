@@ -35,7 +35,6 @@ Add a title:
 ```bash
 clawperator skills run com.netflix.mediaclient.set-my-list-state-replay \
   --device <device_id> \
-  --json \
   -- \
   --action add \
   --title 'House of Cards' \
@@ -47,7 +46,6 @@ Remove a title:
 ```bash
 clawperator skills run com.netflix.mediaclient.set-my-list-state-replay \
   --device <device_id> \
-  --json \
   -- \
   --action remove \
   --title 'House of Cards' \

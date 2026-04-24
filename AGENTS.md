@@ -69,7 +69,7 @@ Use this route when authoring or hardening a runtime skill in this repo:
 1. Start with [Authoring](https://github.com/clawperator/clawperator/blob/main/docs/skills/authoring.md) for the durable workflow, validator boundary, and host-visible discovery surface.
 2. Use [Development workflow](https://github.com/clawperator/clawperator/blob/main/docs/skills/development.md) for the local scaffold-edit-validate-run loop.
 3. Use this file for the local checklist, testing matrix, and recurring PR failure patterns.
-4. Use `clawperator authoring-skills list --json` when you need to inspect installed guided authoring workflows on the current host.
+4. Use `clawperator authoring-skills list` when you need to inspect installed guided authoring workflows on the current host.
 5. If runtime-skill discovery found no clear match, start with `skill-author-by-agent-discovery` as the zero-results front door.
 6. Use `skill-author-by-recording` only after discovery returns `proceed_to_recording`, or when the route is already well understood.
 7. Use `clawperator skills new <skill_id>` only when you explicitly want the low-level manual scaffold.

@@ -111,7 +111,7 @@ Success path:
 ```bash
 CLAWPERATOR_SKILLS_REGISTRY=<skills_repo_root>/skills/skills-registry.json \
 CLAWPERATOR_OPERATOR_PACKAGE=com.clawperator.operator.dev \
-<node_binary> <clawperator_root>/apps/node/dist/cli/index.js skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> --json -- 40
+<node_binary> <clawperator_root>/apps/node/dist/cli/index.js skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> -- 40
 ```
 
 Forced-failure repro:
@@ -120,7 +120,7 @@ Forced-failure repro:
 CLAWPERATOR_SKILLS_REGISTRY=<skills_repo_root>/skills/skills-registry.json \
 CLAWPERATOR_OPERATOR_PACKAGE=com.clawperator.operator.dev \
 CLAWPERATOR_SOLAX_REPLAY_FORCE_FAILURE=1 \
-<node_binary> <clawperator_root>/apps/node/dist/cli/index.js skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> --json -- 40
+<node_binary> <clawperator_root>/apps/node/dist/cli/index.js skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> -- 40
 ```
 
 Expected forced-failure shape:
@@ -138,7 +138,7 @@ Expected forced-failure shape:
 Expected terminal-verification failure shape:
 
 - the skill exits non-zero
-- `skills run --json` surfaces `ok: false` with `code: "SKILL_EXECUTION_FAILED"`
+- `skills run` surfaces `ok: false` with `code: "SKILL_EXECUTION_FAILED"`
 - `stderr` includes `Terminal verification failed: expected discharge-to-limit ...`
 - `skillResult` is present with:
   - `status: "failed"`
