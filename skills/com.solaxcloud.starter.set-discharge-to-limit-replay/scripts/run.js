@@ -188,10 +188,20 @@ function getExecFailureSummary(result) {
   if (typeof nestedError === "string" && nestedError.length > 0) {
     return nestedError;
   }
+  if (typeof result?.envelope?.message === "string" && result.envelope.message.length > 0) {
+    return result.envelope.message;
+  }
+  if (typeof result?.envelope?.code === "string" && result.envelope.code.length > 0) {
+    return result.envelope.code;
+  }
   if (typeof result?.message === "string" && result.message.length > 0) {
     return result.message.replace(/^Command failed:\s*/, "");
   }
   return "clawperator exec failed";
+}
+
+function isResultEnvelopeTimeout(result) {
+  return result?.envelope?.code === "RESULT_ENVELOPE_TIMEOUT";
 }
 
 function updateNavigateCheckpoints(result) {
@@ -434,6 +444,17 @@ const finalizeSaveExecution = buildExecution("save-final", 30000, [
     { id: "wait_after_final_save", type: "sleep", params: { durationMs: 4000 } },
   ]);
 
+const confirmSaveCancellationPromptExecution = buildExecution("confirm-save-cancellation-prompt", 15000, [
+    {
+      id: "confirm_save_cancellation_prompt",
+      type: "click",
+      params: {
+        matcher: { textEquals: "Confirm" },
+      },
+    },
+    { id: "wait_after_save_cancellation_prompt_confirm", type: "sleep", params: { durationMs: 3500 } },
+  ]);
+
 const verifyExecution = buildExecution("verify", 45000, [
     { id: "wait_before_verify_nav", type: "sleep", params: { durationMs: 2500 } },
     {
@@ -488,6 +509,31 @@ const forceFailureExecution = buildExecution("forced-failure", 15000, [
     },
   ]);
 
+async function handleOptionalSaveCancellationPrompt() {
+  const snapshotResult = runClawperatorExecution(
+    buildExecution("optional-save-cancellation-prompt-snapshot", 15000, [
+      { id: "snapshot", type: "snapshot_ui", params: {} },
+    ])
+  );
+  if (!snapshotResult.ok) {
+    await exitWithExecFailure(snapshotResult, "save_completed");
+    return false;
+  }
+
+  const xml = getStepText(snapshotResult, "snapshot");
+  if (!xml.includes("The save operation will cancel the currently executing scenario")) {
+    return true;
+  }
+
+  diagnostics.warnings.push("Optional save-cancellation prompt appeared and was confirmed before terminal verification.");
+  const confirmPromptResult = runClawperatorExecution(confirmSaveCancellationPromptExecution);
+  if (!confirmPromptResult.ok) {
+    await exitWithExecFailure(confirmPromptResult, "save_completed");
+    return false;
+  }
+  return true;
+}
+
 async function main() {
   const navigateResult = runClawperatorExecution(navigateToInputExecution);
   if (!navigateResult.ok) {
@@ -524,9 +570,12 @@ async function main() {
   }
 
   const toolbarSaveResult = runClawperatorExecution(toolbarSaveExecution);
-  if (!toolbarSaveResult.ok) {
+  if (!toolbarSaveResult.ok && !isResultEnvelopeTimeout(toolbarSaveResult)) {
     await exitWithExecFailure(toolbarSaveResult, "save_completed");
     return;
+  }
+  if (!toolbarSaveResult.ok && isResultEnvelopeTimeout(toolbarSaveResult)) {
+    diagnostics.warnings.push("Toolbar save timed out waiting for the Operator result envelope; post-toolbar UI state was verified by snapshot before continuing.");
   }
 
   const peakExportVisible = await waitForPeakExportSurfaceAfterToolbarSave();
@@ -539,6 +588,12 @@ async function main() {
     await exitWithExecFailure(finalizeSaveResult, "save_completed");
     return;
   }
+
+  const optionalPromptHandled = await handleOptionalSaveCancellationPrompt();
+  if (!optionalPromptHandled) {
+    return;
+  }
+
   setCheckpoint("save_completed", "ok", {
     evidence: {
       kind: "text",

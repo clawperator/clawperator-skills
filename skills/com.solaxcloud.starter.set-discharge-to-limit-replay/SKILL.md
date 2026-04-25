@@ -46,6 +46,7 @@ Current behavior:
 - clicks the toolbar `Save`
 - polls snapshot UI until the `Peak Export` screen is visible again after the toolbar `Save`
 - clicks the remaining bottom-sheet `Save` action by label only after that post-toolbar check proves the UI advanced past the first `Save`
+- confirms the intermittent `The save operation will cancel the currently executing scenario` prompt when it appears after the bottom-sheet `Save`
 - re-reads the `Discharge to ...` row after save and only reports success when it matches the requested value
 - writes the raw verification `clawperator exec --json` output to `stdout` before a final structured result frame
 - emits exactly one `[Clawperator-Skill-Result]` frame at end-of-stdout with `contractVersion: "1.0.0"`
@@ -83,6 +84,9 @@ Known caveats:
 - the final bottom-sheet `Save` tap is matched by label only after a
   post-toolbar snapshot poll proves the UI has returned to the `Peak Export`
   screen, so the replay no longer races the same `Save` surface twice
+- the app can show an intermittent prompt after the final bottom-sheet `Save`
+  warning that saving will cancel the currently executing scenario; the replay
+  confirms that prompt when it appears before terminal verification
 - the `Discharge to` dialog input is persisted reliably only when the script
   uses real key events (`DEL`, `DEL`, text entry, then `Enter`) before
   `Confirm`; plain text-set behavior was not sufficient for this app flow
