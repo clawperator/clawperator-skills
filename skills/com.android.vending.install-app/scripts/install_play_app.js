@@ -53,9 +53,12 @@ if (!deviceId || !query) {
 const commandId = `skill-play-install-${Date.now()}`;
 const skillId = "com.android.vending.install-app";
 const MAX_SCROLLS = 3;
-const SCROLL_SETTLE_DELAY_MS = 1800;
+const SEARCH_RESULTS_POLL_TIMEOUT_MS = 12000;
+const SEARCH_RESULTS_POLL_INTERVAL_MS = 500;
+const DETAILS_POLL_TIMEOUT_MS = 12000;
+const DETAILS_POLL_INTERVAL_MS = 500;
 const SEARCH_SUBMIT_ATTEMPTS = 3;
-const INSTALL_POLL_INTERVAL_MS = 3000;
+const INSTALL_POLL_INTERVAL_MS = 1000;
 const INSTALL_POLL_TIMEOUT_MS = 120000;
 const checkpoints = [];
 
@@ -137,19 +140,17 @@ function buildSearchExecution() {
     timeoutMs: 90000,
     actions: [
       { id: 'close', type: 'close_app', params: { applicationId: 'com.android.vending' } },
-      { id: 'wait-close', type: 'sleep', params: { durationMs: 1500 } },
       { id: 'open', type: 'open_app', params: { applicationId: 'com.android.vending' } },
-      { id: 'wait-open', type: 'sleep', params: { durationMs: 4000 } },
+      { id: 'wait-open', type: 'wait_for_node', params: { matcher: { textEquals: 'Search' }, timeoutMs: 15000 } },
       { id: 'click-search-tab', type: 'click', params: { matcher: { textEquals: 'Search' } } },
-      { id: 'wait-search-tab', type: 'sleep', params: { durationMs: 1000 } },
+      { id: 'wait-search-bar', type: 'wait_for_node', params: { matcher: { contentDescEquals: 'Search Google Play' }, timeoutMs: 15000 } },
       { id: 'click-search-bar', type: 'click', params: { matcher: { contentDescEquals: 'Search Google Play' } } },
-      { id: 'wait-bar', type: 'sleep', params: { durationMs: 500 } },
+      { id: 'wait-query-field', type: 'wait_for_node', params: { matcher: { role: 'textfield' }, timeoutMs: 10000 } },
       {
         id: 'enter-query',
         type: 'enter_text',
         params: { matcher: { role: 'textfield' }, text: query, submit: true }
       },
-      { id: 'wait-results', type: 'sleep', params: { durationMs: 6000 } },
     ]
   };
 }
@@ -165,7 +166,7 @@ function buildScrollExecution() {
       {
         id: 'scroll',
         type: 'scroll',
-        params: { direction: 'down', settleDelayMs: SCROLL_SETTLE_DELAY_MS }
+        params: { direction: 'down' }
       }
     ]
   };
@@ -184,7 +185,6 @@ function buildOpenResultExecution(title) {
         type: 'click',
         params: { matcher: { contentDescContains: title } }
       },
-      { id: 'wait-detail', type: 'sleep', params: { durationMs: 3000 } },
     ]
   };
 }
@@ -202,7 +202,6 @@ function buildSubmitSearchSuggestionExecution() {
         type: 'click',
         params: { matcher: { contentDescContains: `Search for '${query}'` } }
       },
-      { id: 'wait-results', type: 'sleep', params: { durationMs: 4000 } },
     ]
   };
 }
@@ -213,15 +212,7 @@ function pressEnterKey() {
   });
 }
 
-function sleepMs(durationMs) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, durationMs);
-}
-
-function captureDirectSnapshot(waitMs = 0) {
-  if (waitMs > 0) {
-    sleepMs(waitMs);
-  }
-
+function captureDirectSnapshot() {
   const outcome = runClawperatorCommand('snapshot', [
     '--device',
     deviceId,
@@ -246,6 +237,47 @@ function captureDirectSnapshot(waitMs = 0) {
   } catch (error) {
     return { ok: false, error: `Failed to parse direct snapshot output: ${error.message}` };
   }
+}
+
+function waitForSnapshotText(predicate, {
+  previousText = '',
+  timeoutMs = SEARCH_RESULTS_POLL_TIMEOUT_MS,
+  intervalMs = SEARCH_RESULTS_POLL_INTERVAL_MS,
+  blockedPredicate = null,
+  blockedMessage = 'Blocked state encountered while waiting for the Play Store surface.',
+} = {}) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = '';
+  let lastText = '';
+
+  while (Date.now() < deadline) {
+    const snap = captureDirectSnapshot();
+    if (snap.ok) {
+      lastText = snap.text || '';
+      if (blockedPredicate && blockedPredicate(lastText)) {
+        return { ok: false, error: blockedMessage, text: lastText };
+      }
+      if (lastText && predicate(lastText) && lastText !== previousText) {
+        return { ok: true, text: lastText };
+      }
+    } else {
+      lastError = snap.error || '';
+    }
+
+    if (Date.now() >= deadline) {
+      break;
+    }
+
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, intervalMs);
+  }
+
+  return {
+    ok: false,
+    error: lastError
+      ? `Timed out waiting for a readable Play Store surface: ${lastError}`
+      : 'Timed out waiting for a readable Play Store surface.',
+    text: lastText,
+  };
 }
 
 function pickInstallCandidate(results, appQuery) {
@@ -279,7 +311,12 @@ function trySubmitSearchQuery(currentText) {
       logSkillProgress(skillId, `Play is still on suggestions. Tapping the exact "${query}" search suggestion...`);
       const { ok } = runClawperator(buildSubmitSearchSuggestionExecution(), deviceId, operatorPkg);
       if (ok) {
-        const snap = captureDirectSnapshot(2000);
+        const snap = waitForSnapshotText(isSearchResultsSurface, {
+          previousText: snapshotText,
+          timeoutMs: SEARCH_RESULTS_POLL_TIMEOUT_MS,
+          blockedPredicate: (text) => text.includes('Sign in') || text.includes('Choose an account'),
+          blockedMessage: 'Login required. Please sign in to Google Play on the device.',
+        });
         if (!snap.ok) {
           return { ok: false, error: `Follow-up snapshot after tapping the search suggestion failed: ${snap.error}` };
         }
@@ -297,7 +334,12 @@ function trySubmitSearchQuery(currentText) {
         error: `Submitting the query with Enter failed: ${error && error.message ? error.message : String(error)}`,
       };
     }
-    const retry = captureDirectSnapshot(5000);
+    const retry = waitForSnapshotText(isSearchResultsSurface, {
+      previousText: snapshotText,
+      timeoutMs: SEARCH_RESULTS_POLL_TIMEOUT_MS,
+      blockedPredicate: (text) => text.includes('Sign in') || text.includes('Choose an account'),
+      blockedMessage: 'Login required. Please sign in to Google Play on the device.',
+    });
     if (!retry.ok) {
       return { ok: false, error: `Follow-up snapshot after query submit failed: ${retry.error}` };
     }
@@ -338,7 +380,7 @@ function buildChooserExecution() {
         type: 'click',
         params: { matcher: { textEquals: 'Google Play Store' } }
       },
-      { id: 'wait-choice', type: 'sleep', params: { durationMs: 500 } },
+      { id: 'wait-choice', type: 'wait_for_node', params: { matcher: { textEquals: 'Just once' }, timeoutMs: 10000 } },
       {
         id: 'pick-just-once',
         type: 'click',
@@ -352,8 +394,6 @@ function buildChooserExecution() {
  * Click Install and wait for completion.
  * Uses wait_for_node polling for text="Open" to detect completion rather than
  * a fixed sleep, since download time is unpredictable.
- *
- * Falls back to a 30-second sleep if the device is slow.
  */
 function buildInstallExecution(actionLabel = 'Install') {
   return {
@@ -380,7 +420,7 @@ function waitForInstalledState(appTitle) {
   let lastText = '';
 
   while (Date.now() < deadline) {
-    const snap = captureDirectSnapshot(INSTALL_POLL_INTERVAL_MS);
+    const snap = captureDirectSnapshot();
     if (!snap.ok) {
       return { ok: false, error: `Direct snapshot polling failed: ${snap.error}` };
     }
@@ -404,6 +444,7 @@ function waitForInstalledState(appTitle) {
     }
 
     logSkillProgress(skillId, `Waiting for "${appTitle}" to reach an Open button on the Play details page...`);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, INSTALL_POLL_INTERVAL_MS);
   }
 
   return { ok: false, error: 'Timed out waiting for the Play details page to show Open.', text: lastText };
@@ -419,7 +460,11 @@ if (!searchOk) {
   emitFailureAndExit(`Search execution failed: ${searchError}`, 2, { path: 'search' });
 }
 
-let initialSearchSnapshot = captureDirectSnapshot(1500);
+let initialSearchSnapshot = waitForSnapshotText(isSearchResultsSurface, {
+  timeoutMs: SEARCH_RESULTS_POLL_TIMEOUT_MS,
+  blockedPredicate: (text) => text.includes('Sign in') || text.includes('Choose an account'),
+  blockedMessage: 'Login required. Please sign in to Google Play on the device.',
+});
 if (!initialSearchSnapshot.ok) {
   checkpoints.push({ id: 'search_results_opened', status: 'failed', note: 'Initial search snapshot failed after query entry.' });
   emitFailureAndExit(`Initial search snapshot failed: ${initialSearchSnapshot.error}`, 2, { path: 'search-post-submit-snapshot' });
@@ -457,7 +502,12 @@ for (let scrollIndex = 0; scrollIndex < MAX_SCROLLS; scrollIndex += 1) {
   if (!scrollOk) {
     break;
   }
-  const snap = captureDirectSnapshot(1500);
+  const snap = waitForSnapshotText(isSearchResultsSurface, {
+    previousText: searchSnapshots[searchSnapshots.length - 1],
+    timeoutMs: 4000,
+    blockedPredicate: (text) => text.includes('Sign in') || text.includes('Choose an account'),
+    blockedMessage: 'Login required. Please sign in to Google Play on the device.',
+  });
   if (!snap.ok) {
     break;
   }
@@ -486,7 +536,9 @@ if (!openOk) {
   emitFailureAndExit(`Failed to open Play result "${candidate.title}": ${openError}`, 3, { path: 'open-result' });
 }
 
-let detailSnapshot = captureDirectSnapshot(1000);
+let detailSnapshot = waitForSnapshotText((text) => detectPlayDetailsSurface(text) || detectOpenWithChooser(text), {
+  timeoutMs: DETAILS_POLL_TIMEOUT_MS,
+});
 if (!detailSnapshot.ok) {
   checkpoints.push({ id: 'details_page_opened', status: 'failed', note: 'Direct snapshot after opening the Play result failed.' });
   emitFailureAndExit(`Snapshot after opening Play result failed: ${detailSnapshot.error}`, 3, { path: 'open-result-snapshot' });
@@ -500,7 +552,9 @@ if (detectOpenWithChooser(prefText)) {
     emitFailureAndExit(`Open-with chooser handling failed: ${error}`, 3, { path: 'chooser' });
   }
 
-  const retrySnap = captureDirectSnapshot(1500);
+  const retrySnap = waitForSnapshotText(detectPlayDetailsSurface, {
+    timeoutMs: DETAILS_POLL_TIMEOUT_MS,
+  });
   if (!retrySnap.ok) {
     checkpoints.push({ id: 'details_page_opened', status: 'failed', note: 'Preflight after chooser handling failed.' });
     emitFailureAndExit(`Follow-up preflight after chooser handling failed: ${retrySnap.error}`, 3, { path: 'chooser-preflight' });
