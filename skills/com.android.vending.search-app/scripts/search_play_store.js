@@ -150,6 +150,10 @@ function writeSkillResult(payload) {
 }
 
 function buildSkillResult({ status, checkpoints, terminalVerification, diagnostics, results }) {
+  const result =
+    results === null || results === undefined
+      ? null
+      : { kind: 'json', value: { items: results } };
   return {
     contractVersion: SKILL_RESULT_CONTRACT_VERSION,
     skillId,
@@ -160,11 +164,11 @@ function buildSkillResult({ status, checkpoints, terminalVerification, diagnosti
       query,
       packageId: packageId || null,
     },
+    result,
     status,
     checkpoints,
     terminalVerification,
     diagnostics,
-    results,
   };
 }
 
@@ -185,7 +189,7 @@ function emitFailureAndExit(message, checkpoints, diagnostics = {}) {
       note: message
     },
     diagnostics,
-    results: []
+    results: null
   }));
   console.error(message);
   process.exit(2);

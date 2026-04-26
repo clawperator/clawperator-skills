@@ -236,12 +236,14 @@ async function emitSkillResult(status, climate, terminalVerification, diagnostic
     inputs: {
       unit_name: unitName,
     },
+    result: climate
+      ? { kind: "json", value: climate }
+      : null,
     status,
     checkpoints: checkpointOrder.map(id => checkpointState.get(id)),
     terminalVerification,
     diagnostics: {
       runtimeState: "healthy",
-      climate,
       ...diagnostics,
     },
   };

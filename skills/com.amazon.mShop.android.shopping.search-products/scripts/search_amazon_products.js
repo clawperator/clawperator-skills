@@ -283,7 +283,13 @@ function writeSkillResult(payload) {
   console.log(JSON.stringify(payload));
 }
 
-function buildSkillResult({ status, inputs, checkpoints, terminalVerification, execEnvelopes, diagnostics }) {
+function buildSkillResult({ status, inputs, checkpoints, terminalVerification, execEnvelopes, diagnostics, result = null }) {
+  const evidenceResult =
+    result === null || result === undefined
+      ? null
+      : result && typeof result === 'object' && typeof result.kind === 'string'
+        ? result
+        : { kind: 'json', value: result };
   return {
     contractVersion: SKILL_RESULT_CONTRACT_VERSION,
     skillId,
@@ -291,6 +297,7 @@ function buildSkillResult({ status, inputs, checkpoints, terminalVerification, e
       kind: 'search_products'
     },
     inputs,
+    result: evidenceResult,
     status,
     checkpoints,
     terminalVerification,
@@ -302,6 +309,7 @@ function buildSkillResult({ status, inputs, checkpoints, terminalVerification, e
 function emitFailureAndExit(message, context) {
   writeSkillResult(buildSkillResult({
     status: 'failed',
+    result: null,
     inputs: context.inputs,
     checkpoints: context.checkpoints,
     terminalVerification: {
@@ -672,6 +680,7 @@ if (products.length === 0) {
   console.log('- Results page opened, but no product titles were parsed from the current accessibility snapshot.');
   writeSkillResult(buildSkillResult({
     status: 'indeterminate',
+    result: null,
     inputs,
     checkpoints,
     terminalVerification: {
@@ -692,8 +701,7 @@ if (products.length === 0) {
       landingSurface: searchSurface,
       suggestionStrategy,
       scrollCount: MAX_SCROLLS,
-      snapshotCount: snapshotSeries.length,
-      results: []
+      snapshotCount: snapshotSeries.length
     }
   }));
   process.exit(0);
@@ -714,6 +722,7 @@ for (const product of products) {
 
 writeSkillResult(buildSkillResult({
   status: 'success',
+  result: { kind: 'json', value: { query, items: structuredResults } },
   inputs,
   checkpoints,
   terminalVerification: {
@@ -737,7 +746,6 @@ writeSkillResult(buildSkillResult({
     landingSurface: searchSurface,
     suggestionStrategy,
     scrollCount: MAX_SCROLLS,
-    snapshotCount: snapshotSeries.length,
-    results: structuredResults
+    snapshotCount: snapshotSeries.length
   }
 }));

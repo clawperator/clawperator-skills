@@ -68,6 +68,12 @@ function writeSkillResult(payload) {
 }
 
 function buildSkillResult({ status, terminalVerification, diagnostics = {}, result = null }) {
+  const evidenceResult =
+    result === null || result === undefined
+      ? null
+      : result && typeof result === 'object' && typeof result.kind === 'string'
+        ? result
+        : { kind: 'json', value: result };
   return {
     contractVersion: SKILL_RESULT_CONTRACT_VERSION,
     skillId,
@@ -77,11 +83,11 @@ function buildSkillResult({ status, terminalVerification, diagnostics = {}, resu
     inputs: {
       query,
     },
+    result: evidenceResult,
     status,
     checkpoints,
     terminalVerification,
     diagnostics,
-    result,
   };
 }
 
@@ -632,7 +638,8 @@ const { ok, error } = runClawperator(installExec, deviceId, operatorPkg);
 
 if (!ok) {
   checkpoints.push({ id: 'install_completed', status: 'failed', note: 'Install execution did not reach a verified terminal state.' });
-  emitFailureAndExit(`Install execution failed: ${error}`, 8, { path: 'install' }, {
+  emitFailureAndExit(`Install execution failed: ${error}`, 8, {
+    path: 'install',
     appTitle: candidate.title,
     installState: 'install-failed',
     selectedResult: candidate,
@@ -646,7 +653,6 @@ if (!installWaitResult.ok) {
   checkpoints.push({ id: 'install_completed', status: 'failed', note: 'Final details-page polling did not observe Open.' });
   emitFailureAndExit(`Install verification failed: ${installWaitResult.error}`, 9, {
     path: 'install-verification',
-  }, {
     appTitle: candidate.title,
     installState: 'unverified',
     selectedResult: candidate,
