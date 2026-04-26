@@ -10,7 +10,7 @@ search results in UI order, similar to the Amazon search skill.
 Current behavior:
 - opens the Play Store search surface
 - enters the query
-- waits for the results page
+- waits for the results surface to become readable
 - parses the first 5 visible app rows
 - emits a terminal `[Clawperator-Skill-Result]` frame with structured results
 
@@ -49,6 +49,8 @@ On success, prints the first visible search results including:
   `contentDescContains` for substring matching instead of exact matches.
 - The search input field has no resource-id; use `role: "textfield"` to target it.
 - This skill now reports search results rather than navigating into an app details page.
+- The runtime uses `wait_for_node` and bounded snapshot polling instead of fixed sleeps
+  so it can react to the Play Store becoming ready instead of guessing delays.
 - The optional `package_id` arg is currently accepted for compatibility but ignored by the runtime script.
 - If snapshot extraction fails (step returns `success: false` with
   `data.error: "SNAPSHOT_EXTRACTION_FAILED"`, or the skill exits with "No snapshot
