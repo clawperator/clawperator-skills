@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { runClawperator, findAttribute, resolveOperatorPackage, logSkillProgress } = require('../../utils/common');
+const { runClawperator, runClawperatorCommand, findAttribute, resolveOperatorPackage, logSkillProgress } = require('../../utils/common');
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const rawQuery = process.argv[3] || process.env.QUERY || '';
@@ -9,6 +9,8 @@ const MAX_QUERY_LENGTH = 256;
 const skillId = "com.woolworths.search-products";
 const FRAME = '[Clawperator-Skill-Result]';
 const CONTRACT_VERSION = '1.0.0';
+const SEARCH_RESULTS_POLL_TIMEOUT_MS = 12000;
+const SEARCH_RESULTS_POLL_INTERVAL_MS = 500;
 
 function writeFramed(payload) {
   console.log(FRAME);
@@ -36,6 +38,77 @@ function failFramed(message) {
   console.error(`⚠️ ${message}`);
 }
 
+function captureDirectSnapshot() {
+  const outcome = runClawperatorCommand('snapshot', [
+    '--device',
+    deviceId,
+    '--operator-package',
+    operatorPkg,
+    '--json',
+  ], { encoding: 'utf8' });
+
+  if (!outcome.ok) {
+    return { ok: false, error: outcome.error };
+  }
+
+  try {
+    const parsed = JSON.parse(outcome.result);
+    const steps = (parsed && parsed.envelope && parsed.envelope.stepResults) || [];
+    const snapStep = steps.find((step) => step && step.actionType === 'snapshot_ui')
+      || steps.find((step) => step && step.data && typeof step.data.text === 'string');
+    return {
+      ok: true,
+      text: snapStep && snapStep.data && typeof snapStep.data.text === 'string' ? snapStep.data.text : '',
+    };
+  } catch (error) {
+    return { ok: false, error: `Failed to parse direct snapshot output: ${error.message}` };
+  }
+}
+
+function isWoolworthsSearchResultsReady(text) {
+  if (!text || text.length < 120) {
+    return false;
+  }
+  const lower = text.toLowerCase();
+  if (!lower.includes('woolworths')) {
+    return false;
+  }
+  const priceHits = (text.match(/\$\d+\.\d{2}/g) || []).length;
+  return priceHits >= 2;
+}
+
+function waitForWoolworthsSearchResults({ previousText = '', timeoutMs = SEARCH_RESULTS_POLL_TIMEOUT_MS } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = '';
+  let lastText = '';
+
+  while (Date.now() < deadline) {
+    const snap = captureDirectSnapshot();
+    if (snap.ok) {
+      lastText = snap.text || '';
+      if (lastText && isWoolworthsSearchResultsReady(lastText) && lastText !== previousText) {
+        return { ok: true, text: lastText };
+      }
+    } else {
+      lastError = snap.error || '';
+    }
+
+    if (Date.now() >= deadline) {
+      break;
+    }
+
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, SEARCH_RESULTS_POLL_INTERVAL_MS);
+  }
+
+  return {
+    ok: false,
+    error: lastError
+      ? `Timed out waiting for readable Woolworths search results: ${lastError}`
+      : 'Timed out waiting for readable Woolworths search results.',
+    text: lastText,
+  };
+}
+
 if (!deviceId || !query) {
   console.error('Usage: node search_woolworths_products.js <device_id> <query> [operator_package]');
   process.exit(1);
@@ -47,28 +120,40 @@ if (query.length > MAX_QUERY_LENGTH) {
 }
 
 const commandId = `skill-woolworths-search-${Date.now()}`;
+
 const execution = {
   commandId,
   taskId: commandId,
   source: 'clawperator-skill',
   expectedFormat: 'android-ui-automator',
-  timeoutMs: 90000,
+  timeoutMs: 120000,
   actions: [
     { id: 'close', type: 'close_app', params: { applicationId: 'com.woolworths' } },
-    { id: 'wait_close', type: 'sleep', params: { durationMs: 1500 } },
     { id: 'open', type: 'open_app', params: { applicationId: 'com.woolworths' } },
-    { id: 'wait_open', type: 'sleep', params: { durationMs: 8000 } },
+    {
+      id: 'wait_search_affordance',
+      type: 'wait_for_node',
+      params: { matcher: { contentDescContains: 'Search products' }, timeoutMs: 20000 },
+    },
     { id: 'click-search', type: 'click', params: { matcher: { contentDescContains: 'Search products' } } },
-    { id: 'wait_search', type: 'sleep', params: { durationMs: 1500 } },
-    { id: 'type-query', type: 'enter_text', params: { matcher: { role: 'textfield' }, text: query, submit: true } },
-    { id: 'wait_results', type: 'sleep', params: { durationMs: 10000 } },
-    { id: 'snap', type: 'snapshot_ui' }
-  ]
+    {
+      id: 'wait_field',
+      type: 'wait_for_node',
+      params: { matcher: { role: 'textfield' }, timeoutMs: 15000 },
+    },
+    {
+      id: 'type-query',
+      type: 'enter_text',
+      params: { matcher: { role: 'textfield' }, text: query, clear: true, submit: true },
+    },
+    { id: 'snap', type: 'snapshot_ui' },
+  ],
 };
 
 logSkillProgress(skillId, "Opening Woolworths app...");
 logSkillProgress(skillId, `Searching for \"${query}\"...`);
 logSkillProgress(skillId, "Capturing search results...");
+
 const { ok, result, error } = runClawperator(execution, deviceId, operatorPkg);
 
 if (!ok) {
@@ -78,7 +163,14 @@ if (!ok) {
 
 const stepResults = (result && result.envelope && result.envelope.stepResults) || [];
 const snapStep = stepResults.find(s => s.id === 'snap');
-const snapText = snapStep && snapStep.data ? snapStep.data.text : null;
+let snapText = snapStep && snapStep.data ? snapStep.data.text : null;
+
+if (snapText && !isWoolworthsSearchResultsReady(snapText)) {
+  const hydrated = waitForWoolworthsSearchResults({ previousText: snapText, timeoutMs: SEARCH_RESULTS_POLL_TIMEOUT_MS });
+  if (hydrated.ok) {
+    snapText = hydrated.text;
+  }
+}
 
 if (snapText) {
   logSkillProgress(skillId, "Parsing product listings...");
