@@ -204,6 +204,10 @@ function isResultEnvelopeTimeout(result) {
   return result?.envelope?.code === "RESULT_ENVELOPE_TIMEOUT";
 }
 
+function isDaemonProxyError(result) {
+  return result?.envelope?.code === "DAEMON_PROXY_ERROR";
+}
+
 function updateNavigateCheckpoints(result) {
   const stepResults = getStepResults(result);
   if (stepResults.find(step => step.id === "wait_home" && step.success)) {
@@ -260,10 +264,6 @@ function extractPercent(text) {
   return match ? match[1] : null;
 }
 
-function sleepSync(durationMs) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, durationMs);
-}
-
 function buildExecution(name, timeoutMs, actions) {
   return {
     commandId: `${skillId}-${name}-${Date.now()}`,
@@ -275,16 +275,24 @@ function buildExecution(name, timeoutMs, actions) {
   };
 }
 
+function snapshotUi(name) {
+  return runClawperatorExecution(
+    buildExecution(name, 5000, [
+      { id: "snapshot", type: "snapshot_ui", params: {} },
+    ])
+  );
+}
+
 async function waitForPeakExportSurfaceAfterToolbarSave(timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const snapshotResult = runClawperatorExecution(
-      buildExecution("wait-post-toolbar-save-snapshot", 15000, [
-        { id: "snapshot", type: "snapshot_ui", params: {} },
-      ])
-    );
+    const snapshotResult = snapshotUi("wait-post-toolbar-save-snapshot");
     if (!snapshotResult.ok) {
+      if (isDaemonProxyError(snapshotResult)) {
+        diagnostics.warnings.push("Post-toolbar snapshot response was lost once; continuing the readiness poll.");
+        continue;
+      }
       await exitWithExecFailure(snapshotResult, "save_completed");
       return false;
     }
@@ -293,8 +301,6 @@ async function waitForPeakExportSurfaceAfterToolbarSave(timeoutMs = 15000) {
     if (xml.includes('text="Peak Export"')) {
       return true;
     }
-
-    sleepSync(750);
   }
 
   const message = "Timed out waiting for the post-toolbar-save Peak Export screen to appear.";
@@ -324,7 +330,6 @@ function runAdb(args) {
 
 const navigateToInputExecution = buildExecution("navigate", 90000, [
     { id: "close", type: "close_app", params: { applicationId: "com.solaxcloud.starter" } },
-    { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
     { id: "open", type: "open_app", params: { applicationId: "com.solaxcloud.starter" } },
     {
       id: "wait_home",
@@ -341,7 +346,14 @@ const navigateToInputExecution = buildExecution("navigate", 90000, [
         matcher: { resourceId: "com.solaxcloud.starter:id/tab_intelligent" },
       },
     },
-    { id: "wait_intelligence", type: "sleep", params: { durationMs: 3500 } },
+    {
+      id: "wait_peak_export_entry",
+      type: "wait_for_node",
+      params: {
+        matcher: { textEquals: "Peak Export" },
+        timeoutMs: 15000,
+      },
+    },
     {
       id: "open_peak_export",
       type: "click",
@@ -349,7 +361,6 @@ const navigateToInputExecution = buildExecution("navigate", 90000, [
         coordinate: { x: 860, y: 1399 },
       },
     },
-    { id: "wait_peak_export", type: "sleep", params: { durationMs: 3000 } },
     {
       id: "wait_discharge_action",
       type: "wait_for_node",
@@ -365,7 +376,6 @@ const navigateToInputExecution = buildExecution("navigate", 90000, [
         coordinate: { x: 875, y: 1548 },
       },
     },
-    { id: "wait_discharge_action_open", type: "sleep", params: { durationMs: 2500 } },
     {
       id: "wait_discharge_row",
       type: "wait_for_node",
@@ -403,7 +413,6 @@ const navigateToInputExecution = buildExecution("navigate", 90000, [
         matcher: { resourceId: "van-field-1-input" },
       },
     },
-    { id: "wait_keyboard", type: "sleep", params: { durationMs: 1000 } },
   ]);
 
 const toolbarSaveExecution = buildExecution("save-toolbar", 45000, [
@@ -414,7 +423,6 @@ const toolbarSaveExecution = buildExecution("save-toolbar", 45000, [
         matcher: { textEquals: "Confirm" },
       },
     },
-    { id: "wait_after_confirm", type: "sleep", params: { durationMs: 2500 } },
     {
       id: "wait_discharge_row_after_confirm",
       type: "wait_for_node",
@@ -430,7 +438,6 @@ const toolbarSaveExecution = buildExecution("save-toolbar", 45000, [
         matcher: { textEquals: "Save" },
       },
     },
-    { id: "wait_after_toolbar_save", type: "sleep", params: { durationMs: 1000 } },
   ]);
 
 const finalizeSaveExecution = buildExecution("save-final", 30000, [
@@ -441,7 +448,6 @@ const finalizeSaveExecution = buildExecution("save-final", 30000, [
         matcher: { textEquals: "Save" },
       },
     },
-    { id: "wait_after_final_save", type: "sleep", params: { durationMs: 4000 } },
   ]);
 
 const confirmSaveCancellationPromptExecution = buildExecution("confirm-save-cancellation-prompt", 15000, [
@@ -452,41 +458,45 @@ const confirmSaveCancellationPromptExecution = buildExecution("confirm-save-canc
         matcher: { textEquals: "Confirm" },
       },
     },
-    { id: "wait_after_save_cancellation_prompt_confirm", type: "sleep", params: { durationMs: 3500 } },
   ]);
 
-const verifyExecution = buildExecution("verify", 45000, [
-    { id: "wait_before_verify_nav", type: "sleep", params: { durationMs: 2500 } },
+const verifyExecution = buildExecution("verify", 30000, [
+    {
+      id: "wait_peak_export_entry_for_verify",
+      type: "wait_for_node",
+      params: {
+        matcher: { textEquals: "Peak Export" },
+        timeoutMs: 8000,
+      },
+    },
     {
       id: "reopen_peak_export",
       type: "click",
       params: {
-        coordinate: { x: 860, y: 1399 },
+        matcher: { textEquals: "Peak Export" },
       },
     },
-    { id: "wait_peak_export_for_verify", type: "sleep", params: { durationMs: 3000 } },
     {
       id: "wait_discharge_action_for_verify",
       type: "wait_for_node",
       params: {
         matcher: { textContains: "Device Discharging" },
-        timeoutMs: 15000,
+        timeoutMs: 8000,
       },
     },
     {
       id: "reopen_discharge_action",
       type: "click",
       params: {
-        coordinate: { x: 875, y: 1548 },
+        matcher: { textContains: "Device Discharging" },
       },
     },
-    { id: "wait_discharge_action_reopened", type: "sleep", params: { durationMs: 2500 } },
     {
       id: "wait_discharge_row_after_save",
       type: "wait_for_node",
       params: {
         matcher: { textContains: "Discharge to" },
-        timeoutMs: 10000,
+        timeoutMs: 8000,
       },
     },
     {
@@ -510,28 +520,50 @@ const forceFailureExecution = buildExecution("forced-failure", 15000, [
   ]);
 
 async function handleOptionalSaveCancellationPrompt() {
-  const snapshotResult = runClawperatorExecution(
-    buildExecution("optional-save-cancellation-prompt-snapshot", 15000, [
-      { id: "snapshot", type: "snapshot_ui", params: {} },
-    ])
-  );
-  if (!snapshotResult.ok) {
-    await exitWithExecFailure(snapshotResult, "save_completed");
-    return false;
+  const deadline = Date.now() + 15000;
+
+  while (Date.now() < deadline) {
+    const snapshotResult = snapshotUi("optional-save-cancellation-prompt-snapshot");
+    if (!snapshotResult.ok) {
+      if (isDaemonProxyError(snapshotResult)) {
+        diagnostics.warnings.push("Optional prompt snapshot response was lost once; continuing the readiness poll.");
+        continue;
+      }
+      await exitWithExecFailure(snapshotResult, "save_completed");
+      return false;
+    }
+
+    const xml = getStepText(snapshotResult, "snapshot");
+    if (xml.includes("The save operation will cancel the currently executing scenario")) {
+      diagnostics.warnings.push("Optional save-cancellation prompt appeared and was confirmed before terminal verification.");
+      const confirmPromptResult = runClawperatorExecution(confirmSaveCancellationPromptExecution);
+      if (!confirmPromptResult.ok) {
+        await exitWithExecFailure(confirmPromptResult, "save_completed");
+        return false;
+      }
+      return true;
+    }
+
+    if (xml.includes('text="Peak Export"')) {
+      return true;
+    }
   }
 
-  const xml = getStepText(snapshotResult, "snapshot");
-  if (!xml.includes("The save operation will cancel the currently executing scenario")) {
-    return true;
-  }
-
-  diagnostics.warnings.push("Optional save-cancellation prompt appeared and was confirmed before terminal verification.");
-  const confirmPromptResult = runClawperatorExecution(confirmSaveCancellationPromptExecution);
-  if (!confirmPromptResult.ok) {
-    await exitWithExecFailure(confirmPromptResult, "save_completed");
-    return false;
-  }
-  return true;
+  const message = "Timed out waiting for save completion or save-cancellation prompt.";
+  setCheckpoint("save_completed", "failed", {
+    evidence: {
+      kind: "text",
+      text: message,
+    },
+    note: message,
+  });
+  await writeStderr(`${message}\n`);
+  await emitSkillResult("failed", {
+    status: "not_run",
+    note: message,
+  });
+  process.exitCode = 1;
+  return false;
 }
 
 async function main() {
@@ -651,13 +683,13 @@ async function main() {
     await writeStderr(`${note}\n`);
   }
 
-  await writeStdout(verifyResult.stdout);
   setCheckpoint("terminal_state_verified", "ok", {
     evidence: {
       kind: "text",
       text: observedRowText || "<empty>",
     },
   });
+  await writeStdout(verifyResult.stdout);
   await emitSkillResult("success", {
     status: "verified",
     expected: {

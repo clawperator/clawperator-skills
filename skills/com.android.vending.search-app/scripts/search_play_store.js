@@ -8,7 +8,8 @@ const SKILL_RESULT_FRAME_PREFIX = '[Clawperator-Skill-Result]';
 const SKILL_RESULT_CONTRACT_VERSION = '1.0.0';
 const MAX_QUERY_LENGTH = 256;
 const MAX_SCROLLS = 3;
-const SCROLL_SETTLE_DELAY_MS = 1800;
+const SEARCH_RESULTS_POLL_TIMEOUT_MS = 12000;
+const SEARCH_RESULTS_POLL_INTERVAL_MS = 500;
 const skillId = "com.android.vending.search-app";
 
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
@@ -37,19 +38,17 @@ function buildSearchExecution() {
     timeoutMs: 90000,
     actions: [
       { id: 'close', type: 'close_app', params: { applicationId: 'com.android.vending' } },
-      { id: 'wait-close', type: 'sleep', params: { durationMs: 1500 } },
       { id: 'open', type: 'open_app', params: { applicationId: 'com.android.vending' } },
-      { id: 'wait-open', type: 'sleep', params: { durationMs: 4000 } },
+      { id: 'wait-open', type: 'wait_for_node', params: { matcher: { textEquals: 'Search' }, timeoutMs: 15000 } },
       { id: 'click-search-tab', type: 'click', params: { matcher: { textEquals: 'Search' } } },
-      { id: 'wait-search-tab', type: 'sleep', params: { durationMs: 1000 } },
+      { id: 'wait-search-bar', type: 'wait_for_node', params: { matcher: { contentDescEquals: 'Search Google Play' }, timeoutMs: 15000 } },
       { id: 'click-search-bar', type: 'click', params: { matcher: { contentDescEquals: 'Search Google Play' } } },
-      { id: 'wait-bar', type: 'sleep', params: { durationMs: 500 } },
+      { id: 'wait-query-field', type: 'wait_for_node', params: { matcher: { role: 'textfield' }, timeoutMs: 10000 } },
       {
         id: 'enter-query',
         type: 'enter_text',
         params: { matcher: { role: 'textfield' }, text: query, submit: true }
       },
-      { id: 'wait-results', type: 'sleep', params: { durationMs: 6000 } },
       { id: 'snap', type: 'snapshot_ui' }
     ]
   };
@@ -67,7 +66,7 @@ function buildScrollExecution() {
       {
         id: 'scroll',
         type: 'scroll',
-        params: { direction: 'down', settleDelayMs: SCROLL_SETTLE_DELAY_MS }
+        params: { direction: 'down' }
       }
     ]
   };
@@ -79,15 +78,7 @@ function pressEnterKey() {
   });
 }
 
-function sleepMs(durationMs) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, durationMs);
-}
-
-function captureDirectSnapshot(waitMs = 0) {
-  if (waitMs > 0) {
-    sleepMs(waitMs);
-  }
-
+function captureDirectSnapshot() {
   const outcome = runClawperatorCommand('snapshot', [
     '--device',
     deviceId,
@@ -112,6 +103,45 @@ function captureDirectSnapshot(waitMs = 0) {
   } catch (error) {
     return { ok: false, error: `Failed to parse direct snapshot output: ${error.message}` };
   }
+}
+
+function waitForReadableSnapshot({ previousText = '', timeoutMs = SEARCH_RESULTS_POLL_TIMEOUT_MS } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = '';
+  let lastText = '';
+
+  while (Date.now() < deadline) {
+    const snap = captureDirectSnapshot();
+    if (snap.ok) {
+      lastText = snap.text || '';
+      if (lastText.includes('Sign in') || lastText.includes('Choose an account')) {
+        return { ok: false, error: 'Login required. Please sign in to Google Play on the device.' };
+      }
+
+      if (lastText && isSearchResultsSurface(lastText) && lastText !== previousText) {
+        return { ok: true, text: lastText };
+      }
+    } else {
+      lastError = snap.error || '';
+    }
+
+    if (Date.now() >= deadline) {
+      break;
+    }
+
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, SEARCH_RESULTS_POLL_INTERVAL_MS);
+  }
+
+  if (lastText.includes('Sign in') || lastText.includes('Choose an account')) {
+    return { ok: false, error: 'Login required. Please sign in to Google Play on the device.' };
+  }
+
+  return {
+    ok: false,
+    error: lastError
+      ? `Timed out waiting for a readable Play Store search-results surface: ${lastError}`
+      : 'Timed out waiting for a readable Play Store search-results surface.'
+  };
 }
 
 function writeSkillResult(payload) {
@@ -219,7 +249,7 @@ if (!isSearchResultsSurface(snapText)) {
     emitFailureAndExit(`Failed to submit Play Store search with Enter key: ${error.message}`, checkpoints);
   }
 
-  const retry = captureDirectSnapshot(5000);
+  const retry = waitForReadableSnapshot();
   if (!retry.ok) {
     checkpoints.push({
       id: 'results_collected',
@@ -262,7 +292,7 @@ for (let scrollIndex = 0; scrollIndex < MAX_SCROLLS; scrollIndex += 1) {
   if (!scrolled.ok) {
     break;
   }
-  const scrolledSnapshot = captureDirectSnapshot(1200);
+  const scrolledSnapshot = waitForReadableSnapshot({ previousText: snapshotSeries[snapshotSeries.length - 1] });
   if (!scrolledSnapshot.ok) {
     break;
   }

@@ -51,6 +51,9 @@ On success, prints:
   clickable parent. This works correctly.
 - Search result matching prefers exact title match, then title prefix match, then
   title substring match.
+- The runtime now waits on visible search and details-page nodes where possible, and
+  uses bounded snapshot polling for search submission and install completion instead of
+  fixed sleeps.
 - For apps that take time to download, the runtime verifies progress by repeatedly
   running `clawperator snapshot` and evaluating the result with `parseInstallSignals`
   until install-state signals such as `Open` appear, which is more robust than a

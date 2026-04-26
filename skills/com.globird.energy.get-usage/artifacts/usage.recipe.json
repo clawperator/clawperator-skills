@@ -7,9 +7,12 @@
   "actions": [
     { "id": "close", "type": "close_app", "params": { "applicationId": "com.globird.energy" } },
     { "id": "open", "type": "open_app", "params": { "applicationId": "com.globird.energy" } },
-    { "id": "wait", "type": "sleep", "params": { "durationMs": 7000 } },
+    { "id": "wait", "type": "wait_for_node", "params": { "matcher": { "resourceId": "nav-item-energy" }, "timeoutMs": 15000 } },
     { "id": "open-energy-tab", "type": "click", "params": { "matcher": { "textEquals": "Energy" } } },
-    { "id": "wait-energy", "type": "sleep", "params": { "durationMs": 3000 } },
-    { "id": "snap", "type": "snapshot_ui" }
+    { "id": "wait-energy-cost", "type": "wait_for_node", "params": { "matcher": { "resourceId": "energy-usage-cost-left-stat-value" }, "timeoutMs": 15000 } },
+    { "id": "read-cost", "type": "read_text", "params": { "matcher": { "resourceId": "energy-usage-cost-left-stat-value" } } },
+    { "id": "read-right", "type": "read_text", "params": { "matcher": { "resourceId": "energy-usage-cost-right-stat-value" } } },
+    { "id": "read-grid", "type": "read_text", "params": { "matcher": { "resourceId": "energy-usage-grid-usage" } } },
+    { "id": "read-solar", "type": "read_text", "params": { "matcher": { "resourceId": "energy-usage-solar-feed-in" } } }
   ]
 }

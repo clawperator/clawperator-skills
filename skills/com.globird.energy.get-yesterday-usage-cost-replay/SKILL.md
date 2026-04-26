@@ -13,7 +13,7 @@ This skill:
 - force-stops GloBird for a fresh run
 - re-opens the app
 - taps the `Energy` tab
-- captures a UI snapshot
+- waits for the Yesterday usage section and reads its text directly
 - extracts the signed dollar amount under `YESTERDAY USAGE` -> `Cost`
 
 The extracted amount may be positive or negative. The parser accepts values such
@@ -54,6 +54,9 @@ GloBird yesterday usage cost: -$4.17
 - It relies on the current GloBird labels `YESTERDAY USAGE` and `Cost`.
 - If the Yesterday section is not visible or the UI copy changes, the skill
   exits with a parsing error instead of guessing.
+- The runtime uses `wait_for_node` plus `read_text` instead of a fixed sleep and
+  full snapshot parsing, which makes it resilient to the installed binary's
+  snapshot extraction issues.
 
 Usage:
 
