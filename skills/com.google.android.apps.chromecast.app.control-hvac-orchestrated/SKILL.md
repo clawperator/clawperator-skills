@@ -192,6 +192,9 @@ Emission rules:
 - the final non-empty stdout suffix must be:
   1. `[Clawperator-Skill-Result]`
   2. one JSON object line containing the emitted `SkillResult`
+- the emitted `SkillResult` must include `result` before `status`; use an
+  evidence-shaped JSON result for a confirmed final state and `result: null`
+  when no truthful final state is available
 
 Recording note:
 

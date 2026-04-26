@@ -110,6 +110,15 @@ function setCheckpoint(id, status, updates = {}) {
 }
 
 function buildSkillResult(status, terminalVerification) {
+  const result = status === "success"
+    ? {
+        kind: "json",
+        value: {
+          climate_state: desiredState.toLowerCase(),
+          unit_name: unitName,
+        },
+      }
+    : null;
   return {
     contractVersion: SKILL_RESULT_CONTRACT_VERSION,
     skillId,
@@ -121,6 +130,7 @@ function buildSkillResult(status, terminalVerification) {
       climate_state: desiredState.toLowerCase(),
       unit_name: unitName,
     },
+    result,
     status,
     checkpoints: checkpointOrder.map(id => checkpointState.get(id)),
     terminalVerification,

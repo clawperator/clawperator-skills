@@ -98,6 +98,7 @@ function buildBaseSkillResult(zoneName, state, status = "failed") {
       zone_name: zoneName,
       state,
     },
+    result: null,
     status,
     checkpoints: [],
     terminalVerification: {
@@ -389,6 +390,13 @@ async function main() {
       `Verified ${targetZone}=${requestedState} from the screenshot crop.`,
       { kind: "json", value: afterState.metrics },
     );
+    result.result = {
+      kind: "json",
+      value: {
+        zone_name: targetZone,
+        state: requestedState,
+      },
+    };
     result.status = "success";
     await cleanupRunDirectoryBestEffort(result, runDir, retainRunArtifacts);
     emitSkillResult(result);

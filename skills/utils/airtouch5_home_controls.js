@@ -102,6 +102,7 @@ function buildSkillResult(skillId, goalKind, inputs, expectedText) {
       ...inputs,
     },
     inputs,
+    result: null,
     status: "failed",
     checkpoints: [],
     terminalVerification: {
@@ -597,6 +598,12 @@ async function runCyclingSettingSkill({
       `Verified ${inputKey.replace("_", " ")}=${requestedValue} from the Home snapshot.`,
       { kind: "text", text: requestedValue },
     );
+    result.result = {
+      kind: "json",
+      value: {
+        [inputKey]: requestedValue,
+      },
+    };
     result.status = "success";
     emitSkillResult(result);
     return 0;
@@ -728,6 +735,12 @@ async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
       `Verified power=${requestedState} from the Home screen state.`,
       { kind: "text", text: requestedState },
     );
+    result.result = {
+      kind: "json",
+      value: {
+        state: requestedState,
+      },
+    };
     result.status = "success";
     emitSkillResult(result);
     return 0;

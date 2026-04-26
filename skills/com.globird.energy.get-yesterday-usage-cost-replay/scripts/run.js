@@ -18,6 +18,29 @@ if (!deviceId) {
   process.exit(1);
 }
 
+function writeFramedSkillResult(payload) {
+  console.log(SKILL_RESULT_FRAME_PREFIX);
+  console.log(JSON.stringify(payload));
+}
+
+function exitWithFramedFailure({ message, checkpoints, terminalVerification, diagnostics = {} }) {
+  console.error(message);
+  writeFramedSkillResult({
+    contractVersion: SKILL_RESULT_CONTRACT_VERSION,
+    skillId,
+    goal: {
+      kind: "read_yesterday_usage_cost",
+    },
+    inputs: {},
+    result: null,
+    status: "failed",
+    checkpoints,
+    terminalVerification,
+    diagnostics: { runtimeState: "unhealthy", ...diagnostics },
+  });
+  process.exit(2);
+}
+
 function parseYesterdayUsageCost(rawText) {
   const normalizedText = String(rawText || "")
     .replace(/\r?\n/g, " ")
@@ -74,8 +97,28 @@ logSkillProgress(skillId, "Reading Yesterday usage cost...");
 const { ok, result, error, raw } = runClawperator(execution, deviceId, operatorPkg);
 
 if (!ok) {
-  console.error(`Skill execution failed: ${error}`);
-  process.exit(2);
+  exitWithFramedFailure({
+    message: `Skill execution failed: ${error}`,
+    checkpoints: [
+      {
+        id: "opened-energy-screen",
+        status: "failed",
+        note: "Clawperator execution failed before Yesterday usage cost could be read.",
+      },
+    ],
+    terminalVerification: {
+      status: "failed",
+      expected: {
+        kind: "text",
+        text: "Signed dollar amount under Yesterday usage -> Cost",
+      },
+      observed: {
+        kind: "text",
+        text: String(error || "execution failed"),
+      },
+      note: "The replay run could not complete the GloBird Energy read path.",
+    },
+  });
 }
 
 const stepResults = (result && result.envelope && result.envelope.stepResults) || [];
@@ -83,27 +126,75 @@ const readStep = stepResults.find((step) => step.id === "read-yesterday");
 const snapshotText = readStep && readStep.data ? readStep.data.text : null;
 
 if (!snapshotText) {
-  console.error("Could not read GloBird Yesterday usage cost text.");
-  console.error(`Raw result: ${raw}`);
-  process.exit(2);
+  exitWithFramedFailure({
+    message: "Could not read GloBird Yesterday usage cost text.",
+    checkpoints: [
+      {
+        id: "opened-energy-screen",
+        status: "failed",
+        note: "No Yesterday usage text block was returned from the read_text step.",
+      },
+    ],
+    terminalVerification: {
+      status: "failed",
+      expected: {
+        kind: "text",
+        text: "Signed dollar amount under Yesterday usage -> Cost",
+      },
+      observed: {
+        kind: "text",
+        text: `Raw result: ${raw || ""}`,
+      },
+      note: "The read_text step did not return snapshot text for parsing.",
+    },
+    diagnostics: { rawHint: "missing read-yesterday step text" },
+  });
 }
 
 const parsed = parseYesterdayUsageCost(snapshotText);
 if (!parsed.ok) {
-  console.error(parsed.error);
-  process.exit(2);
+  exitWithFramedFailure({
+    message: parsed.error,
+    checkpoints: [
+      {
+        id: "opened-energy-screen",
+        status: "ok",
+        note: "Opened GloBird and reached a text block, but the parser did not find a cost.",
+      },
+      {
+        id: "parsed-yesterday-usage-cost",
+        status: "failed",
+        note: "Parser could not extract a signed dollar amount from the Yesterday usage section.",
+      },
+    ],
+    terminalVerification: {
+      status: "failed",
+      expected: {
+        kind: "text",
+        text: "Signed dollar amount under Yesterday usage -> Cost",
+      },
+      observed: {
+        kind: "text",
+        text: String(parsed.error),
+      },
+      note: "The GloBird Energy surface text did not match the expected Yesterday usage layout.",
+    },
+  });
 }
 
 logSkillProgress(skillId, "Parsed Yesterday usage cost.");
 console.log(`GloBird yesterday usage cost: ${parsed.amount}`);
-console.log(SKILL_RESULT_FRAME_PREFIX);
-console.log(JSON.stringify({
+writeFramedSkillResult({
   contractVersion: SKILL_RESULT_CONTRACT_VERSION,
   skillId,
   goal: {
     kind: "read_yesterday_usage_cost",
   },
   inputs: {},
+  result: {
+    kind: "text",
+    text: parsed.amount,
+  },
   status: "success",
   checkpoints: [
     {
@@ -139,4 +230,4 @@ console.log(JSON.stringify({
       "This replay depends on the current GloBird Energy tab labels remaining stable.",
     ],
   },
-}));
+});

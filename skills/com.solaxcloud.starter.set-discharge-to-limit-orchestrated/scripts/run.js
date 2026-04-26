@@ -252,6 +252,7 @@ function hasRequiredSkillResultShape(skillResult) {
     && !Object.prototype.hasOwnProperty.call(skillResult, "source")
     && isPlainObject(skillResult.goal)
     && isPlainObject(skillResult.inputs)
+    && Object.prototype.hasOwnProperty.call(skillResult, "result")
     && ["success", "failed", "indeterminate"].includes(skillResult.status)
     && Array.isArray(skillResult.checkpoints)
     && hasRequiredCheckpointsInOrder(skillResult.checkpoints)
@@ -294,6 +295,17 @@ function hasExpectedGoalAndInputs(skillResult) {
   return skillResult.goal.kind === "set_discharge_limit"
     && skillResult.goal.percent === requestedPercent
     && skillResult.inputs.percent === requestedPercent;
+}
+
+function hasExpectedSuccessResult(skillResult) {
+  if (skillResult.status !== "success") {
+    return true;
+  }
+  return isPlainObject(skillResult.result)
+    && skillResult.result.kind === "json"
+    && isPlainObject(skillResult.result.value)
+    && requestedPercent !== null
+    && skillResult.result.value.percent === requestedPercent;
 }
 
 function extractJsonObjectAfterMarker(content, marker) {
@@ -377,6 +389,10 @@ function parseTerminalSkillResultFrame(content) {
     return { ok: false, message: "Agent CLI output ended with a SkillResult whose goal or inputs do not match the requested percent." };
   }
 
+  if (!hasExpectedSuccessResult(parsed)) {
+    return { ok: false, message: "Agent CLI output claimed success without a canonical result for the requested percent." };
+  }
+
   if (!hasSuccessVerification(parsed)) {
     return { ok: false, message: "Agent CLI output claimed success without a verified terminal read for the requested percent." };
   }
@@ -433,6 +449,7 @@ function buildHarnessFailureSkillResult(message) {
     skillId,
     goal: { kind: "set_discharge_limit", percent },
     inputs: { percent },
+    result: null,
     status: "failed",
     checkpoints: requiredCheckpointIds.map((id) => ({ id, status: "skipped", note: message })),
     terminalVerification: {

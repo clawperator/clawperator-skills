@@ -57,6 +57,12 @@ function buildSkillResult({
   diagnostics = {},
   result = null,
 }) {
+  const evidenceResult =
+    result === null || result === undefined
+      ? null
+      : result && typeof result === "object" && typeof result.kind === "string"
+        ? result
+        : { kind: "json", value: result };
   return {
     contractVersion: SKILL_RESULT_CONTRACT_VERSION,
     skillId,
@@ -64,6 +70,7 @@ function buildSkillResult({
       kind: "read_battery_level",
     },
     inputs: {},
+    result: evidenceResult,
     status,
     checkpoints: [
       {
@@ -87,7 +94,6 @@ function buildSkillResult({
     ],
     terminalVerification,
     diagnostics,
-    result,
   };
 }
 

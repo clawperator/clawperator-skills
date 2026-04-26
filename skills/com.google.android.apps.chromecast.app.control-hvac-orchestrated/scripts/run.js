@@ -226,6 +226,7 @@ function buildHarnessFailureSkillResult(message) {
       value: requestedConfig.value,
       unit_name: requestedConfig.unitName || null,
     },
+    result: null,
     status: "failed",
     checkpoints: requiredCheckpointIds.map((id) => ({ id, status: "skipped", note: message })),
     terminalVerification: {
@@ -555,6 +556,7 @@ function buildPrompt(skillProgram) {
     "- status must be 'success', 'failed', or 'indeterminate'",
     "- include goal.kind='control_hvac', goal.action, goal.value, goal.unit_name",
     "- include matching inputs.action, inputs.value, inputs.unit_name",
+    "- include result before status; use {\"kind\":\"json\",\"value\":{\"action\":\"<action>\",\"value\":\"<normalized value>\",\"unit_name\":\"<unit>\"}} for success and result:null when no truthful final state is available",
     "- include checkpoints in this exact order with note on every checkpoint:",
     "  1. app_opened",
     "  2. controller_opened",
@@ -567,7 +569,7 @@ function buildPrompt(skillProgram) {
     "",
     "Exact final-frame example shape:",
     `[Clawperator-Skill-Result]
-{"contractVersion":"1.0.0","skillId":"${skillId}","goal":{"kind":"control_hvac","action":"${requestedConfig.action}","value":"${requestedConfig.value}","unit_name":"${requestedConfig.unitName}"},"inputs":{"action":"${requestedConfig.action}","value":"${requestedConfig.value}","unit_name":"${requestedConfig.unitName}"},"status":"success","checkpoints":[{"id":"app_opened","status":"ok","note":"Google Home was reopened from a fresh session."},{"id":"controller_opened","status":"ok","note":"Opened the Panasonic controller through Home > Climate."},{"id":"current_state_read","status":"ok","note":"Read the current value before acting."},{"id":"action_applied","status":"ok","note":"Applied the requested action or confirmed a verified no-op."},{"id":"terminal_state_verified","status":"ok","note":"Fresh-session reread matched the requested value."}],"terminalVerification":{"status":"verified","method":"fresh-session reread","observed":{"text":"${expectedText}"}}}`,
+{"contractVersion":"1.0.0","skillId":"${skillId}","goal":{"kind":"control_hvac","action":"${requestedConfig.action}","value":"${requestedConfig.value}","unit_name":"${requestedConfig.unitName}"},"inputs":{"action":"${requestedConfig.action}","value":"${requestedConfig.value}","unit_name":"${requestedConfig.unitName}"},"result":{"kind":"json","value":{"action":"${requestedConfig.action}","value":"${requestedConfig.value}","unit_name":"${requestedConfig.unitName}"}},"status":"success","checkpoints":[{"id":"app_opened","status":"ok","note":"Google Home was reopened from a fresh session."},{"id":"controller_opened","status":"ok","note":"Opened the Panasonic controller through Home > Climate."},{"id":"current_state_read","status":"ok","note":"Read the current value before acting."},{"id":"action_applied","status":"ok","note":"Applied the requested action or confirmed a verified no-op."},{"id":"terminal_state_verified","status":"ok","note":"Fresh-session reread matched the requested value."}],"terminalVerification":{"status":"verified","method":"fresh-session reread","observed":{"text":"${expectedText}"}}}`,
     "",
     "SKILL.md program:",
     skillProgram,
@@ -643,6 +645,7 @@ function hasMinimalSkillResultShape(skillResult) {
   return isPlainObject(skillResult)
     && isPlainObject(skillResult.goal)
     && isPlainObject(skillResult.inputs)
+    && Object.prototype.hasOwnProperty.call(skillResult, "result")
     && Array.isArray(skillResult.checkpoints)
     && hasRequiredCheckpointsInOrder(skillResult.checkpoints)
     && hasRequiredCheckpointNotes(skillResult.checkpoints)
@@ -709,6 +712,7 @@ function normalizeSkillResult(skillResult) {
     skillId: skillResult.skillId,
     goal: skillResult.goal,
     inputs: skillResult.inputs,
+    result: skillResult.result,
     status: skillResult.status,
     checkpoints: skillResult.checkpoints.map(normalizeCheckpoint),
     terminalVerification: normalizeTerminalVerification(
@@ -726,6 +730,7 @@ function hasRequiredSkillResultShape(skillResult) {
     && !Object.prototype.hasOwnProperty.call(skillResult, "source")
     && isPlainObject(skillResult.goal)
     && isPlainObject(skillResult.inputs)
+    && Object.prototype.hasOwnProperty.call(skillResult, "result")
     && ["success", "failed", "indeterminate"].includes(skillResult.status)
     && Array.isArray(skillResult.checkpoints)
     && hasRequiredCheckpointsInOrder(skillResult.checkpoints)
@@ -747,6 +752,18 @@ function hasExpectedGoalAndInputs(skillResult) {
     && skillResult.inputs.action === requestedConfig.action
     && actualInputValue === requestedConfig.value
     && skillResult.inputs.unit_name === requestedConfig.unitName;
+}
+
+function hasExpectedSuccessResult(skillResult) {
+  if (skillResult.status !== "success") {
+    return true;
+  }
+  return isPlainObject(skillResult.result)
+    && skillResult.result.kind === "json"
+    && isPlainObject(skillResult.result.value)
+    && skillResult.result.value.action === requestedConfig.action
+    && normalizeValue(requestedConfig.action, skillResult.result.value.value) === requestedConfig.value
+    && skillResult.result.value.unit_name === requestedConfig.unitName;
 }
 
 function hasSuccessVerification(skillResult) {
@@ -851,6 +868,9 @@ function parseTerminalSkillResultFrame(content) {
   }
   if (!hasExpectedGoalAndInputs(normalized)) {
     return { ok: false, message: "Agent CLI output ended with a SkillResult whose goal or inputs do not match the requested action/value/unit." };
+  }
+  if (!hasExpectedSuccessResult(normalized)) {
+    return { ok: false, message: "Agent CLI output claimed success without a canonical result for the requested action/value/unit." };
   }
   if (!hasSuccessVerification(normalized)) {
     return { ok: false, message: "Agent CLI output claimed success without a verified terminal reread for the requested action." };

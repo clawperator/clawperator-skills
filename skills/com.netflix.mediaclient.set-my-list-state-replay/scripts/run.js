@@ -340,6 +340,12 @@ function emitResult({ actionName, title, profile, desiredState, status, checkpoi
     skillId: SKILL_ID,
     goal: { kind: "set_my_list_state" },
     inputs: { action: actionName, title, profile, state: desiredState },
+    result: status === "success"
+      ? {
+          kind: "json",
+          value: { action: actionName, title, profile, state: desiredState },
+        }
+      : null,
     status,
     checkpoints,
     terminalVerification,

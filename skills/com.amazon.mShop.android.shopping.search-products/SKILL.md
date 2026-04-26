@@ -1,5 +1,6 @@
 ---
 name: com.amazon.mShop.android.shopping.search-products
+clawperator-skill-type: replay
 description: Search for products in the Amazon Shopping Android app.
 ---
 

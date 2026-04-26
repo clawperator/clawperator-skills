@@ -73,6 +73,14 @@ function setCheckpoint(id, status, updates = {}) {
 }
 
 function buildSkillResult(status, terminalVerification) {
+  const result = status === "success"
+    ? {
+        kind: "json",
+        value: {
+          percent,
+        },
+      }
+    : null;
   return {
     contractVersion: skillResultContractVersion,
     skillId,
@@ -83,6 +91,7 @@ function buildSkillResult(status, terminalVerification) {
     inputs: {
       percent,
     },
+    result,
     status,
     checkpoints: checkpointOrder.map(id => checkpointState.get(id)),
     terminalVerification,
