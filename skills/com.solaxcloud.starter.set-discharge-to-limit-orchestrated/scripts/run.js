@@ -297,6 +297,17 @@ function hasExpectedGoalAndInputs(skillResult) {
     && skillResult.inputs.percent === requestedPercent;
 }
 
+function hasExpectedSuccessResult(skillResult) {
+  if (skillResult.status !== "success") {
+    return true;
+  }
+  return isPlainObject(skillResult.result)
+    && skillResult.result.kind === "json"
+    && isPlainObject(skillResult.result.value)
+    && requestedPercent !== null
+    && skillResult.result.value.percent === requestedPercent;
+}
+
 function extractJsonObjectAfterMarker(content, marker) {
   const markerIndex = content.lastIndexOf(marker);
   if (markerIndex === -1) {
@@ -376,6 +387,10 @@ function parseTerminalSkillResultFrame(content) {
 
   if (!hasExpectedGoalAndInputs(parsed)) {
     return { ok: false, message: "Agent CLI output ended with a SkillResult whose goal or inputs do not match the requested percent." };
+  }
+
+  if (!hasExpectedSuccessResult(parsed)) {
+    return { ok: false, message: "Agent CLI output claimed success without a canonical result for the requested percent." };
   }
 
   if (!hasSuccessVerification(parsed)) {

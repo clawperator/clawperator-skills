@@ -645,6 +645,7 @@ function hasMinimalSkillResultShape(skillResult) {
   return isPlainObject(skillResult)
     && isPlainObject(skillResult.goal)
     && isPlainObject(skillResult.inputs)
+    && Object.prototype.hasOwnProperty.call(skillResult, "result")
     && Array.isArray(skillResult.checkpoints)
     && hasRequiredCheckpointsInOrder(skillResult.checkpoints)
     && hasRequiredCheckpointNotes(skillResult.checkpoints)
@@ -711,7 +712,7 @@ function normalizeSkillResult(skillResult) {
     skillId: skillResult.skillId,
     goal: skillResult.goal,
     inputs: skillResult.inputs,
-    result: Object.prototype.hasOwnProperty.call(skillResult, "result") ? skillResult.result : null,
+    result: skillResult.result,
     status: skillResult.status,
     checkpoints: skillResult.checkpoints.map(normalizeCheckpoint),
     terminalVerification: normalizeTerminalVerification(
@@ -751,6 +752,18 @@ function hasExpectedGoalAndInputs(skillResult) {
     && skillResult.inputs.action === requestedConfig.action
     && actualInputValue === requestedConfig.value
     && skillResult.inputs.unit_name === requestedConfig.unitName;
+}
+
+function hasExpectedSuccessResult(skillResult) {
+  if (skillResult.status !== "success") {
+    return true;
+  }
+  return isPlainObject(skillResult.result)
+    && skillResult.result.kind === "json"
+    && isPlainObject(skillResult.result.value)
+    && skillResult.result.value.action === requestedConfig.action
+    && normalizeValue(requestedConfig.action, skillResult.result.value.value) === requestedConfig.value
+    && skillResult.result.value.unit_name === requestedConfig.unitName;
 }
 
 function hasSuccessVerification(skillResult) {
@@ -855,6 +868,9 @@ function parseTerminalSkillResultFrame(content) {
   }
   if (!hasExpectedGoalAndInputs(normalized)) {
     return { ok: false, message: "Agent CLI output ended with a SkillResult whose goal or inputs do not match the requested action/value/unit." };
+  }
+  if (!hasExpectedSuccessResult(normalized)) {
+    return { ok: false, message: "Agent CLI output claimed success without a canonical result for the requested action/value/unit." };
   }
   if (!hasSuccessVerification(normalized)) {
     return { ok: false, message: "Agent CLI output claimed success without a verified terminal reread for the requested action." };
