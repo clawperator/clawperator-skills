@@ -7,6 +7,34 @@ const screenshotPath = process.argv[4] || process.env.SCREENSHOT_PATH;
 const operatorPkg = resolveOperatorPackage(process.argv[5]);
 const requestedPersonName = (personName || "").trim();
 const skillId = "com.life360.android.safetymapd.get-location";
+const FRAME = "[Clawperator-Skill-Result]";
+const CONTRACT_VERSION = "1.0.0";
+
+function writeFramed(payload) {
+  console.log(FRAME);
+  console.log(JSON.stringify(payload));
+}
+
+function failFramed(message, { checkpointNote = message } = {}) {
+  logSkillProgress(skillId, message);
+  writeFramed({
+    contractVersion: CONTRACT_VERSION,
+    skillId,
+    goal: { kind: "read_person_location" },
+    inputs: { person: requestedPersonName || null, screenshot: Boolean(screenshotPath) },
+    result: null,
+    status: "failed",
+    checkpoints: [{ id: "location_read", status: "failed", note: checkpointNote }],
+    terminalVerification: {
+      status: "failed",
+      expected: { kind: "text", text: "Life360 member place and battery from detail snapshot" },
+      observed: { kind: "text", text: message },
+      note: message,
+    },
+    diagnostics: { runtimeState: "unknown" },
+  });
+  console.error(`⚠️ ${message}`);
+}
 
 if (!deviceId || !personName) {
   console.error('Usage: node get_life360_location.js <device_id> <person_name> [screenshot_path] [operator_package]');
@@ -154,7 +182,7 @@ function probeForVisibleName(maxScrolls) {
   logSkillProgress(skillId, "Opening Life360...");
   const initialProbe = runClawperator(buildProbeExecution(0, false), deviceId, operatorPkg);
   if (!initialProbe.ok) {
-    console.error(`⚠️ Skill execution failed: ${initialProbe.error}`);
+    failFramed(String(initialProbe.error || "initial probe failed"));
     process.exit(2);
   }
 
@@ -169,7 +197,7 @@ function probeForVisibleName(maxScrolls) {
   logSkillProgress(skillId, `Searching for ${requestedPersonName}...`);
   const probeRun = runClawperator(buildProbeExecution(maxScrolls, dismissOverlay), deviceId, operatorPkg);
   if (!probeRun.ok) {
-    console.error(`⚠️ Skill execution failed: ${probeRun.error}`);
+    failFramed(String(probeRun.error || "scroll probe failed"));
     process.exit(2);
   }
 
@@ -195,7 +223,10 @@ function probeForVisibleName(maxScrolls) {
 const MAX_SCROLLS = 6;
 const searchResult = probeForVisibleName(MAX_SCROLLS);
 if (!searchResult.resolvedName) {
-  console.error(`⚠️ Could not find a visible Life360 member matching "${requestedPersonName}"`);
+  failFramed(
+    `Could not find a visible Life360 member matching "${requestedPersonName}"`,
+    { checkpointNote: "Member not visible after scroll probe." }
+  );
   process.exit(2);
 }
 
@@ -206,7 +237,7 @@ const selectRun = runClawperator(
 );
 
 if (!selectRun.ok) {
-  console.error(`⚠️ Skill execution failed: ${selectRun.error}`);
+  failFramed(String(selectRun.error || "select execution failed"));
   process.exit(2);
 }
 
@@ -223,7 +254,7 @@ if (snapText) {
       "--path", screenshotPath
     ]);
     if (!screenshotResult.ok) {
-      console.error(`⚠️ Screenshot capture failed: ${screenshotResult.error}`);
+      failFramed(String(screenshotResult.error || "screenshot failed"));
       process.exit(2);
     }
     console.log(`SCREENSHOT|path=${screenshotPath}`);
@@ -231,7 +262,33 @@ if (snapText) {
   logSkillProgress(skillId, "Parsing location data...");
   const { battery, place } = extractReadingFromSnapshot(snapText);
   console.log(`✅ Life360 location for ${searchResult.resolvedName}: place=${place}, battery=${battery}`);
+  writeFramed({
+    contractVersion: CONTRACT_VERSION,
+    skillId,
+    goal: { kind: "read_person_location" },
+    inputs: { person: searchResult.resolvedName, screenshot: Boolean(screenshotPath) },
+    result: {
+      kind: "json",
+      value: {
+        person: searchResult.resolvedName,
+        place,
+        battery,
+      },
+    },
+    status: "success",
+    checkpoints: [
+      { id: "member_opened", status: "ok", note: `Opened detail for ${searchResult.resolvedName}.` },
+      { id: "location_read", status: "ok", note: "Parsed place and battery lines from the detail snapshot." },
+    ],
+    terminalVerification: {
+      status: "verified",
+      expected: { kind: "text", text: "Non-unknown place and battery when visible" },
+      observed: { kind: "json", value: { place, battery } },
+      note: "Heuristic parse from the Life360 detail snapshot text.",
+    },
+    diagnostics: { runtimeState: "healthy" },
+  });
 } else {
-  console.error('⚠️ Could not capture Life360 location snapshot');
+  failFramed("Could not capture Life360 location snapshot", { checkpointNote: "snap step had no text." });
   process.exit(2);
 }

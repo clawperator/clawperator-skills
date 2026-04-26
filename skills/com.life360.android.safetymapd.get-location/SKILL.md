@@ -1,10 +1,13 @@
 ---
 name: com.life360.android.safetymapd.get-location
+clawperator-skill-type: replay
 description: Get a family member's current location details from the Life360 Android app.
 ---
 
 Looks up a person's location in Life360 by name and returns all readable details from their profile/location screen.
 If no name is passed, the script uses the generic placeholder `Person` (recommended usage is to always pass `<person_name>` explicitly).
+
+**Prerequisites:** Life360 must be signed in, the target member must be visible on the current map (or reachable within the first scrolls), and `<person_name>` should match a visible on-screen label. With `clawperator skills run`, pass the name as a trailing script argument. Framed `status: "failed"` and `result: null` is expected if no member label matches (not a contract bug).
 
 Run:
 
