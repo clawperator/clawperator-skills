@@ -1,5 +1,6 @@
 ---
 name: com.life360.android.safetymapd.get-location
+clawperator-skill-type: replay
 description: Get a family member's current location details from the Life360 Android app.
 ---
 

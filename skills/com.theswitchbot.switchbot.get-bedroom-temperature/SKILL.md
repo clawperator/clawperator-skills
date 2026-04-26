@@ -1,5 +1,6 @@
 ---
 name: com.theswitchbot.switchbot.get-bedroom-temperature
+clawperator-skill-type: replay
 description: Read bedroom temperature from SwitchBot on Android via ActionTask generic agent actions. Use when asked for current bedroom temperature.
 ---
 

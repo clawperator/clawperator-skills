@@ -1,5 +1,6 @@
 ---
 name: com.coles.search-products
+clawperator-skill-type: replay
 description: Search for products in the Coles Android app.
 ---
 

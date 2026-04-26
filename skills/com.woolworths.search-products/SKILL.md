@@ -1,5 +1,6 @@
 ---
 name: com.woolworths.search-products
+clawperator-skill-type: replay
 description: Search for products in the Woolworths Android app.
 ---
 
