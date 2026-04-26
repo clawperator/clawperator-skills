@@ -16,3 +16,9 @@ Example:
 ```bash
 ./skills/com.coles.search-products/scripts/search_coles_products.sh <device_serial> "Milk"
 ```
+
+## Notes
+
+- The script runs a probe execution plus a second search. Cold starts can need more than
+  120s wall time. If `clawperator skills run` fails with a wrapper timeout, retry with
+  a higher limit, e.g. `--timeout 180000`.

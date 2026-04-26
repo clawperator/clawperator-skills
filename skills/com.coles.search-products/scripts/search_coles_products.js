@@ -52,7 +52,7 @@ function buildSearchExecution(submit, useSuggestion) {
     { id: 'close', type: 'close_app', params: { applicationId: 'com.coles.android.shopmate' } },
     { id: 'wait_close', type: 'sleep', params: { durationMs: 1500 } },
     { id: 'open', type: 'open_app', params: { applicationId: 'com.coles.android.shopmate' } },
-    { id: 'wait_open', type: 'sleep', params: { durationMs: 8000 } },
+    { id: 'wait_open', type: 'sleep', params: { durationMs: 10000 } },
     { id: 'click-search', type: 'click', params: { matcher: { textContains: 'Search' } } },
     { id: 'type-query', type: 'enter_text', params: { matcher: { role: 'textfield' }, text: query, submit } }
   ];
@@ -74,7 +74,8 @@ function buildSearchExecution(submit, useSuggestion) {
     taskId: commandId,
     source: 'clawperator-skill',
     expectedFormat: 'android-ui-automator',
-    timeoutMs: 90000,
+    // Max allowed by Clawperator execution validation (see apps/node/validation).
+    timeoutMs: 120000,
     actions
   };
 }
