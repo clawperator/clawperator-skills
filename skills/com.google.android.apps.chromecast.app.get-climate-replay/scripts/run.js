@@ -7,6 +7,7 @@ const skillId = "com.google.android.apps.chromecast.app.get-climate-replay";
 const SKILL_RESULT_FRAME_PREFIX = "[Clawperator-Skill-Result]";
 const SKILL_RESULT_CONTRACT_VERSION = "1.0.0";
 const APP_ID = "com.google.android.apps.chromecast.app";
+const CLIMATE_APP_RESOURCE_PREFIX = "com.google.android.apps.chromecast.app:id";
 
 function parseArgs(argv) {
   const [, , deviceId, ...restArgs] = argv;
@@ -74,6 +75,7 @@ function tryParseJson(raw) {
 
 function runExecution(execution) {
   try {
+    const startedAt = Date.now();
     const stdout = execFileSync(
       resolvedClawperatorBin.cmd,
       [
@@ -85,6 +87,8 @@ function runExecution(execution) {
         operatorPackage,
         "--execution",
         JSON.stringify(execution),
+        "--timeout-ms",
+        String(execution.timeoutMs),
         "--json",
       ],
       {
@@ -93,7 +97,7 @@ function runExecution(execution) {
         stdio: ["ignore", "pipe", "pipe"],
       }
     );
-    return { ok: true, stdout, stderr: "", envelope: tryParseJson(stdout), exitCode: 0 };
+    return { ok: true, stdout, stderr: "", envelope: tryParseJson(stdout), exitCode: 0, elapsedMs: Date.now() - startedAt };
   } catch (err) {
     return {
       ok: false,
@@ -102,6 +106,7 @@ function runExecution(execution) {
       envelope: tryParseJson(err?.stdout?.toString?.("utf8") ?? ""),
       exitCode: typeof err?.status === "number" ? err.status : 1,
       message: err?.message ?? "clawperator exec failed",
+      elapsedMs: undefined,
     };
   }
 }
@@ -160,9 +165,18 @@ function parseDeviceName(snapshotText) {
   const text = String(snapshotText || "");
   const toolbarMatch = text.match(/text="([^"]+)" resource-id="com\.google\.android\.apps\.chromecast\.app:id\/toolbar_title"/);
   if (toolbarMatch) return toolbarMatch[1];
+  const toolbarTextMatch = text.match(/resource-id="com\.google\.android\.apps\.chromecast\.app:id\/toolbar"[\s\S]{0,900}?text="([^"]+)"/);
+  if (toolbarTextMatch) return toolbarTextMatch[1];
   const closeThenTitleMatch = text.match(/content-desc="Close"[\s\S]{0,400}?text="([^"]+)"/);
   if (closeThenTitleMatch) return closeThenTitleMatch[1];
   return "";
+}
+
+function parseResourceText(snapshotText, resourceName) {
+  const text = String(snapshotText || "");
+  const escaped = resourceName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = text.match(new RegExp(`text="([^"]*)" resource-id="com\\.google\\.android\\.apps\\.chromecast\\.app:id/${escaped}"`));
+  return match ? match[1].trim() : "";
 }
 
 function parseMode(snapshotText) {
@@ -214,7 +228,7 @@ async function writeToStream(stream, chunk) {
   });
 }
 
-async function emitSkillResult(status, climate, terminalVerification) {
+async function emitSkillResult(status, climate, terminalVerification, diagnostics = {}) {
   const result = {
     contractVersion: SKILL_RESULT_CONTRACT_VERSION,
     skillId,
@@ -228,6 +242,7 @@ async function emitSkillResult(status, climate, terminalVerification) {
     diagnostics: {
       runtimeState: "healthy",
       climate,
+      ...diagnostics,
     },
   };
   await writeToStream(process.stdout, `${SKILL_RESULT_FRAME_PREFIX}\n`);
@@ -248,81 +263,86 @@ async function exitWithFailure(result, checkpointId, note) {
   process.exit(typeof result?.exitCode === "number" && result.exitCode !== 0 ? result.exitCode : 1);
 }
 
-async function main() {
-  const result = runExecution(buildExecution([
+function buildOpenSnapshotExecution() {
+  return buildExecution([
     { id: "close", type: "close_app", params: { applicationId: APP_ID } },
-    { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
     { id: "open", type: "open_app", params: { applicationId: APP_ID } },
-    { id: "wait_open", type: "sleep", params: { durationMs: 3500 } },
+    {
+      id: "wait_google_home_app",
+      type: "wait_for_node",
+      params: { matcher: { resourceId: `${CLIMATE_APP_RESOURCE_PREFIX}/action_bar_root` }, timeoutMs: 15000 },
+    },
+    { id: "snap", type: "snapshot_ui" },
+  ], 30000);
+}
+
+function buildNavigateToControllerExecution() {
+  return buildExecution([
     { id: "go_home", type: "click", params: { matcher: { textEquals: "Home" } } },
-    { id: "wait_home", type: "sleep", params: { durationMs: 1500 } },
     {
       id: "open_climate",
       type: "scroll_and_click",
       params: {
         matcher: { textEquals: "Climate" },
-        container: { resourceId: "com.google.android.apps.chromecast.app:id/category_chips" },
+        container: { resourceId: `${CLIMATE_APP_RESOURCE_PREFIX}/category_chips` },
         direction: "right",
         maxSwipes: 6,
         clickType: "click",
         findFirstScrollableChild: true,
       },
     },
-    { id: "wait_after_climate", type: "sleep", params: { durationMs: 1500 } },
+    {
+      id: "wait_climate_tile",
+      type: "wait_for_node",
+      params: {
+        matcher: {
+          resourceId: `${CLIMATE_APP_RESOURCE_PREFIX}/control`,
+          textContains: unitName,
+        },
+        timeoutMs: 15000,
+      },
+    },
     {
       id: "open_controller",
       type: "scroll_and_click",
       params: {
         matcher: {
-          resourceId: "com.google.android.apps.chromecast.app:id/control",
+          resourceId: `${CLIMATE_APP_RESOURCE_PREFIX}/control`,
           textContains: unitName,
         },
-        container: { resourceId: "com.google.android.apps.chromecast.app:id/pager_home_tab" },
+        container: { resourceId: `${CLIMATE_APP_RESOURCE_PREFIX}/pager_home_tab` },
         direction: "down",
         maxSwipes: 12,
         clickType: "long_click",
       },
     },
-    { id: "wait_controller", type: "sleep", params: { durationMs: 5000 } },
-    { id: "read_low_value", type: "read_text", params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/low_value" } } },
-    { id: "read_indoor_temp", type: "read_text", params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/first_value_title" } } },
+    {
+      id: "wait_controller",
+      type: "wait_for_node",
+      params: { matcher: { resourceId: `${CLIMATE_APP_RESOURCE_PREFIX}/low_value` }, timeoutMs: 15000 },
+    },
+    {
+      id: "wait_status_values",
+      type: "wait_for_node",
+      params: { matcher: { resourceId: `${CLIMATE_APP_RESOURCE_PREFIX}/first_value_title` }, timeoutMs: 15000 },
+    },
     { id: "snap", type: "snapshot_ui" },
-  ]));
+  ]);
+}
 
-  if (!result.ok) {
-    await exitWithFailure(result, "app_opened", result.message);
-  }
-
-  setCheckpoint("app_opened", "ok", {
-    evidence: { kind: "text", text: "Opened Google Home, entered Home, and navigated to the Climate category." },
-  });
-  setCheckpoint("controller_opened", "ok", {
-    evidence: { kind: "text", text: `Opened the ${unitName} climate controller screen.` },
-  });
-
-  const lowValue = normalizeTemperature(getStepText(result, "read_low_value"));
+function parseClimateFromSnapshot(snapshotText) {
+  const lowValue = normalizeTemperature(parseResourceText(snapshotText, "low_value"));
   const desiredTemperature = parseDesiredTemperatureFromLowValue(lowValue);
   const power = parsePowerStateFromLowValue(lowValue);
-  const indoorTemperature = normalizeTemperature(getStepText(result, "read_indoor_temp"));
-  const snapshotText = getStepText(result, "snap");
   const deviceName = parseDeviceName(snapshotText);
   const mode = parseMode(snapshotText);
   const fanSpeed = parseFanSpeed(snapshotText);
+  const indoorTemperature =
+    normalizeTemperature(parseLabeledTemperature(snapshotText, "Indoor temperature")) ||
+    normalizeTemperature(parseResourceText(snapshotText, "first_value_title"));
   const outdoorTemperature = parseLabeledTemperature(snapshotText, "Outdoor temperature");
 
-  if (!lowValue || !indoorTemperature || !deviceName) {
-    await exitWithFailure(result, "climate_status_read", "Could not parse one or more climate status fields from the controller screen.");
-  }
-
-  if (!sameLabel(deviceName, unitName)) {
-    await exitWithFailure(
-      result,
-      "climate_status_read",
-      `Opened controller '${deviceName}', which did not match requested unit '${unitName}'.`
-    );
-  }
-
-  const climate = {
+  return {
     device_name: deviceName,
     power,
     desired_temperature: desiredTemperature,
@@ -331,6 +351,53 @@ async function main() {
     indoor_temperature: indoorTemperature,
     outdoor_temperature: outdoorTemperature || null,
   };
+}
+
+function hasCompleteClimate(climate) {
+  return Boolean(climate?.device_name && climate?.indoor_temperature && climate?.power);
+}
+
+async function main() {
+  const skillStartedAt = Date.now();
+  const openResult = runExecution(buildOpenSnapshotExecution());
+
+  if (!openResult.ok) {
+    await exitWithFailure(openResult, "app_opened", openResult.message);
+  }
+
+  let result = openResult;
+  let snapshotText = getStepText(openResult, "snap");
+  let climate = parseClimateFromSnapshot(snapshotText);
+  let route = "restored-controller";
+
+  if (!hasCompleteClimate(climate) || !sameLabel(climate.device_name, unitName)) {
+    result = runExecution(buildNavigateToControllerExecution());
+    route = "home-tab-navigation";
+    if (!result.ok) {
+      await exitWithFailure(result, "controller_opened", result.message);
+    }
+    snapshotText = getStepText(result, "snap");
+    climate = parseClimateFromSnapshot(snapshotText);
+  }
+
+  setCheckpoint("app_opened", "ok", {
+    evidence: { kind: "text", text: "Opened Google Home and observed the current app state." },
+  });
+  setCheckpoint("controller_opened", "ok", {
+    evidence: { kind: "text", text: `Reached the ${unitName} climate controller screen via ${route}.` },
+  });
+
+  if (!hasCompleteClimate(climate)) {
+    await exitWithFailure(result, "climate_status_read", "Could not parse one or more climate status fields from the controller screen.");
+  }
+
+  if (!sameLabel(climate.device_name, unitName)) {
+    await exitWithFailure(
+      result,
+      "climate_status_read",
+      `Opened controller '${climate.device_name}', which did not match requested unit '${unitName}'.`
+    );
+  }
 
   setCheckpoint("climate_status_read", "ok", {
     evidence: { kind: "json", value: climate },
@@ -341,7 +408,13 @@ async function main() {
     status: "verified",
     expected: { kind: "text", text: "Visible climate status fields on the controller screen" },
     observed: { kind: "json", value: climate },
-    note: "Verified by reading the visible Google Home controller status fields.",
+    note: "Verified by reading the visible Google Home controller status fields without fixed sleep actions.",
+  }, {
+    openSnapshotElapsedMs: openResult.elapsedMs,
+    navigationElapsedMs: route === "home-tab-navigation" ? result.elapsedMs : 0,
+    totalElapsedMs: Date.now() - skillStartedAt,
+    route,
+    waitStrategy: "condition-based wait_for_node actions and snapshot parsing with no fixed sleep actions",
   });
 }
 
