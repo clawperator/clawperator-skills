@@ -18,37 +18,28 @@ if (!deviceId) {
   process.exit(1);
 }
 
-function extractTexts(snapshotText) {
-  return [...snapshotText.matchAll(/text="([^"]*)"/g)]
-    .map((match) => match[1])
-    .filter(Boolean);
-}
+function parseYesterdayUsageCost(rawText) {
+  const normalizedText = String(rawText || "")
+    .replace(/\r?\n/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-function parseYesterdayUsageCost(snapshotText) {
-  const texts = extractTexts(snapshotText);
-  const yesterdayIndex = texts.findIndex(
-    (text) => text.trim().toUpperCase() === "YESTERDAY USAGE"
-  );
-  if (yesterdayIndex === -1) {
+  if (!normalizedText) {
     return {
       ok: false,
-      error: 'Could not find the "YESTERDAY USAGE" section in the GloBird snapshot.',
+      error: 'Could not capture a GloBird Yesterday usage text block.',
     };
   }
 
-  const sectionTexts = texts.slice(yesterdayIndex + 1, yesterdayIndex + 8);
-  const costIndex = sectionTexts.findIndex((text) => text.trim() === "Cost");
-  if (costIndex === -1) {
+  const yesterdayMatch = normalizedText.match(/YESTERDAY USAGE[\s\S]*?\bCost\b\s*,\s*([+-]?\$\d+(?:\.\d+)?)/i);
+  if (!yesterdayMatch) {
     return {
       ok: false,
-      error: 'Could not find the "Cost" label under "YESTERDAY USAGE".',
+      error: 'Could not find the "YESTERDAY USAGE" section in the GloBird text block.',
     };
   }
 
-  const amountPattern = /^-?\$\d+(?:\.\d+)?$/;
-  const amount = sectionTexts
-    .slice(costIndex + 1)
-    .find((text) => amountPattern.test(text.trim()));
+  const amount = yesterdayMatch[1].trim();
   if (!amount) {
     return {
       ok: false,
@@ -68,18 +59,17 @@ const execution = {
   timeoutMs: 120000,
   actions: [
     { id: "close", type: "close_app", params: { applicationId: "com.globird.energy" } },
-    { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
     { id: "open", type: "open_app", params: { applicationId: "com.globird.energy" } },
-    { id: "wait_open", type: "sleep", params: { durationMs: 8000 } },
+    { id: "wait_open", type: "wait_for_node", params: { matcher: { resourceId: "nav-item-energy" }, timeoutMs: 15000 } },
     { id: "open-energy-tab", type: "click", params: { matcher: { textEquals: "Energy" } } },
-    { id: "wait-energy", type: "sleep", params: { durationMs: 4000 } },
-    { id: "snap", type: "snapshot_ui" }
+    { id: "wait-energy", type: "wait_for_node", params: { matcher: { textContains: "YESTERDAY USAGE" }, timeoutMs: 15000 } },
+    { id: "read-yesterday", type: "read_text", params: { matcher: { textContains: "YESTERDAY USAGE" } } }
   ]
 };
 
 logSkillProgress(skillId, "Launching GloBird for a fresh replay run...");
 logSkillProgress(skillId, "Opening the Energy tab...");
-logSkillProgress(skillId, "Capturing a snapshot for Yesterday usage cost...");
+logSkillProgress(skillId, "Reading Yesterday usage cost...");
 
 const { ok, result, error, raw } = runClawperator(execution, deviceId, operatorPkg);
 
@@ -89,11 +79,11 @@ if (!ok) {
 }
 
 const stepResults = (result && result.envelope && result.envelope.stepResults) || [];
-const snapStep = stepResults.find((step) => step.id === "snap");
-const snapshotText = snapStep && snapStep.data ? snapStep.data.text : null;
+const readStep = stepResults.find((step) => step.id === "read-yesterday");
+const snapshotText = readStep && readStep.data ? readStep.data.text : null;
 
 if (!snapshotText) {
-  console.error("Could not capture a GloBird snapshot for Yesterday usage cost.");
+  console.error("Could not read GloBird Yesterday usage cost text.");
   console.error(`Raw result: ${raw}`);
   process.exit(2);
 }
@@ -119,7 +109,7 @@ console.log(JSON.stringify({
     {
       id: "opened-energy-screen",
       status: "ok",
-      note: "Opened GloBird and captured the Energy screen snapshot.",
+      note: "Opened GloBird and reached the Energy screen.",
     },
     {
       id: "parsed-yesterday-usage-cost",
