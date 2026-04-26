@@ -32,5 +32,7 @@ Expected output lines:
 
 Notes:
 - UI copy can vary by app version (e.g. right-side stat may be Avg Cost Per Day or Number Of Days).
+- The runtime waits for the Energy tab and then reads the summary fields directly
+  instead of using fixed sleeps before taking a snapshot.
 - If Yesterday is not present in current view, return partial results and state that explicitly.
 - Ensure `adb` is installed and available on `PATH`.
