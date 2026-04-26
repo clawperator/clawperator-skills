@@ -225,6 +225,7 @@ Reference success shape:
   "skillId": "com.solaxcloud.starter.set-discharge-to-limit-orchestrated",
   "goal": { "kind": "set_discharge_limit", "percent": 40 },
   "inputs": { "percent": 40 },
+  "result": { "kind": "json", "value": { "percent": 40 } },
   "status": "success",
   "checkpoints": [
     { "id": "app_opened", "status": "ok", "note": "Opened or resumed SolaX on the selected device and confirmed the run stayed inside com.solaxcloud.starter." },

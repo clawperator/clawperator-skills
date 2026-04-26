@@ -252,6 +252,7 @@ function hasRequiredSkillResultShape(skillResult) {
     && !Object.prototype.hasOwnProperty.call(skillResult, "source")
     && isPlainObject(skillResult.goal)
     && isPlainObject(skillResult.inputs)
+    && Object.prototype.hasOwnProperty.call(skillResult, "result")
     && ["success", "failed", "indeterminate"].includes(skillResult.status)
     && Array.isArray(skillResult.checkpoints)
     && hasRequiredCheckpointsInOrder(skillResult.checkpoints)
@@ -433,6 +434,7 @@ function buildHarnessFailureSkillResult(message) {
     skillId,
     goal: { kind: "set_discharge_limit", percent },
     inputs: { percent },
+    result: null,
     status: "failed",
     checkpoints: requiredCheckpointIds.map((id) => ({ id, status: "skipped", note: message })),
     terminalVerification: {

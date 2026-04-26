@@ -226,6 +226,7 @@ function buildHarnessFailureSkillResult(message) {
       value: requestedConfig.value,
       unit_name: requestedConfig.unitName || null,
     },
+    result: null,
     status: "failed",
     checkpoints: requiredCheckpointIds.map((id) => ({ id, status: "skipped", note: message })),
     terminalVerification: {
@@ -555,6 +556,7 @@ function buildPrompt(skillProgram) {
     "- status must be 'success', 'failed', or 'indeterminate'",
     "- include goal.kind='control_hvac', goal.action, goal.value, goal.unit_name",
     "- include matching inputs.action, inputs.value, inputs.unit_name",
+    "- include result before status; use {\"kind\":\"json\",\"value\":{\"action\":\"<action>\",\"value\":\"<normalized value>\",\"unit_name\":\"<unit>\"}} for success and result:null when no truthful final state is available",
     "- include checkpoints in this exact order with note on every checkpoint:",
     "  1. app_opened",
     "  2. controller_opened",
@@ -567,7 +569,7 @@ function buildPrompt(skillProgram) {
     "",
     "Exact final-frame example shape:",
     `[Clawperator-Skill-Result]
-{"contractVersion":"1.0.0","skillId":"${skillId}","goal":{"kind":"control_hvac","action":"${requestedConfig.action}","value":"${requestedConfig.value}","unit_name":"${requestedConfig.unitName}"},"inputs":{"action":"${requestedConfig.action}","value":"${requestedConfig.value}","unit_name":"${requestedConfig.unitName}"},"status":"success","checkpoints":[{"id":"app_opened","status":"ok","note":"Google Home was reopened from a fresh session."},{"id":"controller_opened","status":"ok","note":"Opened the Panasonic controller through Home > Climate."},{"id":"current_state_read","status":"ok","note":"Read the current value before acting."},{"id":"action_applied","status":"ok","note":"Applied the requested action or confirmed a verified no-op."},{"id":"terminal_state_verified","status":"ok","note":"Fresh-session reread matched the requested value."}],"terminalVerification":{"status":"verified","method":"fresh-session reread","observed":{"text":"${expectedText}"}}}`,
+{"contractVersion":"1.0.0","skillId":"${skillId}","goal":{"kind":"control_hvac","action":"${requestedConfig.action}","value":"${requestedConfig.value}","unit_name":"${requestedConfig.unitName}"},"inputs":{"action":"${requestedConfig.action}","value":"${requestedConfig.value}","unit_name":"${requestedConfig.unitName}"},"result":{"kind":"json","value":{"action":"${requestedConfig.action}","value":"${requestedConfig.value}","unit_name":"${requestedConfig.unitName}"}},"status":"success","checkpoints":[{"id":"app_opened","status":"ok","note":"Google Home was reopened from a fresh session."},{"id":"controller_opened","status":"ok","note":"Opened the Panasonic controller through Home > Climate."},{"id":"current_state_read","status":"ok","note":"Read the current value before acting."},{"id":"action_applied","status":"ok","note":"Applied the requested action or confirmed a verified no-op."},{"id":"terminal_state_verified","status":"ok","note":"Fresh-session reread matched the requested value."}],"terminalVerification":{"status":"verified","method":"fresh-session reread","observed":{"text":"${expectedText}"}}}`,
     "",
     "SKILL.md program:",
     skillProgram,
@@ -709,6 +711,7 @@ function normalizeSkillResult(skillResult) {
     skillId: skillResult.skillId,
     goal: skillResult.goal,
     inputs: skillResult.inputs,
+    result: Object.prototype.hasOwnProperty.call(skillResult, "result") ? skillResult.result : null,
     status: skillResult.status,
     checkpoints: skillResult.checkpoints.map(normalizeCheckpoint),
     terminalVerification: normalizeTerminalVerification(
@@ -726,6 +729,7 @@ function hasRequiredSkillResultShape(skillResult) {
     && !Object.prototype.hasOwnProperty.call(skillResult, "source")
     && isPlainObject(skillResult.goal)
     && isPlainObject(skillResult.inputs)
+    && Object.prototype.hasOwnProperty.call(skillResult, "result")
     && ["success", "failed", "indeterminate"].includes(skillResult.status)
     && Array.isArray(skillResult.checkpoints)
     && hasRequiredCheckpointsInOrder(skillResult.checkpoints)
