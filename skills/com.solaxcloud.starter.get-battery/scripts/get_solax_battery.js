@@ -6,28 +6,41 @@ const operatorPkg = resolveOperatorPackage(process.argv[3]);
 const skillId = "com.solaxcloud.starter.get-battery";
 const SKILL_RESULT_FRAME_PREFIX = "[Clawperator-Skill-Result]";
 const SKILL_RESULT_CONTRACT_VERSION = "1.0.0";
+const APP_ID = "com.solaxcloud.starter";
+const BATTERY_VALUE_RESOURCE_ID = "com.solaxcloud.starter:id/tv_pb_title";
+const BATTERY_UNIT_RESOURCE_ID = "com.solaxcloud.starter:id/tv_pb_unit";
+const POLL_TIMEOUT_MS = 20000;
 
 if (!deviceId) {
   console.error("Usage: node get_solax_battery.js <device_id> [operator_package]");
   process.exit(1);
 }
 
-const commandId = `skill-solax-battery-${Date.now()}`;
-const execution = {
-  commandId,
-  taskId: commandId,
-  source: "clawperator-skill",
-  expectedFormat: "android-ui-automator",
-  timeoutMs: 120000,
-  actions: [
-    { id: "close", type: "close_app", params: { applicationId: "com.solaxcloud.starter" } },
-    { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
-    { id: "open", type: "open_app", params: { applicationId: "com.solaxcloud.starter" } },
-    { id: "wait_load", type: "sleep", params: { durationMs: 12000 } },
-    { id: "read-battery-value", type: "read_text", params: { matcher: { resourceId: "com.solaxcloud.starter:id/tv_pb_title" } } },
-    { id: "read-battery-unit", type: "read_text", params: { matcher: { resourceId: "com.solaxcloud.starter:id/tv_pb_unit" } } }
-  ]
-};
+function buildExecution(actions, timeoutMs = 30000) {
+  const commandId = `skill-solax-battery-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return {
+    commandId,
+    taskId: commandId,
+    source: "clawperator-skill",
+    expectedFormat: "android-ui-automator",
+    timeoutMs,
+    actions,
+  };
+}
+
+function buildOpenExecution() {
+  return buildExecution([
+    { id: "close", type: "close_app", params: { applicationId: APP_ID } },
+    { id: "open", type: "open_app", params: { applicationId: APP_ID } },
+  ]);
+}
+
+function buildReadBatteryExecution() {
+  return buildExecution([
+    { id: "read-battery-value", type: "read_text", params: { matcher: { resourceId: BATTERY_VALUE_RESOURCE_ID } } },
+    { id: "read-battery-unit", type: "read_text", params: { matcher: { resourceId: BATTERY_UNIT_RESOURCE_ID } } },
+  ], 15000);
+}
 
 function writeSkillResult(payload) {
   console.log(SKILL_RESULT_FRAME_PREFIX);
@@ -78,12 +91,85 @@ function buildSkillResult({
   };
 }
 
-logSkillProgress(skillId, "Launching SolaX app...");
-logSkillProgress(skillId, "Waiting for data to load (12s)...");
-const { ok, result, error, raw } = runClawperator(execution, deviceId, operatorPkg);
+function getStepResults(result) {
+  return (result && result.envelope && result.envelope.stepResults) || [];
+}
 
-if (!ok) {
-  console.error(`⚠️ Skill execution failed: ${error}`);
+function getStepText(result, stepId) {
+  const step = getStepResults(result).find(s => s.id === stepId);
+  return step && step.data && typeof step.data.text === "string" ? step.data.text.trim() : "";
+}
+
+function parseBattery(valueText, unitText) {
+  const normalizedValue = String(valueText || "").trim();
+  const numeric = Number.parseFloat(normalizedValue.replace(/[^0-9.-]/g, ""));
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+  const normalizedUnit = String(unitText || "").trim();
+  return {
+    batteryLevelText: normalizedValue,
+    batteryLevel: numeric,
+    unit: normalizedUnit || null,
+    displayText: `${normalizedValue}${normalizedUnit}`,
+  };
+}
+
+function runSkillExecution(execution) {
+  const startedAt = Date.now();
+  const output = runClawperator(execution, deviceId, operatorPkg);
+  return {
+    ...output,
+    elapsedMs: Date.now() - startedAt,
+  };
+}
+
+function readBatteryUntilReady() {
+  const startedAt = Date.now();
+  const attempts = [];
+  let lastRaw = "";
+
+  while (Date.now() - startedAt < POLL_TIMEOUT_MS) {
+    const attemptNumber = attempts.length + 1;
+    const attempt = runSkillExecution(buildReadBatteryExecution());
+    lastRaw = attempt.raw || lastRaw;
+
+    const valueText = attempt.ok ? getStepText(attempt.result, "read-battery-value") : "";
+    const unitText = attempt.ok ? getStepText(attempt.result, "read-battery-unit") : "";
+    const parsed = parseBattery(valueText, unitText);
+    attempts.push({
+      attempt: attemptNumber,
+      elapsedMs: attempt.elapsedMs,
+      ok: attempt.ok,
+      valueText: valueText || null,
+      unitText: unitText || null,
+      parsed: parsed !== null,
+      error: attempt.ok ? undefined : attempt.error,
+    });
+
+    if (parsed) {
+      return {
+        ok: true,
+        ...parsed,
+        attempts,
+        elapsedMs: Date.now() - startedAt,
+      };
+    }
+  }
+
+  return {
+    ok: false,
+    attempts,
+    elapsedMs: Date.now() - startedAt,
+    raw: lastRaw,
+  };
+}
+
+logSkillProgress(skillId, "Launching SolaX app...");
+const setup = runSkillExecution(buildOpenExecution());
+
+if (!setup.ok) {
+  console.error(`⚠️ Skill execution failed: ${setup.error}`);
   writeSkillResult(buildSkillResult({
     status: "failed",
     appOpenedStatus: "failed",
@@ -96,32 +182,29 @@ if (!ok) {
       },
       observed: {
         kind: "text",
-        text: error,
+        text: setup.error,
       },
       note: "Clawperator execution failed before the battery level could be read.",
     },
     diagnostics: {
-      error,
+      error: setup.error,
+      setupElapsedMs: setup.elapsedMs,
     },
   }));
   process.exit(2);
 }
 
-const stepResults = (result && result.envelope && result.envelope.stepResults) || [];
-const valStep = stepResults.find(s => s.id === "read-battery-value");
-const unitStep = stepResults.find(s => s.id === "read-battery-unit");
-const val = valStep && valStep.data ? valStep.data.text : null;
-const unit = unitStep && unitStep.data ? unitStep.data.text : null;
+logSkillProgress(skillId, "Polling battery level until readable...");
+const readResult = readBatteryUntilReady();
 
-if (val) {
-  logSkillProgress(skillId, "Reading battery level...");
-  console.log(`✅ SolaX battery level: ${val}${unit || ""}`);
+if (readResult.ok) {
+  console.log(`✅ SolaX battery level: ${readResult.displayText}`);
   writeSkillResult(buildSkillResult({
     status: "success",
     appOpenedStatus: "ok",
-    appOpenedNote: "Opened SolaX Cloud in a fresh app session.",
-    batteryLevelText: val,
-    batteryUnitText: unit || "",
+    appOpenedNote: "Opened SolaX Cloud in a fresh app session, then polled the dashboard until the battery value was readable.",
+    batteryLevelText: readResult.batteryLevelText,
+    batteryUnitText: readResult.unit || "",
     terminalVerification: {
       status: "verified",
       expected: {
@@ -130,24 +213,28 @@ if (val) {
       },
       observed: {
         kind: "text",
-        text: `✅ SolaX battery level: ${val}${unit || ""}`,
+        text: `✅ SolaX battery level: ${readResult.displayText}`,
       },
-      note: "The recorded battery value was read from the dashboard and formatted for output.",
+      note: "The battery value was read from the dashboard after bounded polling, without fixed sleep actions.",
+    },
+    diagnostics: {
+      setupElapsedMs: setup.elapsedMs,
+      pollElapsedMs: readResult.elapsedMs,
+      attempts: readResult.attempts,
     },
     result: {
-      batteryLevelText: val,
-      batteryLevel: Number.parseFloat(val),
-      unit: unit || null,
-      displayText: `${val}${unit || ""}`,
+      batteryLevelText: readResult.batteryLevelText,
+      batteryLevel: readResult.batteryLevel,
+      unit: readResult.unit,
+      displayText: readResult.displayText,
     },
   }));
 } else {
   console.error("⚠️ Could not parse SolaX battery level");
-  console.error(`Raw result: ${raw}`);
   writeSkillResult(buildSkillResult({
     status: "failed",
     appOpenedStatus: "ok",
-    appOpenedNote: "Opened SolaX Cloud in a fresh app session.",
+    appOpenedNote: "Opened SolaX Cloud in a fresh app session, but polling did not find a readable battery value before timeout.",
     terminalVerification: {
       status: "failed",
       expected: {
@@ -161,11 +248,10 @@ if (val) {
       note: "The dashboard was opened, but the battery value text could not be parsed.",
     },
     diagnostics: {
-      raw,
-      batteryLevelText: val,
-      batteryUnitText: unit,
-      readBatteryValueStepId: valStep ? valStep.id : null,
-      readBatteryUnitStepId: unitStep ? unitStep.id : null,
+      raw: readResult.raw,
+      setupElapsedMs: setup.elapsedMs,
+      pollElapsedMs: readResult.elapsedMs,
+      attempts: readResult.attempts,
     },
   }));
   process.exit(2);
