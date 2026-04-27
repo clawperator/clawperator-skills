@@ -140,6 +140,79 @@ function snapshot(deviceId, operatorPackage) {
   ]);
 }
 
+function readSnapshotMetadata(snapshotOutput) {
+  try {
+    const parsed = JSON.parse(snapshotOutput);
+    const envelope = parsed?.envelope ?? parsed?.result?.envelope;
+    return {
+      foregroundPackage:
+        envelope?.foreground_package ??
+        envelope?.foregroundPackage ??
+        envelope?.metadata?.foreground_package ??
+        envelope?.metadata?.foregroundPackage,
+      hasOverlay:
+        envelope?.has_overlay ??
+        envelope?.hasOverlay ??
+        envelope?.metadata?.has_overlay ??
+        envelope?.metadata?.hasOverlay,
+      overlayPackage:
+        envelope?.overlay_package ??
+        envelope?.overlayPackage ??
+        envelope?.metadata?.overlay_package ??
+        envelope?.metadata?.overlayPackage,
+    };
+  } catch {
+    return {};
+  }
+}
+
+function ensureNetflixForeground(deviceId, operatorPackage) {
+  action(
+    deviceId,
+    operatorPackage,
+    [
+      { id: "close", type: "close_app", params: { applicationId: NETFLIX_APP } },
+      { id: "wait1", type: "sleep", params: { durationMs: 800 } },
+      { id: "open", type: "open_app", params: { applicationId: NETFLIX_APP } },
+      { id: "wait2", type: "sleep", params: { durationMs: 3500 } },
+    ],
+    45000,
+  );
+}
+
+function snapshotWithRetry(deviceId, operatorPackage, context) {
+  const maxAttempts = 4;
+  let lastError = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const snap = snapshot(deviceId, operatorPackage);
+      const snapshotText = extractSnapshotText(snap);
+      if (snapshotText && snapshotText.length > 0) {
+        return snap;
+      }
+      throw new Error("Snapshot response did not contain extractable text");
+    } catch (error) {
+      lastError = error;
+      const message = String(error?.message || "");
+      const metadata = readSnapshotMetadata(String(error?.stdout || ""));
+      const overlayPackage = lower(metadata.overlayPackage || "");
+      const transientOverlay =
+        overlayPackage.includes("com.sec.android.app.launcher") ||
+        message.includes("SNAPSHOT_EXTRACTION_FAILED");
+
+      if (attempt >= maxAttempts) break;
+      if (transientOverlay) {
+        ensureNetflixForeground(deviceId, operatorPackage);
+      } else {
+        sleep(deviceId, operatorPackage, 1200);
+      }
+    }
+  }
+  throw new Error(
+    `Snapshot failed${context ? ` during ${context}` : ""}: ${lastError?.message || "unknown error"}`,
+  );
+}
+
 function clickId(deviceId, operatorPackage, resourceId, timeoutMs = 15000) {
   return action(
     deviceId,
@@ -231,7 +304,7 @@ function containsTitle(snapshotText, title) {
 }
 
 function maybeSelectProfile(deviceId, operatorPackage, profile) {
-  const snap = snapshot(deviceId, operatorPackage);
+  const snap = snapshotWithRetry(deviceId, operatorPackage, "profile-check");
   const snapText = extractSnapshotText(snap);
   if (!lower(snapText).includes("choose your profile") && !lower(snapText).includes("promo_profile_gate_profile")) {
     return false;
@@ -251,7 +324,7 @@ function maybeSelectProfile(deviceId, operatorPackage, profile) {
     ],
     30000,
   );
-  const after = snapshot(deviceId, operatorPackage);
+  const after = snapshotWithRetry(deviceId, operatorPackage, "profile-post-select");
   if (!lower(extractSnapshotText(after)).includes("choose your profile")) {
     return true;
   }
@@ -270,7 +343,7 @@ function openSearch(deviceId, operatorPackage) {
       ],
       25000,
     );
-    const snap = extractSnapshotText(snapshot(deviceId, operatorPackage));
+    const snap = extractSnapshotText(snapshotWithRetry(deviceId, operatorPackage, "open-search-icon"));
     if (isSearchSurface(snap)) {
       return;
     }
@@ -285,7 +358,7 @@ function openSearch(deviceId, operatorPackage) {
       ],
       25000,
     );
-    const snap = extractSnapshotText(snapshot(deviceId, operatorPackage));
+    const snap = extractSnapshotText(snapshotWithRetry(deviceId, operatorPackage, "open-search-coordinate"));
     if (isSearchSurface(snap)) {
       return;
     }
@@ -446,7 +519,7 @@ function parseArgs(argv) {
 
     logSkillProgress(SKILL_ID, `Opening ${title} details...`);
     openTitle(deviceId, operatorPackage, title);
-    const titleSnapshot = snapshot(deviceId, operatorPackage);
+    const titleSnapshot = snapshotWithRetry(deviceId, operatorPackage, "open-title");
     if (!containsTitle(titleSnapshot, title)) {
       throw new Error(`Expected title page for ${title} was not observed`);
     }
@@ -470,7 +543,7 @@ function parseArgs(argv) {
       logSkillProgress(SKILL_ID, `My List already ${desiredState}.`);
     }
 
-    const finalSnapshot = snapshot(deviceId, operatorPackage);
+    const finalSnapshot = snapshotWithRetry(deviceId, operatorPackage, "final-verification");
     const finalState = parseCheckedState(finalSnapshot);
     if (finalState !== desiredState) {
       throw new Error(`Final My List verification failed, expected ${desiredState} but observed ${finalState}`);
