@@ -20,13 +20,6 @@
       }
     },
     {
-      "id": "wait",
-      "type": "sleep",
-      "params": {
-        "durationMs": 3500
-      }
-    },
-    {
       "id": "snap",
       "type": "snapshot_ui",
       "params": {}
