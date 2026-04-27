@@ -7,7 +7,6 @@
   "actions": [
     { "id": "close", "type": "close_app", "params": { "applicationId": "com.solaxcloud.starter" } },
     { "id": "open", "type": "open_app", "params": { "applicationId": "com.solaxcloud.starter" } },
-    { "id": "wait", "type": "sleep", "params": { "durationMs": 12000 } },
     { "id": "snap", "type": "snapshot_ui" },
     { "id": "read-daily-energy", "type": "read_text", "params": { "matcher": { "resourceId": "com.solaxcloud.starter:id/tv_daily_energy" } } },
     { "id": "read-battery-value", "type": "read_text", "params": { "matcher": { "resourceId": "com.solaxcloud.starter:id/tv_pb_title" } } },
