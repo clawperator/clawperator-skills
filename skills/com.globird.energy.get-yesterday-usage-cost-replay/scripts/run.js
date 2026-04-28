@@ -42,7 +42,7 @@ function exitWithFramedFailure({ message, checkpoints, terminalVerification, dia
 }
 
 function exitWithNoDataAvailable({ observedText = "Yesterday usage is not available yet." } = {}) {
-  const displayText = "No result available yet.";
+  const displayText = "Yesterday’s data isn’t available yet.";
   console.log(displayText);
   writeFramedSkillResult({
     contractVersion: SKILL_RESULT_CONTRACT_VERSION,

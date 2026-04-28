@@ -52,12 +52,13 @@ If GloBird has not published the Yesterday usage section yet, the script exits
 successfully and prints:
 
 ```text
-No result available yet.
+Yesterday’s data isn’t available yet.
 ```
 
 The framed SkillResult uses `status: "success"` with
 `result.value.available: false`, `result.value.displayText:
-"No result available yet."`, and `diagnostics.runtimeState: "unavailable"`.
+"Yesterday’s data isn’t available yet."`, and `diagnostics.runtimeState:
+"unavailable"`.
 
 ## Caveats
 
