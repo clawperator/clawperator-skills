@@ -36,9 +36,59 @@ function exitWithFramedFailure({ message, checkpoints, terminalVerification, dia
     status: "failed",
     checkpoints,
     terminalVerification,
-    diagnostics: { runtimeState: "unhealthy", ...diagnostics },
+    diagnostics: { runtimeState: "unknown", ...diagnostics },
   });
   process.exit(2);
+}
+
+function exitWithNoDataAvailable({ observedText = "Yesterday usage is not available yet." } = {}) {
+  const displayText = "No result available yet.";
+  console.log(displayText);
+  writeFramedSkillResult({
+    contractVersion: SKILL_RESULT_CONTRACT_VERSION,
+    skillId,
+    goal: {
+      kind: "read_yesterday_usage_cost",
+    },
+    inputs: {},
+    result: {
+      kind: "json",
+      value: {
+        available: false,
+        displayText,
+      },
+    },
+    status: "success",
+    checkpoints: [
+      {
+        id: "opened-energy-screen",
+        status: "ok",
+        note: "Opened GloBird and reached the Energy read path.",
+      },
+      {
+        id: "yesterday-usage-available",
+        status: "ok",
+        note: "The Yesterday usage section is not available yet.",
+      },
+    ],
+    terminalVerification: {
+      status: "verified",
+      expected: {
+        kind: "text",
+        text: "Yesterday usage cost or an expected no-data state",
+      },
+      observed: {
+        kind: "text",
+        text: observedText,
+      },
+      note: "GloBird did not expose a YESTERDAY USAGE section, which is an expected no-data state.",
+    },
+    diagnostics: {
+      runtimeState: "unavailable",
+      noDataReason: "missing_yesterday_usage_node",
+    },
+  });
+  process.exit(0);
 }
 
 function parseYesterdayUsageCost(rawText) {
@@ -94,9 +144,15 @@ logSkillProgress(skillId, "Launching GloBird for a fresh replay run...");
 logSkillProgress(skillId, "Opening the Energy tab...");
 logSkillProgress(skillId, "Reading Yesterday usage cost...");
 
-const { ok, result, error, raw } = runClawperator(execution, deviceId, operatorPkg);
+const { ok, result, error, raw, rawStdout } = runClawperator(execution, deviceId, operatorPkg);
 
 if (!ok) {
+  if (isMissingYesterdayUsageNode(rawStdout)) {
+    exitWithNoDataAvailable({
+      observedText: "No UI node found matching textContains=YESTERDAY USAGE.",
+    });
+  }
+
   exitWithFramedFailure({
     message: `Skill execution failed: ${error}`,
     checkpoints: [
@@ -118,6 +174,7 @@ if (!ok) {
       },
       note: "The replay run could not complete the GloBird Energy read path.",
     },
+    diagnostics: { runtimeState: "poisoned" },
   });
 }
 
@@ -153,6 +210,12 @@ if (!snapshotText) {
 
 const parsed = parseYesterdayUsageCost(snapshotText);
 if (!parsed.ok) {
+  if (isNoDataText(snapshotText)) {
+    exitWithNoDataAvailable({
+      observedText: snapshotText,
+    });
+  }
+
   exitWithFramedFailure({
     message: parsed.error,
     checkpoints: [
@@ -231,3 +294,17 @@ writeFramedSkillResult({
     ],
   },
 });
+
+function isMissingYesterdayUsageNode(rawText) {
+  const text = String(rawText || "");
+  if (!text.trim()) return false;
+  return /No UI node found matching criteria/i.test(text)
+    && /textContains=YESTERDAY USAGE/i.test(text);
+}
+
+function isNoDataText(rawText) {
+  const text = String(rawText || "").replace(/\s+/g, " ").trim();
+  return /no data available/i.test(text)
+    || /not available yet/i.test(text)
+    || /no result available yet/i.test(text);
+}

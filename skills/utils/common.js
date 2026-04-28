@@ -180,7 +180,13 @@ function runClawperator(execution, deviceId, operatorPkg, clawBinOverride) {
     warnOnSnapshotExtractionFailure(result);
     return { ok: true, result, raw: output };
   } catch (e) {
-    return { ok: false, error: buildExecErrorMessage(e) };
+    return {
+      ok: false,
+      error: buildExecErrorMessage(e),
+      rawStdout: decodeExecOutput(e && e.stdout),
+      rawStderr: decodeExecOutput(e && e.stderr),
+      exitCode: Number.isInteger(e && e.status) ? e.status : null,
+    };
   }
 }
 

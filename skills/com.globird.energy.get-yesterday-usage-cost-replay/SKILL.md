@@ -48,12 +48,24 @@ Example:
 GloBird yesterday usage cost: -$4.17
 ```
 
+If GloBird has not published the Yesterday usage section yet, the script exits
+successfully and prints:
+
+```text
+No result available yet.
+```
+
+The framed SkillResult uses `status: "success"` with
+`result.value.available: false`, `result.value.displayText:
+"No result available yet."`, and `diagnostics.runtimeState: "unavailable"`.
+
 ## Caveats
 
 - This replay assumes the app can reach the Energy screen from a fresh open.
 - It relies on the current GloBird labels `YESTERDAY USAGE` and `Cost`.
 - If the Yesterday section is not visible or the UI copy changes, the skill
-  exits with a parsing error instead of guessing.
+  exits with a parsing error instead of guessing, except for the expected
+  missing `YESTERDAY USAGE` section case described above.
 - The runtime uses `wait_for_node` plus `read_text` instead of a fixed sleep and
   full snapshot parsing, which makes it resilient to the installed binary's
   snapshot extraction issues.
