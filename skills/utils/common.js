@@ -127,11 +127,6 @@ function resolveOperatorPackage(explicitPkg) {
 /**
  * Check whether any snapshot_ui step in the result indicates extraction failure
  * and emit a diagnostic warning to stderr if so.
- *
- * Checks for the new SNAPSHOT_EXTRACTION_FAILED contract (success:false +
- * data.error === "SNAPSHOT_EXTRACTION_FAILED") as well as the older
- * fallback (success:true with absent or empty data.text) to handle older
- * binaries that predate the contract change.
  */
 function warnOnSnapshotExtractionFailure(result) {
   const envelope = result && result.envelope;
@@ -140,13 +135,12 @@ function warnOnSnapshotExtractionFailure(result) {
   for (const step of envelope.stepResults) {
     if (step.actionType !== 'snapshot_ui') continue;
 
-    const isNewContractFailure = !step.success && step.data && step.data.error === 'SNAPSHOT_EXTRACTION_FAILED';
-    const isLegacyFailure = step.success && step.data && !step.data.text;
+    const isExtractionFailure = !step.success && step.data && step.data.error === 'SNAPSHOT_EXTRACTION_FAILED';
 
-    if (isNewContractFailure || isLegacyFailure) {
+    if (isExtractionFailure) {
       process.stderr.write(
         `[clawperator-skills] WARNING: snapshot_ui step "${step.id}" extraction failed` +
-        (isNewContractFailure ? ' (SNAPSHOT_EXTRACTION_FAILED)' : ' (empty data.text)') +
+        ' (SNAPSHOT_EXTRACTION_FAILED)' +
         '. This is a known issue when the clawperator binary is out\n' +
         'of date with the Android Operator APK.\n' +
         'Fix: set CLAWPERATOR_BIN to the local build:\n' +
