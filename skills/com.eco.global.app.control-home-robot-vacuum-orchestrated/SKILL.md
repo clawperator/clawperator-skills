@@ -1,12 +1,16 @@
 ---
-name: com.eco.global.app.home-robot-vacuum-orchestrated
+name: com.eco.global.app.control-home-robot-vacuum-orchestrated
 clawperator-skill-type: orchestrated
 description: |-
-  Agent-driven Ecovacs home robot vacuum controller for reading state or
-  sending Start, Pause, or Docking actions from the main robot surface.
+  Agent-driven Ecovacs home robot vacuum control skill for reading the
+  current state or sending Start, Pause, or Docking actions from the main
+  robot surface.
 ---
 
-Runtime program for the Ecovacs home robot vacuum surface.
+# Control Home Robot Vacuum
+
+Runtime program for the Ecovacs home robot vacuum surface. It can both get the
+current robot state and control the robot from the live main surface.
 
 This skill is intentionally narrow:
 
@@ -32,8 +36,10 @@ Behavior:
 2. Wait for the main robot surface to appear.
 3. Read the visible action labels from the live UI.
 4. If the action is `get_state`, return the inferred state and battery percentage without tapping.
-5. If the action is `start`, tap `Start` only when the robot is paused.
-6. If the action is `pause`, tap `Pause` only when the robot is operating.
+5. If the action is `start`, control the robot by tapping `Start` only when
+   the robot is paused.
+6. If the action is `pause`, control the robot by tapping `Pause` only when
+   the robot is operating.
 7. If the action is `return_to_dock`, tap `Docking` and reread the visible UI.
 8. Use the live UI reread as the proof source for the final result.
 
@@ -49,28 +55,28 @@ Verification notes:
 Examples:
 
 ```bash
-clawperator skills run com.eco.global.app.home-robot-vacuum-orchestrated \
+clawperator skills run com.eco.global.app.control-home-robot-vacuum-orchestrated \
   --device <device_serial> \
   -- \
   --action get_state
 ```
 
 ```bash
-clawperator skills run com.eco.global.app.home-robot-vacuum-orchestrated \
+clawperator skills run com.eco.global.app.control-home-robot-vacuum-orchestrated \
   --device <device_serial> \
   -- \
   --action start
 ```
 
 ```bash
-clawperator skills run com.eco.global.app.home-robot-vacuum-orchestrated \
+clawperator skills run com.eco.global.app.control-home-robot-vacuum-orchestrated \
   --device <device_serial> \
   -- \
   --action pause
 ```
 
 ```bash
-clawperator skills run com.eco.global.app.home-robot-vacuum-orchestrated \
+clawperator skills run com.eco.global.app.control-home-robot-vacuum-orchestrated \
   --device <device_serial> \
   -- \
   --action return_to_dock

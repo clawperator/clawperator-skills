@@ -9,7 +9,7 @@ const {
   shouldSkipActionTap,
 } = require("./robot_vacuum_controls.js");
 
-const skillId = "com.eco.global.app.home-robot-vacuum-orchestrated";
+const skillId = "com.eco.global.app.control-home-robot-vacuum-orchestrated";
 const skillContractVersion = "1.0.0";
 const skillResultFramePrefix = "[Clawperator-Skill-Result]";
 const applicationId = "com.eco.global.app";
