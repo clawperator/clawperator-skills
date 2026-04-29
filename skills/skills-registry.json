@@ -1,7 +1,7 @@
 {
   "$schema": "./skills-registry.schema.json",
   "schemaVersion": "1.0",
-  "generatedAt": "2026-04-29T04:16:05Z",
+  "generatedAt": "2026-04-29T04:32:12Z",
   "skills": [
     {
       "id": "au.com.polyaire.airtouch5.set-fan-level",
@@ -154,10 +154,10 @@
       "artifacts": []
     },
     {
-      "id": "com.eco.global.app.home-robot-vacuum-orchestrated",
+      "id": "com.eco.global.app.control-home-robot-vacuum-orchestrated",
       "applicationId": "com.eco.global.app",
-      "intent": "home-robot-vacuum",
-      "summary": "Agent-driven Ecovacs home robot vacuum controller for reading state or sending Start, Pause, or Docking actions from the main robot surface.",
+      "intent": "control-home-robot-vacuum",
+      "summary": "Agent-driven Ecovacs home robot vacuum control skill for reading the current state or sending Start, Pause, or Docking actions from the main robot surface.",
       "keywords": [
         "ecovacs",
         "deebot",
@@ -165,11 +165,11 @@
         "vacuum",
         "home robot"
       ],
-      "path": "skills/com.eco.global.app.home-robot-vacuum-orchestrated",
-      "skillFile": "skills/com.eco.global.app.home-robot-vacuum-orchestrated/SKILL.md",
+      "path": "skills/com.eco.global.app.control-home-robot-vacuum-orchestrated",
+      "skillFile": "skills/com.eco.global.app.control-home-robot-vacuum-orchestrated/SKILL.md",
       "scripts": [
-        "skills/com.eco.global.app.home-robot-vacuum-orchestrated/scripts/run.js",
-        "skills/com.eco.global.app.home-robot-vacuum-orchestrated/scripts/run.sh"
+        "skills/com.eco.global.app.control-home-robot-vacuum-orchestrated/scripts/run.js",
+        "skills/com.eco.global.app.control-home-robot-vacuum-orchestrated/scripts/run.sh"
       ],
       "artifacts": [],
       "contract": {
