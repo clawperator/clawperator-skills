@@ -14,6 +14,15 @@ function normalizeText(raw) {
   return String(raw || "").replace(/\s+/g, " ").trim();
 }
 
+function extractBatteryPercentFromSnapshot(snapshotText) {
+  const text = String(snapshotText || "");
+  const match = text.match(/(^|[^0-9])(\d{1,3})%(?!\d)/);
+  if (!match) return null;
+  const value = Number.parseInt(match[2], 10);
+  if (!Number.isFinite(value) || value < 0 || value > 100) return null;
+  return value;
+}
+
 function inferRobotStateFromSnapshot(snapshotText) {
   const text = String(snapshotText || "");
   if (/\bPause\b/.test(text)) {
@@ -51,6 +60,7 @@ function shouldSkipActionTap(requestedAction, observedState) {
 
 module.exports = {
   ACTIONS,
+  extractBatteryPercentFromSnapshot,
   expectedActionLabelForState,
   inferRobotStateFromSnapshot,
   normalizeAction,

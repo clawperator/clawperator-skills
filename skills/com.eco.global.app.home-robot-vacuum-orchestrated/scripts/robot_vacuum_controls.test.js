@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const {
+  extractBatteryPercentFromSnapshot,
   expectedActionLabelForState,
   inferRobotStateFromSnapshot,
   normalizeAction,
@@ -47,6 +48,26 @@ test("expectedActionLabelForState maps the inferred state to the action label", 
   assert.equal(expectedActionLabelForState("paused"), "Start");
   assert.equal(expectedActionLabelForState("operating"), "Pause");
   assert.equal(expectedActionLabelForState("unknown"), null);
+});
+
+test("extractBatteryPercentFromSnapshot reads the visible battery percent from the top bar", () => {
+  assert.equal(
+    extractBatteryPercentFromSnapshot(`
+      <hierarchy>
+        <node text="100%" class="android.widget.TextView" />
+        <node text="Start" class="android.widget.TextView" />
+      </hierarchy>
+    `),
+    100
+  );
+  assert.equal(
+    extractBatteryPercentFromSnapshot(`
+      <hierarchy>
+        <node text="Pause" class="android.widget.TextView" />
+      </hierarchy>
+    `),
+    null
+  );
 });
 
 test("shouldSkipActionTap keys off the inferred robot state instead of the visible button label", () => {

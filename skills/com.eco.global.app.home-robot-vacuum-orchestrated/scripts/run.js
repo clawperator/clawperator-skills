@@ -3,6 +3,7 @@
 const { execFileSync } = require("node:child_process");
 const { resolveClawperatorBin, resolveOperatorPackage } = require("../../utils/common.js");
 const {
+  extractBatteryPercentFromSnapshot,
   inferRobotStateFromSnapshot,
   normalizeAction,
   shouldSkipActionTap,
@@ -116,6 +117,31 @@ function runExecution(clawperatorBin, deviceId, operatorPackage, execution) {
       envelope: tryParseJson(error?.stdout?.toString?.("utf8") ?? ""),
       exitCode: typeof error?.status === "number" ? error.status : 1,
       message: error?.message || "clawperator exec failed",
+    };
+  }
+}
+
+function runSnapshotCommand(clawperatorBin, deviceId) {
+  try {
+    const stdout = execFileSync(
+      clawperatorBin.cmd,
+      [
+        ...clawperatorBin.args,
+        "snapshot",
+        "--device",
+        deviceId,
+      ],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 120000 }
+    );
+    return { ok: true, stdout, stderr: "", envelope: tryParseJson(stdout), exitCode: 0 };
+  } catch (error) {
+    return {
+      ok: false,
+      stdout: error?.stdout?.toString?.("utf8") ?? "",
+      stderr: error?.stderr?.toString?.("utf8") ?? "",
+      envelope: tryParseJson(error?.stdout?.toString?.("utf8") ?? ""),
+      exitCode: typeof error?.status === "number" ? error.status : 1,
+      message: error?.message || "clawperator snapshot failed",
     };
   }
 }
@@ -250,6 +276,15 @@ async function main() {
   });
 
   const openSnapshot = getStepText(openResult, "snapshot");
+  let batteryPercent = extractBatteryPercentFromSnapshot(openSnapshot);
+  const batterySnapshotResult = runSnapshotCommand(clawperatorBin, parsed.deviceId);
+  if (batterySnapshotResult.ok) {
+    batteryPercent = extractBatteryPercentFromSnapshot(
+      batterySnapshotResult?.envelope?.envelope?.stepResults?.[0]?.data?.text ??
+      batterySnapshotResult?.envelope?.stepResults?.[0]?.data?.text ??
+      ""
+    ) ?? batteryPercent;
+  }
   let observed = parseSnapshotState(openSnapshot);
   if (!observed.state) {
     const fallbackResult = runExecution(
@@ -267,6 +302,9 @@ async function main() {
       );
     }
     observed = parseSnapshotState(getStepText(fallbackResult, "snapshot"));
+    if (batteryPercent === null) {
+      batteryPercent = extractBatteryPercentFromSnapshot(getStepText(fallbackResult, "snapshot"));
+    }
     if (!observed.state) {
       return fail(
         "Could not infer robot state from the visible Start/Pause label.",
@@ -285,6 +323,7 @@ async function main() {
         state: observed.state,
         primaryActionLabel: observed.primaryActionLabel,
         dockActionLabel: observed.dockActionLabel,
+        batteryPercent,
       },
     },
   });
@@ -294,9 +333,18 @@ async function main() {
     current_state: normalizeStateLabel(observed.state),
     primary_action_label: observed.primaryActionLabel,
     dock_action_label: observed.dockActionLabel,
+    battery_percent: batteryPercent,
   };
 
   if (requested.action === "get_state") {
+    if (batteryPercent === null) {
+      return fail(
+        "Could not infer battery percentage from the visible UI.",
+        "current_state_read",
+        openResult,
+        "The live UI did not expose a readable battery percentage."
+      );
+    }
     setCheckpoint(checkpoints, "action_applied", "skipped", {
       note: "No tap was needed for get_state.",
     });
@@ -310,7 +358,7 @@ async function main() {
         resultValue,
         terminalVerification: {
           status: "verified",
-          expected: { kind: "text", text: "Visible Start/Pause label on the robot surface" },
+          expected: { kind: "text", text: "Visible Start/Pause label and battery percentage on the robot surface" },
           observed: { kind: "json", value: resultValue },
         },
         diagnostics,
