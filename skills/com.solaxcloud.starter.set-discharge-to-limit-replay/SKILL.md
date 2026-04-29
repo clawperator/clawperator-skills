@@ -15,7 +15,8 @@ Compatibility:
 
 Arguments:
 
-- named wrapper arg: `--limit <percent>`
+- canonical named wrapper arg: `--percent <percent>`
+- legacy named alias still accepted: `--limit <percent>`
 - the replay script also still accepts the legacy positional percent form after
   the device id for compatibility
 - valid range: integer from `0` to `100`
@@ -23,7 +24,7 @@ Arguments:
 Run through the wrapper:
 
 ```bash
-clawperator skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> -- --limit 40
+clawperator skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> --percent 40
 ```
 
 Direct local invocation:
@@ -31,7 +32,7 @@ Direct local invocation:
 ```bash
 CLAWPERATOR_BIN="<node_binary> <clawperator_root>/apps/node/dist/cli/index.js" \
 <node_binary> <skills_repo_root>/skills/com.solaxcloud.starter.set-discharge-to-limit-replay/scripts/run.js \
-<device_serial> --limit 40
+<device_serial> --percent 40
 ```
 
 Current behavior:
@@ -47,7 +48,9 @@ Current behavior:
 - polls snapshot UI until the `Peak Export` screen is visible again after the toolbar `Save`
 - clicks the remaining bottom-sheet `Save` action by label only after that post-toolbar check proves the UI advanced past the first `Save`
 - confirms the intermittent `The save operation will cancel the currently executing scenario` prompt when it appears after the bottom-sheet `Save`
-- re-reads the `Discharge to ...` row after save and only reports success when it matches the requested value
+- first tries a post-save reread of the `Discharge to ...` row
+- if that reread fails because the row is temporarily missing or the verification call times out, reopens the app and performs a fresh-session reread before declaring failure
+- only reports success when one of those verification reads proves the requested value
 - writes the raw verification `clawperator exec --json` output to `stdout` before a final structured result frame
 - emits exactly one `[Clawperator-Skill-Result]` frame at end-of-stdout with `contractVersion: "1.0.0"`
 - omits `source` from the emitted frame; `runSkill` injects `source: { "kind": "script" }`
@@ -62,6 +65,7 @@ Current behavior:
 - keeps checkpoint evidence coarse and machine-readable; it does not embed full
   nested `clawperator exec --json` envelopes in `skillResult`
 - uses `terminalVerification.status: "verified"` only when the final row text proves `Discharge to <percent>%`
+- records `terminalVerification.method` as `post-save reread` or `fresh-session reread`
 - preserves truthful failure: nested exec failures still exit non-zero, and verification mismatch still exits non-zero while surfacing a structured `skillResult`
 - flushes the final framed result before exiting on failure paths so
   downstream consumers can reliably read structured failure
@@ -91,8 +95,9 @@ Known caveats:
   uses real key events (`DEL`, `DEL`, text entry, then `Enter`) before
   `Confirm`; plain text-set behavior was not sufficient for this app flow
 - this replay version verifies final state itself by re-reading the row text
-  after save; if the observed row does not match the requested percentage, the
-  skill exits non-zero
+  after save, and falls back to a fresh-session reread when the post-save
+  verification path fails with transient selector or timeout issues; if neither
+  read proves the requested percentage, the skill exits non-zero
 - the script reads the row once before editing and again after save; if the row
   already showed the requested percentage before the change, the skill still
   proves final state but cannot prove that the value changed from a different
@@ -151,6 +156,19 @@ Expected terminal-verification failure shape:
   - `terminalVerification.expected.text` set to `Discharge to <percent>%`
   - `terminalVerification.observed.text` set to the final row text actually read
 
+Expected fallback-verification success shape:
+
+- the first post-save verification path may fail with `No UI node found...`,
+  `Timeout waiting for node matching...`, or a daemon proxy/result-envelope
+  timeout
+- the skill then reopens SolaX Cloud and re-reads the discharge row from a
+  fresh session
+- `skillResult.status` is `success`
+- `terminalVerification.status` is `verified`
+- `terminalVerification.method` is `fresh-session reread`
+- `diagnostics.warnings` notes that the primary verification path failed and
+  the fresh-session reread proved the final value
+
 ## Recording Context
 
 This skill was scaffolded with recording context at `recording-context.json`.
@@ -161,5 +179,5 @@ An external agent or human author must write the reusable skill logic.
 Usage:
 
 ```bash
-node skills/com.solaxcloud.starter.set-discharge-to-limit-replay/scripts/run.js <device_id> [--limit <percent>|<percent>]
+node skills/com.solaxcloud.starter.set-discharge-to-limit-replay/scripts/run.js <device_id> [--percent <percent>|--limit <percent>|<percent>]
 ```

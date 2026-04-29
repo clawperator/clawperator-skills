@@ -8,6 +8,12 @@ function parsePercentArg(argv) {
   if (!deviceId) {
     return { deviceId: undefined, percentArg: undefined };
   }
+  if (firstArg === "--percent") {
+    return { deviceId, percentArg: secondArg };
+  }
+  if (typeof firstArg === "string" && firstArg.startsWith("--percent=")) {
+    return { deviceId, percentArg: firstArg.slice("--percent=".length) };
+  }
   if (firstArg === "--limit") {
     return { deviceId, percentArg: secondArg };
   }
@@ -17,32 +23,15 @@ function parsePercentArg(argv) {
   return { deviceId, percentArg: firstArg };
 }
 
-const { deviceId, percentArg } = parsePercentArg(process.argv);
-
-if (!deviceId || !percentArg) {
-  console.error("Usage: node run.js <device_id> [--limit <percent>|<percent>]");
-  process.exit(1);
-}
-
-if (!/^\d+$/.test(percentArg)) {
-  console.error(`Invalid discharge-to-limit percentage: ${percentArg}. Expected an integer from 0 to 100.`);
-  process.exit(1);
-}
-
-const percent = Number.parseInt(percentArg, 10);
-
-if (!Number.isInteger(percent) || percent < 0 || percent > 100) {
-  console.error(`Invalid discharge-to-limit percentage: ${percentArg}. Expected an integer from 0 to 100.`);
-  process.exit(1);
-}
-
 const resolvedClawperatorBin = resolveClawperatorBin();
 const operatorPackage = resolveOperatorPackage();
 const skillId = "com.solaxcloud.starter.set-discharge-to-limit-replay";
-const targetText = String(percent);
 const forceFailure = process.env.CLAWPERATOR_SOLAX_REPLAY_FORCE_FAILURE === "1";
 const skillResultFramePrefix = "[Clawperator-Skill-Result]";
 const skillResultContractVersion = "1.0.0";
+let deviceId;
+let percent;
+let targetText;
 
 const checkpointOrder = [
   "app_opened",
@@ -215,6 +204,18 @@ function isResultEnvelopeTimeout(result) {
 
 function isDaemonProxyError(result) {
   return result?.envelope?.code === "DAEMON_PROXY_ERROR";
+}
+
+function shouldAttemptFreshVerificationFallback(result) {
+  if (!result || result.ok) {
+    return false;
+  }
+  if (isDaemonProxyError(result) || isResultEnvelopeTimeout(result)) {
+    return true;
+  }
+  const summary = getExecFailureSummary(result);
+  return /No UI node found matching criteria/i.test(summary)
+    || /Timeout waiting for node matching/i.test(summary);
 }
 
 function updateNavigateCheckpoints(result) {
@@ -517,6 +518,71 @@ const verifyExecution = buildExecution("verify", 30000, [
     },
   ]);
 
+const verifyFromFreshSessionExecution = buildExecution("verify-fresh-session", 90000, [
+    { id: "close", type: "close_app", params: { applicationId: "com.solaxcloud.starter" } },
+    { id: "open", type: "open_app", params: { applicationId: "com.solaxcloud.starter" } },
+    {
+      id: "wait_home",
+      type: "wait_for_node",
+      params: {
+        matcher: { resourceId: "com.solaxcloud.starter:id/tab_intelligent" },
+        timeoutMs: 20000,
+      },
+    },
+    {
+      id: "open_intelligence",
+      type: "click",
+      params: {
+        matcher: { resourceId: "com.solaxcloud.starter:id/tab_intelligent" },
+      },
+    },
+    {
+      id: "wait_peak_export_entry",
+      type: "wait_for_node",
+      params: {
+        matcher: { textEquals: "Peak Export" },
+        timeoutMs: 15000,
+      },
+    },
+    {
+      id: "open_peak_export",
+      type: "click",
+      params: {
+        coordinate: { x: 860, y: 1399 },
+      },
+    },
+    {
+      id: "wait_discharge_action",
+      type: "wait_for_node",
+      params: {
+        matcher: { textContains: "Device Discharging" },
+        timeoutMs: 15000,
+      },
+    },
+    {
+      id: "open_discharge_action",
+      type: "click",
+      params: {
+        coordinate: { x: 875, y: 1548 },
+      },
+    },
+    {
+      id: "wait_discharge_row",
+      type: "wait_for_node",
+      params: {
+        matcher: { textContains: "Discharge to" },
+        timeoutMs: 10000,
+      },
+    },
+    {
+      id: "read_discharge_row_fresh_session",
+      type: "read_text",
+      params: {
+        matcher: { textContains: "Discharge to" },
+      },
+    },
+  ]);
+
 const forceFailureExecution = buildExecution("forced-failure", 15000, [
     {
       id: "force_missing_node",
@@ -576,6 +642,32 @@ async function handleOptionalSaveCancellationPrompt() {
 }
 
 async function main() {
+  const parsed = parsePercentArg(process.argv);
+  deviceId = parsed.deviceId;
+  const percentArg = parsed.percentArg;
+
+  if (!deviceId || !percentArg) {
+    console.error("Usage: node run.js <device_id> [--percent <percent>|--limit <percent>|<percent>]");
+    process.exit(1);
+    return;
+  }
+
+  if (!/^\d+$/.test(percentArg)) {
+    console.error(`Invalid discharge-to-limit percentage: ${percentArg}. Expected an integer from 0 to 100.`);
+    process.exit(1);
+    return;
+  }
+
+  percent = Number.parseInt(percentArg, 10);
+
+  if (!Number.isInteger(percent) || percent < 0 || percent > 100) {
+    console.error(`Invalid discharge-to-limit percentage: ${percentArg}. Expected an integer from 0 to 100.`);
+    process.exit(1);
+    return;
+  }
+
+  targetText = String(percent);
+
   const navigateResult = runClawperatorExecution(navigateToInputExecution);
   if (!navigateResult.ok) {
     updateNavigateCheckpoints(navigateResult);
@@ -643,7 +735,14 @@ async function main() {
   });
 
   const verifyResult = runClawperatorExecution(verifyExecution);
-  if (!verifyResult.ok) {
+  let terminalVerificationMethod = "post-save reread";
+  let observedRowText = "";
+  let observedPercent = null;
+
+  if (verifyResult.ok) {
+    observedRowText = getStepText(verifyResult, "read_discharge_row_after_save");
+    observedPercent = extractPercent(observedRowText);
+  } else if (!shouldAttemptFreshVerificationFallback(verifyResult)) {
     await exitWithExecFailure(
       verifyResult,
       "terminal_state_verified",
@@ -652,10 +751,44 @@ async function main() {
     return;
   }
 
-  const observedRowText = getStepText(verifyResult, "read_discharge_row_after_save");
-  const observedPercent = extractPercent(observedRowText);
+  if (observedPercent !== targetText) {
+    const freshVerifyResult = runClawperatorExecution(verifyFromFreshSessionExecution);
+    if (!freshVerifyResult.ok) {
+      if (verifyResult.ok && verifyResult.stdout) {
+        await writeStdout(verifyResult.stdout);
+      }
+      diagnostics.warnings.push(
+        verifyResult.ok
+          ? `Primary post-save verification observed "${observedRowText || "<empty>"}" instead of ${targetText}%, and fresh-session fallback verification also failed.`
+          : `Primary post-save verification failed with "${getExecFailureSummary(verifyResult)}", and fresh-session fallback verification also failed.`
+      );
+      await exitWithExecFailure(
+        freshVerifyResult,
+        "terminal_state_verified",
+        { status: "failed", note: "Fresh-session fallback verification failed after the primary verification path did not prove the final discharge row." }
+      );
+      return;
+    }
+
+    observedRowText = getStepText(freshVerifyResult, "read_discharge_row_fresh_session");
+    observedPercent = extractPercent(observedRowText);
+    terminalVerificationMethod = "fresh-session reread";
+
+    if (verifyResult.ok) {
+      diagnostics.warnings.push(
+        `Primary post-save verification observed "${getStepText(verifyResult, "read_discharge_row_after_save") || "<empty>"}", so the skill reopened the app and verified the final value from a fresh session.`
+      );
+    } else {
+      diagnostics.warnings.push(
+        `Primary post-save verification failed with "${getExecFailureSummary(verifyResult)}", so the skill reopened the app and verified the final value from a fresh session.`
+      );
+    }
+  }
 
   if (observedPercent !== targetText) {
+    if (verifyResult.ok && verifyResult.stdout) {
+      await writeStdout(verifyResult.stdout);
+    }
     setCheckpoint("terminal_state_verified", "failed", {
       evidence: {
         kind: "text",
@@ -663,9 +796,6 @@ async function main() {
       },
       note: `Expected discharge-to-limit ${targetText}%.`,
     });
-    if (verifyResult.stdout) {
-      await writeStdout(verifyResult.stdout);
-    }
     await writeStderr(
       `Terminal verification failed: expected discharge-to-limit ${targetText}%, observed "${observedRowText || "<empty>"}".\n`
     );
@@ -698,9 +828,12 @@ async function main() {
       text: observedRowText || "<empty>",
     },
   });
-  await writeStdout(verifyResult.stdout);
+  if (verifyResult.ok && verifyResult.stdout) {
+    await writeStdout(verifyResult.stdout);
+  }
   await emitSkillResult("success", {
     status: "verified",
+    method: terminalVerificationMethod,
     expected: {
       kind: "text",
       text: `Discharge to ${targetText}%`,
@@ -712,20 +845,28 @@ async function main() {
   });
 }
 
-main().catch(async (err) => {
-  const stderr = err?.stderr?.toString?.("utf8") ?? "";
-  const message = stderr || err.message || "clawperator execution failed";
-  if (checkpointState.get("target_text_entered")?.status !== "ok") {
-    setCheckpoint("target_text_entered", "failed", { note: message });
-  } else if (checkpointState.get("save_completed")?.status !== "ok") {
-    setCheckpoint("save_completed", "failed", { note: message });
-  } else {
-    setCheckpoint("terminal_state_verified", "failed", { note: message });
-  }
-  await writeStderr(`${message}\n`);
-  await emitSkillResult("failed", {
-    status: "failed",
-    note: message,
+if (require.main === module) {
+  main().catch(async (err) => {
+    const stderr = err?.stderr?.toString?.("utf8") ?? "";
+    const message = stderr || err.message || "clawperator execution failed";
+    if (checkpointState.get("target_text_entered")?.status !== "ok") {
+      setCheckpoint("target_text_entered", "failed", { note: message });
+    } else if (checkpointState.get("save_completed")?.status !== "ok") {
+      setCheckpoint("save_completed", "failed", { note: message });
+    } else {
+      setCheckpoint("terminal_state_verified", "failed", { note: message });
+    }
+    await writeStderr(`${message}\n`);
+    await emitSkillResult("failed", {
+      status: "failed",
+      note: message,
+    });
+    process.exitCode = 1;
   });
-  process.exitCode = 1;
-});
+} else {
+  module.exports = {
+    extractPercent,
+    parsePercentArg,
+    shouldAttemptFreshVerificationFallback,
+  };
+}
