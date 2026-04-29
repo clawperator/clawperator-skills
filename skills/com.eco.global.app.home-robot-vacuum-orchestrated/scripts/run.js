@@ -5,6 +5,7 @@ const { resolveClawperatorBin, resolveOperatorPackage } = require("../../utils/c
 const {
   inferRobotStateFromSnapshot,
   normalizeAction,
+  shouldSkipActionTap,
 } = require("./robot_vacuum_controls.js");
 
 const skillId = "com.eco.global.app.home-robot-vacuum-orchestrated";
@@ -325,7 +326,7 @@ async function main() {
     }
 
     const desiredLabel = requested.action === "start" ? "Start" : "Pause";
-    if (observed.primaryActionLabel === desiredLabel) {
+    if (shouldSkipActionTap(requested.action, observed.state)) {
       setCheckpoint(checkpoints, "action_applied", "skipped", {
         note: `The robot was already ${normalizeStateLabel(observed.state)}; no tap was needed.`,
       });

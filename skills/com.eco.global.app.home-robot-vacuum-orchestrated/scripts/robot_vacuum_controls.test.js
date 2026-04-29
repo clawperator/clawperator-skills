@@ -5,6 +5,7 @@ const {
   expectedActionLabelForState,
   inferRobotStateFromSnapshot,
   normalizeAction,
+  shouldSkipActionTap,
 } = require("./robot_vacuum_controls.js");
 
 test("normalizeAction accepts the supported command set and aliases", () => {
@@ -46,4 +47,11 @@ test("expectedActionLabelForState maps the inferred state to the action label", 
   assert.equal(expectedActionLabelForState("paused"), "Start");
   assert.equal(expectedActionLabelForState("operating"), "Pause");
   assert.equal(expectedActionLabelForState("unknown"), null);
+});
+
+test("shouldSkipActionTap keys off the inferred robot state instead of the visible button label", () => {
+  assert.equal(shouldSkipActionTap("start", "paused"), false);
+  assert.equal(shouldSkipActionTap("start", "operating"), true);
+  assert.equal(shouldSkipActionTap("pause", "paused"), true);
+  assert.equal(shouldSkipActionTap("pause", "operating"), false);
 });

@@ -43,10 +43,17 @@ function expectedActionLabelForState(state) {
   return null;
 }
 
+function shouldSkipActionTap(requestedAction, observedState) {
+  if (requestedAction === "start") return observedState === "operating";
+  if (requestedAction === "pause") return observedState === "paused";
+  return false;
+}
+
 module.exports = {
   ACTIONS,
   expectedActionLabelForState,
   inferRobotStateFromSnapshot,
   normalizeAction,
   normalizeText,
+  shouldSkipActionTap,
 };
