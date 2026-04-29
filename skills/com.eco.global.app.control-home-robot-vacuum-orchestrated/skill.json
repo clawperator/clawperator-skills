@@ -1,0 +1,33 @@
+{
+  "id": "com.eco.global.app.control-home-robot-vacuum-orchestrated",
+  "applicationId": "com.eco.global.app",
+  "intent": "control-home-robot-vacuum",
+  "summary": "Agent-driven Ecovacs home robot vacuum control skill for reading the current state or sending Start, Pause, or Docking actions from the main robot surface.",
+  "keywords": [
+    "ecovacs",
+    "deebot",
+    "robot vacuum",
+    "vacuum",
+    "home robot"
+  ],
+  "path": "skills/com.eco.global.app.control-home-robot-vacuum-orchestrated",
+  "skillFile": "skills/com.eco.global.app.control-home-robot-vacuum-orchestrated/SKILL.md",
+  "scripts": [
+    "skills/com.eco.global.app.control-home-robot-vacuum-orchestrated/scripts/run.js",
+    "skills/com.eco.global.app.control-home-robot-vacuum-orchestrated/scripts/run.sh"
+  ],
+  "artifacts": [],
+  "contract": {
+    "inputs": {
+      "action": "string"
+    },
+    "goal": {
+      "kind": "control_home_robot_vacuum"
+    },
+    "verification": null
+  },
+  "agent": {
+    "cli": "codex",
+    "timeoutMs": 300000
+  }
+}
