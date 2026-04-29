@@ -18,6 +18,7 @@ This skill is intentionally narrow:
 - it uses the live home surface only
 - it infers robot state from the left action label
 - it supports one requested action per run
+- the live UI can take a few seconds to populate, so a transient snapshot error should be retried once after a short wait before falling back to offline
 
 Supported input:
 
@@ -44,6 +45,7 @@ Behavior:
 7. If the action is `return_to_dock`, tap `Docking` and reread the visible UI.
 8. Use the live UI reread as the proof source for the final result.
 9. If the robot is offline, report the offline state and do not attempt a control tap.
+10. If the first snapshot is empty or error-prone, wait about 3 seconds and retry once before reporting offline.
 
 Verification notes:
 

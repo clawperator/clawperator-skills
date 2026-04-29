@@ -70,6 +70,10 @@ function shouldSkipActionTap(requestedAction, observedState) {
   return false;
 }
 
+function shouldRetryRobotStateRead({ snapshotSucceeded, observedState, batteryPercent }) {
+  return !snapshotSucceeded || observedState === null || batteryPercent === null;
+}
+
 module.exports = {
   ACTIONS,
   extractBatteryPercentFromSnapshot,
@@ -78,5 +82,6 @@ module.exports = {
   normalizeAction,
   normalizeText,
   isOfflineSnapshot,
+  shouldRetryRobotStateRead,
   shouldSkipActionTap,
 };

@@ -6,6 +6,7 @@ const {
   expectedActionLabelForState,
   inferRobotStateFromSnapshot,
   normalizeAction,
+  shouldRetryRobotStateRead,
   shouldSkipActionTap,
 } = require("./robot_vacuum_controls.js");
 
@@ -88,4 +89,27 @@ test("shouldSkipActionTap keys off the inferred robot state instead of the visib
   assert.equal(shouldSkipActionTap("start", "running"), true);
   assert.equal(shouldSkipActionTap("pause", "paused"), true);
   assert.equal(shouldSkipActionTap("pause", "running"), false);
+});
+
+test("shouldRetryRobotStateRead retries when the snapshot is incomplete or failed", () => {
+  assert.equal(
+    shouldRetryRobotStateRead({ snapshotSucceeded: false, observedState: null, batteryPercent: null }),
+    true
+  );
+  assert.equal(
+    shouldRetryRobotStateRead({ snapshotSucceeded: true, observedState: null, batteryPercent: 98 }),
+    true
+  );
+  assert.equal(
+    shouldRetryRobotStateRead({ snapshotSucceeded: true, observedState: "paused", batteryPercent: null }),
+    true
+  );
+  assert.equal(
+    shouldRetryRobotStateRead({ snapshotSucceeded: true, observedState: "offline", batteryPercent: 98 }),
+    false
+  );
+  assert.equal(
+    shouldRetryRobotStateRead({ snapshotSucceeded: true, observedState: "paused", batteryPercent: 98 }),
+    false
+  );
 });

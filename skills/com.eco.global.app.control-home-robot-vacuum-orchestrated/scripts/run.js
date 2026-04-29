@@ -6,6 +6,7 @@ const {
   extractBatteryPercentFromSnapshot,
   inferRobotStateFromSnapshot,
   normalizeAction,
+  shouldRetryRobotStateRead,
   shouldSkipActionTap,
 } = require("./robot_vacuum_controls.js");
 
@@ -13,6 +14,7 @@ const skillId = "com.eco.global.app.control-home-robot-vacuum-orchestrated";
 const skillContractVersion = "1.0.0";
 const skillResultFramePrefix = "[Clawperator-Skill-Result]";
 const applicationId = "com.eco.global.app";
+const stateReadRetryDelayMs = 3000;
 
 function parseJsonInputs(raw) {
   try {
@@ -52,6 +54,10 @@ function parseArgs(argv) {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function makeCheckpoints() {
@@ -154,6 +160,14 @@ function getStepText(result, id) {
   return getStepResults(result).find((step) => step.id === id)?.data?.text ?? "";
 }
 
+function readSnapshotText(result) {
+  return getStepText(result, "snapshot");
+}
+
+function readBatteryPercentFromResult(result, priorBatteryPercent) {
+  return extractBatteryPercentFromSnapshot(readSnapshotText(result)) ?? priorBatteryPercent;
+}
+
 function buildSkillResult({ status, checkpoints, resultValue, terminalVerification, diagnostics }) {
   return {
     contractVersion: skillContractVersion,
@@ -188,6 +202,69 @@ function normalizeStateLabel(state) {
 
 function parseSnapshotState(snapshotText) {
   return inferRobotStateFromSnapshot(snapshotText);
+}
+
+async function retryStateReadIfNeeded({
+  clawperatorBin,
+  deviceId,
+  operatorPackage,
+  initialResult,
+  observed,
+  batteryPercent,
+}) {
+  if (!shouldRetryRobotStateRead({
+    snapshotSucceeded: initialResult.ok,
+    observedState: observed.state,
+    batteryPercent,
+  })) {
+    return {
+      observed,
+      batteryPercent,
+      retried: false,
+      retryResult: null,
+    };
+  }
+
+  await sleep(stateReadRetryDelayMs);
+  const retryResult = runExecution(
+    clawperatorBin,
+    deviceId,
+    operatorPackage,
+    buildSnapshotExecution(`${skillId}-read-state-retry`)
+  );
+  if (!retryResult.ok) {
+    return {
+      observed,
+      batteryPercent,
+      retried: true,
+      retryResult,
+    };
+  }
+
+  const retrySnapshotText = readSnapshotText(retryResult);
+  const retryObserved = parseSnapshotState(retrySnapshotText);
+  const retryBatteryPercent = extractBatteryPercentFromSnapshot(retrySnapshotText);
+  const nextObserved = retryObserved.state ? retryObserved : observed;
+  const nextBatteryPercent = retryBatteryPercent ?? batteryPercent;
+  if (!nextObserved.state && nextBatteryPercent !== null) {
+    return {
+      observed: {
+        state: "offline",
+        primaryActionLabel: null,
+        dockActionLabel: retryObserved.dockActionLabel ?? null,
+      },
+      batteryPercent: nextBatteryPercent,
+      retried: true,
+      retryResult,
+    };
+  }
+
+  return {
+    observed: nextObserved,
+    batteryPercent: nextBatteryPercent,
+    retried: true,
+    retryResult,
+  };
 }
 
 function buildOpenAppExecution() {
@@ -233,6 +310,7 @@ const diagnostics = {
   runtimeState: "healthy",
   notes: [
     "The runtime infers robot state from the visible left action label or offline message on the main Ecovacs robot surface.",
+    "The runtime waits about 3 seconds and retries a state read once if the first snapshot is empty or error-prone before falling back to offline.",
     "Docking is exposed as a visible button, but the UI does not expose a separate dock-complete sensor.",
   ],
 };
@@ -261,17 +339,23 @@ async function main() {
     evidence: { kind: "text", text: "Opened com.eco.global.app and captured the live Ecovacs surface." },
   });
 
-  const openSnapshot = getStepText(openResult, "snapshot");
+  const openSnapshot = readSnapshotText(openResult);
   let batteryPercent = extractBatteryPercentFromSnapshot(openSnapshot);
   const batterySnapshotResult = runSnapshotCommand(clawperatorBin, parsed.deviceId);
   if (batterySnapshotResult.ok) {
-    batteryPercent = extractBatteryPercentFromSnapshot(
-      batterySnapshotResult?.envelope?.envelope?.stepResults?.[0]?.data?.text ??
-      batterySnapshotResult?.envelope?.stepResults?.[0]?.data?.text ??
-      ""
-    ) ?? batteryPercent;
+    batteryPercent = readBatteryPercentFromResult(batterySnapshotResult, batteryPercent);
   }
   let observed = parseSnapshotState(openSnapshot);
+  const retryStateRead = await retryStateReadIfNeeded({
+    clawperatorBin,
+    deviceId: parsed.deviceId,
+    operatorPackage,
+    initialResult: openResult,
+    observed,
+    batteryPercent,
+  });
+  observed = retryStateRead.observed;
+  batteryPercent = retryStateRead.batteryPercent;
   if (!observed.state) {
     const fallbackResult = runExecution(
       clawperatorBin,
@@ -287,16 +371,16 @@ async function main() {
         "The robot state could not be read from the live UI."
       );
     }
-    observed = parseSnapshotState(getStepText(fallbackResult, "snapshot"));
+    observed = parseSnapshotState(readSnapshotText(fallbackResult));
     if (batteryPercent === null) {
-      batteryPercent = extractBatteryPercentFromSnapshot(getStepText(fallbackResult, "snapshot"));
+      batteryPercent = extractBatteryPercentFromSnapshot(readSnapshotText(fallbackResult));
     }
     if (!observed.state) {
       return fail(
-        "Could not infer robot state from the visible Start/Pause/Offline surface.",
+        "Could not infer robot state from the visible Start/Pause/Offline surface after a retry.",
         "current_state_read",
         fallbackResult,
-        "The live UI did not expose Start, Pause, or Offline."
+        "The live UI did not expose Start, Pause, or Offline after waiting and retrying once."
       );
     }
   }
