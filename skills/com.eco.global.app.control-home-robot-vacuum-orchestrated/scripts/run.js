@@ -180,7 +180,9 @@ async function writeFrame(payload) {
 
 function normalizeStateLabel(state) {
   if (state === "paused") return "paused";
-  if (state === "operating") return "operating";
+  if (state === "running") return "running";
+  if (state === "operating") return "running";
+  if (state === "offline") return "offline";
   return null;
 }
 
@@ -192,28 +194,12 @@ function buildOpenAppExecution() {
   return buildExecution(`${skillId}-open-app`, [
     { id: "close", type: "close_app", params: { applicationId } },
     { id: "open", type: "open_app", params: { applicationId } },
-    {
-      id: "wait_docking",
-      type: "wait_for_node",
-      params: {
-        matcher: { textContains: "Docking" },
-        timeoutMs: 15000,
-      },
-    },
     { id: "snapshot", type: "snapshot_ui" },
   ]);
 }
 
 function buildSnapshotExecution(commandId) {
   return buildExecution(commandId, [
-    {
-      id: "wait_docking",
-      type: "wait_for_node",
-      params: {
-        matcher: { textContains: "Docking" },
-        timeoutMs: 15000,
-      },
-    },
     { id: "snapshot", type: "snapshot_ui" },
   ]);
 }
@@ -246,7 +232,7 @@ const checkpoints = makeCheckpoints();
 const diagnostics = {
   runtimeState: "healthy",
   notes: [
-    "The runtime infers robot state from the visible left action label on the main Ecovacs robot surface.",
+    "The runtime infers robot state from the visible left action label or offline message on the main Ecovacs robot surface.",
     "Docking is exposed as a visible button, but the UI does not expose a separate dock-complete sensor.",
   ],
 };
@@ -272,7 +258,7 @@ async function main() {
   }
 
   setCheckpoint(checkpoints, "app_opened", "ok", {
-    evidence: { kind: "text", text: "Opened com.eco.global.app and reached the robot surface." },
+    evidence: { kind: "text", text: "Opened com.eco.global.app and captured the live Ecovacs surface." },
   });
 
   const openSnapshot = getStepText(openResult, "snapshot");
@@ -307,10 +293,10 @@ async function main() {
     }
     if (!observed.state) {
       return fail(
-        "Could not infer robot state from the visible Start/Pause label.",
+        "Could not infer robot state from the visible Start/Pause/Offline surface.",
         "current_state_read",
         fallbackResult,
-        "The live UI did not expose either Start or Pause."
+        "The live UI did not expose Start, Pause, or Offline."
       );
     }
   }
@@ -358,7 +344,7 @@ async function main() {
         resultValue,
         terminalVerification: {
           status: "verified",
-          expected: { kind: "text", text: "Visible Start/Pause label and battery percentage on the robot surface" },
+          expected: { kind: "text", text: "Visible Start, Pause, or Offline state and battery percentage on the robot surface" },
           observed: { kind: "json", value: resultValue },
         },
         diagnostics,
@@ -366,7 +352,16 @@ async function main() {
     );
   }
 
-  const desiredState = requested.action === "start" ? "operating" : requested.action === "pause" ? "paused" : null;
+  if (observed.state === "offline") {
+    return fail(
+      "The Ecovacs app is offline, so control actions are unavailable until the device reconnects.",
+      "action_applied",
+      null,
+      "The live UI reported Offline with the device help message."
+    );
+  }
+
+  const desiredState = requested.action === "start" ? "running" : requested.action === "pause" ? "paused" : null;
 
   if (requested.action === "start" || requested.action === "pause") {
     if (!desiredState) {
@@ -448,6 +443,14 @@ async function main() {
     });
     const postSnapshot = getStepText(tapResult, "snapshot");
     observed = parseSnapshotState(postSnapshot) || observed;
+    if (observed.state === "offline") {
+      return fail(
+        "The Ecovacs app reported Offline after the Docking tap, so the command could not be verified.",
+        "terminal_state_verified",
+        tapResult,
+        "The live UI switched to the offline error surface instead of confirming docking."
+      );
+    }
     resultValue.current_state = normalizeStateLabel(observed.state);
     resultValue.primary_action_label = observed.primaryActionLabel;
     resultValue.dock_action_label = observed.dockActionLabel;

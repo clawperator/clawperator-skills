@@ -14,6 +14,11 @@ function normalizeText(raw) {
   return String(raw || "").replace(/\s+/g, " ").trim();
 }
 
+function isOfflineSnapshot(snapshotText) {
+  const text = normalizeText(snapshotText).toLowerCase();
+  return text.includes("offline") || text.includes("why is my device offline");
+}
+
 function extractBatteryPercentFromSnapshot(snapshotText) {
   const text = String(snapshotText || "");
   const match = text.match(/(^|[^0-9])(\d{1,3})%(?!\d)/);
@@ -25,9 +30,16 @@ function extractBatteryPercentFromSnapshot(snapshotText) {
 
 function inferRobotStateFromSnapshot(snapshotText) {
   const text = String(snapshotText || "");
+  if (isOfflineSnapshot(text)) {
+    return {
+      state: "offline",
+      primaryActionLabel: null,
+      dockActionLabel: text.includes("Docking") ? "Docking" : null,
+    };
+  }
   if (/\bPause\b/.test(text)) {
     return {
-      state: "operating",
+      state: "running",
       primaryActionLabel: "Pause",
       dockActionLabel: text.includes("Docking") ? "Docking" : null,
     };
@@ -48,12 +60,12 @@ function inferRobotStateFromSnapshot(snapshotText) {
 
 function expectedActionLabelForState(state) {
   if (state === "paused") return "Start";
-  if (state === "operating") return "Pause";
+  if (state === "running") return "Pause";
   return null;
 }
 
 function shouldSkipActionTap(requestedAction, observedState) {
-  if (requestedAction === "start") return observedState === "operating";
+  if (requestedAction === "start") return observedState === "running";
   if (requestedAction === "pause") return observedState === "paused";
   return false;
 }
@@ -65,5 +77,6 @@ module.exports = {
   inferRobotStateFromSnapshot,
   normalizeAction,
   normalizeText,
+  isOfflineSnapshot,
   shouldSkipActionTap,
 };
