@@ -32,22 +32,35 @@ test("inferRobotStateFromSnapshot treats Start as paused", () => {
   assert.equal(parsed.dockActionLabel, "Docking");
 });
 
-test("inferRobotStateFromSnapshot treats Pause as operating", () => {
+test("inferRobotStateFromSnapshot treats Pause as running", () => {
   const parsed = inferRobotStateFromSnapshot(`
     <hierarchy>
       <node text="Pause" class="android.widget.TextView" />
       <node text="Docking" class="android.widget.TextView" />
     </hierarchy>
   `);
-  assert.equal(parsed.state, "operating");
+  assert.equal(parsed.state, "running");
   assert.equal(parsed.primaryActionLabel, "Pause");
   assert.equal(parsed.dockActionLabel, "Docking");
 });
 
 test("expectedActionLabelForState maps the inferred state to the action label", () => {
   assert.equal(expectedActionLabelForState("paused"), "Start");
-  assert.equal(expectedActionLabelForState("operating"), "Pause");
+  assert.equal(expectedActionLabelForState("running"), "Pause");
   assert.equal(expectedActionLabelForState("unknown"), null);
+});
+
+test("inferRobotStateFromSnapshot treats the offline surface as offline", () => {
+  const parsed = inferRobotStateFromSnapshot(`
+    <hierarchy>
+      <node text="Offline" class="android.widget.TextView" />
+      <node text="Why is my device offline" class="android.widget.TextView" />
+      <node text="100%" class="android.widget.TextView" />
+    </hierarchy>
+  `);
+  assert.equal(parsed.state, "offline");
+  assert.equal(parsed.primaryActionLabel, null);
+  assert.equal(parsed.dockActionLabel, null);
 });
 
 test("extractBatteryPercentFromSnapshot reads the visible battery percent from the top bar", () => {
@@ -72,7 +85,7 @@ test("extractBatteryPercentFromSnapshot reads the visible battery percent from t
 
 test("shouldSkipActionTap keys off the inferred robot state instead of the visible button label", () => {
   assert.equal(shouldSkipActionTap("start", "paused"), false);
-  assert.equal(shouldSkipActionTap("start", "operating"), true);
+  assert.equal(shouldSkipActionTap("start", "running"), true);
   assert.equal(shouldSkipActionTap("pause", "paused"), true);
-  assert.equal(shouldSkipActionTap("pause", "operating"), false);
+  assert.equal(shouldSkipActionTap("pause", "running"), false);
 });
