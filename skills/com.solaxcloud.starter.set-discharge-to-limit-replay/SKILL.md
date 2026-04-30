@@ -27,10 +27,10 @@ Run through the wrapper:
 clawperator skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> --percent 40
 ```
 
-The lone `--` separator is not required for the canonical `--percent` form,
-because `skills run` recognizes it as a declared contract input. Keep `--`
-only when you need to force passthrough for tokens that would otherwise be
-parsed as wrapper flags.
+The lone `--` separator is not required for the canonical `--percent` form.
+The legacy `-- --limit <percent>` invocation is also still accepted by the
+script for compatibility with callers that have not refreshed their wrapper
+instructions yet.
 
 Direct local invocation:
 
@@ -61,6 +61,8 @@ Current behavior:
 - omits `source` from the emitted frame; `runSkill` injects `source: { "kind": "script" }`
 - emits `goal: { "kind": "set_discharge_limit", "percent": <percent> }`
 - emits `inputs: { "percent": <percent> }`
+- relies on the script-emitted verified `SkillResult` as the source of truth
+  for top-level success, rather than a separate registry matcher render step
 - emits this stable replay checkpoint subset, in order:
   - `app_opened`
   - `discharge_to_row_focused`

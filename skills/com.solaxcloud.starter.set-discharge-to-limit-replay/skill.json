@@ -17,9 +17,6 @@
     "goal": {
       "kind": "set_discharge_limit"
     },
-    "verification": {
-      "kind": "node_text_matches",
-      "matcher": "Discharge to {percent}%"
-    }
+    "verification": null
   }
 }
