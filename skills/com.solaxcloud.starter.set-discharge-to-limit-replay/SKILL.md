@@ -27,6 +27,11 @@ Run through the wrapper:
 clawperator skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> --percent 40
 ```
 
+The lone `--` separator is not required for the canonical `--percent` form,
+because `skills run` recognizes it as a declared contract input. Keep `--`
+only when you need to force passthrough for tokens that would otherwise be
+parsed as wrapper flags.
+
 Direct local invocation:
 
 ```bash
@@ -120,7 +125,7 @@ Success path:
 ```bash
 CLAWPERATOR_SKILLS_REGISTRY=<skills_repo_root>/skills/skills-registry.json \
 CLAWPERATOR_OPERATOR_PACKAGE=com.clawperator.operator.dev \
-<node_binary> <clawperator_root>/apps/node/dist/cli/index.js skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> -- 40
+<node_binary> <clawperator_root>/apps/node/dist/cli/index.js skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> --percent 40
 ```
 
 Forced-failure repro:
@@ -129,7 +134,7 @@ Forced-failure repro:
 CLAWPERATOR_SKILLS_REGISTRY=<skills_repo_root>/skills/skills-registry.json \
 CLAWPERATOR_OPERATOR_PACKAGE=com.clawperator.operator.dev \
 CLAWPERATOR_SOLAX_REPLAY_FORCE_FAILURE=1 \
-<node_binary> <clawperator_root>/apps/node/dist/cli/index.js skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> -- 40
+<node_binary> <clawperator_root>/apps/node/dist/cli/index.js skills run com.solaxcloud.starter.set-discharge-to-limit-replay --device <device_serial> --percent 40
 ```
 
 Expected forced-failure shape:
