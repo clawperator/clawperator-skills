@@ -521,6 +521,41 @@ function scopedCheckpointId(scope, id) {
   return scope ? `${scope}_${id}` : id;
 }
 
+function mergePowerStateEvidence(homeState, visualState) {
+  const semanticSignals = {
+    setPointVisible: Boolean(homeState?.setPointVisible),
+    modeValue: homeState?.modeValue || null,
+    fanLevelValue: homeState?.fanLevelValue || null,
+  };
+  const hasLiveControlValues = Boolean(
+    semanticSignals.setPointVisible
+      || semanticSignals.modeValue
+      || semanticSignals.fanLevelValue,
+  );
+
+  if (hasLiveControlValues) {
+    return {
+      state: "on",
+      metrics: {
+        ...(visualState?.metrics || {}),
+        semanticSignals,
+        visualState: visualState?.state || "unknown",
+        resolvedBy: "home_control_values",
+      },
+    };
+  }
+
+  return {
+    state: visualState?.state || "unknown",
+    metrics: {
+      ...(visualState?.metrics || {}),
+      semanticSignals,
+      visualState: visualState?.state || "unknown",
+      resolvedBy: "screenshot_crop",
+    },
+  };
+}
+
 async function samplePowerState(deviceId, operatorPackage, powerBounds, runDir, screenshotName, waitMs) {
   if (waitMs > 0) {
     await getDependency("sleep")(waitMs);
@@ -530,7 +565,8 @@ async function samplePowerState(deviceId, operatorPackage, powerBounds, runDir, 
   takeScreenshot(deviceId, operatorPackage, screenshotPath);
   const image = await getDependency("readPngRgba")(screenshotPath);
   const stats = getDependency("averageRgba")(image, powerBounds);
-  const classified = getDependency("classifyPowerState")(stats);
+  const visualState = getDependency("classifyPowerState")(stats);
+  const classified = mergePowerStateEvidence(homeState, visualState);
   return { homeState, classified };
 }
 
@@ -559,12 +595,13 @@ async function observePowerTransition(deviceId, operatorPackage, powerBounds, ru
   return { currentState, homeState, lastMetrics, observations };
 }
 
-async function readPowerStateFromHome(deviceId, operatorPackage, powerBounds, runDir, screenshotName) {
+async function readPowerStateFromHome(deviceId, operatorPackage, powerBounds, runDir, screenshotName, homeState) {
   const screenshotPath = join(runDir, screenshotName);
   takeScreenshot(deviceId, operatorPackage, screenshotPath);
   const image = await getDependency("readPngRgba")(screenshotPath);
   const stats = getDependency("averageRgba")(image, powerBounds);
-  return getDependency("classifyPowerState")(stats);
+  const visualState = getDependency("classifyPowerState")(stats);
+  return mergePowerStateEvidence(homeState, visualState);
 }
 
 async function applyPowerStateFromHome({
@@ -582,7 +619,7 @@ async function applyPowerStateFromHome({
   }
 
   const screenshotPrefix = checkpointPrefix ? `${checkpointPrefix}-` : "";
-  const beforeState = await readPowerStateFromHome(deviceId, operatorPackage, powerBounds, runDir, `${screenshotPrefix}power-before.png`);
+  const beforeState = await readPowerStateFromHome(deviceId, operatorPackage, powerBounds, runDir, `${screenshotPrefix}power-before.png`, homeState);
   let currentState = beforeState.state;
   appendCheckpoint(
     result,
@@ -1086,6 +1123,7 @@ module.exports = {
   parseHomeControlsArgs,
   parseNamedChoiceArg,
   parseXmlNodes,
+  mergePowerStateEvidence,
   runCyclingSettingSkill,
   runHomeControlsSkill,
   runPowerStateSkill,

@@ -5,6 +5,7 @@ const {
   classifyPowerState,
   extractChoiceDialogState,
   extractHomeScreenState,
+  mergePowerStateEvidence,
   parseChoiceArg,
   parseHomeControlsArgs,
   runCyclingSettingSkill,
@@ -222,6 +223,51 @@ test("classifyPowerState distinguishes the observed AirTouch off and on button m
     }).state,
     "on",
   );
+});
+
+test("mergePowerStateEvidence trusts live Home control values over fan-mode button color", () => {
+  const state = mergePowerStateEvidence(
+    {
+      setPointVisible: false,
+      modeValue: "fan",
+      fanLevelValue: "medium",
+    },
+    {
+      state: "off",
+      metrics: {
+        brightness: 88.58,
+        blueDominance: -51.42,
+        greenLift: 31.78,
+        avgRgba: [89.83, 121.61, 54.3, 255],
+      },
+    },
+  );
+
+  assert.strictEqual(state.state, "on");
+  assert.strictEqual(state.metrics.visualState, "off");
+  assert.strictEqual(state.metrics.resolvedBy, "home_control_values");
+  assert.deepStrictEqual(state.metrics.semanticSignals, {
+    setPointVisible: false,
+    modeValue: "fan",
+    fanLevelValue: "medium",
+  });
+});
+
+test("mergePowerStateEvidence falls back to screenshot crop when Home controls have no live values", () => {
+  const state = mergePowerStateEvidence(
+    {
+      setPointVisible: false,
+      modeValue: null,
+      fanLevelValue: null,
+    },
+    {
+      state: "off",
+      metrics: { brightness: 40 },
+    },
+  );
+
+  assert.strictEqual(state.state, "off");
+  assert.strictEqual(state.metrics.resolvedBy, "screenshot_crop");
 });
 
 test("shouldRetryPowerToggle waits for a stable unchanged tail before retrying", () => {
