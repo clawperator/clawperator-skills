@@ -1009,7 +1009,7 @@ async function runCyclingSettingSkill({
     ...(result.diagnostics || {}),
     runtimeState: "healthy",
     operatorPackage,
-    deviceSelected: Boolean(deviceId),
+    deviceSelected: true,
     allowedValues,
     heuristics: [
       "Power is classified from the screenshot crop around the Home power control before trusting Home control labels.",
@@ -1131,7 +1131,7 @@ async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
     ...(result.diagnostics || {}),
     runtimeState: "healthy",
     operatorPackage,
-    deviceSelected: Boolean(deviceId),
+    deviceSelected: true,
     heuristics: [
       "Power is classified from the screenshot crop around the Home power control.",
     ],
@@ -1222,7 +1222,7 @@ async function runHomeControlsSkill({ skillId, request, parseErrors, deviceId })
     ...(result.diagnostics || {}),
     runtimeState: "healthy",
     operatorPackage,
-    deviceSelected: Boolean(deviceId),
+    deviceSelected: true,
     allowedValues: {
       state: ["on", "off"],
       fan_level: FAN_LEVEL_VALUES,

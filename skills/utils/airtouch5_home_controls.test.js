@@ -1106,6 +1106,7 @@ test("runPowerStateSkill omits --device when no explicit device is available", a
 
   assert.strictEqual(exitCode, 0);
   assert.strictEqual(skillResult.status, "success");
+  assert.strictEqual(skillResult.diagnostics.deviceSelected, true);
   assert.ok(commandCalls.length > 0);
   for (const call of commandCalls) {
     assert.ok(!call.args.includes("--device"), `${call.command} should let Clawperator resolve the device automatically`);
