@@ -225,7 +225,7 @@ test("classifyPowerState distinguishes the observed AirTouch off and on button m
   );
 });
 
-test("mergePowerStateEvidence trusts live Home control values over fan-mode button color", () => {
+test("mergePowerStateEvidence keeps Home control values diagnostic only", () => {
   const state = mergePowerStateEvidence(
     {
       setPointVisible: false,
@@ -243,9 +243,9 @@ test("mergePowerStateEvidence trusts live Home control values over fan-mode butt
     },
   );
 
-  assert.strictEqual(state.state, "on");
+  assert.strictEqual(state.state, "off");
   assert.strictEqual(state.metrics.visualState, "off");
-  assert.strictEqual(state.metrics.resolvedBy, "home_control_values");
+  assert.strictEqual(state.metrics.resolvedBy, "screenshot_crop");
   assert.deepStrictEqual(state.metrics.semanticSignals, {
     setPointVisible: false,
     modeValue: "fan",
@@ -490,6 +490,68 @@ test("runPowerStateSkill retries only after a stable unchanged observation windo
     assert.deepStrictEqual(skillResult.diagnostics.firstTapObservations, ["off", "off", "off", "off"]);
     assert.deepStrictEqual(skillResult.diagnostics.secondTapObservations, ["on"]);
     assert.strictEqual(commandCalls.filter((call) => call.command === "click").length, 2);
+  } finally {
+    console.log = originalLog;
+    setAirTouchHomeControlsDepsForTest(null);
+  }
+});
+
+test("runPowerStateSkill retries a transient screenshot failure during power verification", async () => {
+  const commandCalls = [];
+  const snapshotResponses = [
+    buildSnapshotResult(HOME_OFF_XML),
+    buildSnapshotResult(HOME_XML),
+  ];
+  const classifiedStates = ["off", "on"];
+  const logLines = [];
+  const originalLog = console.log;
+  let failedAfterScreenshot = false;
+
+  setAirTouchHomeControlsDepsForTest({
+    averageRgba: (_, bounds) => ({ avgRgba: [0, 0, 0, 255], region: bounds }),
+    classifyPowerState: () => {
+      const state = classifiedStates.shift();
+      return {
+        state,
+        metrics: { brightness: state === "on" ? 100 : 40, blueDominance: state === "on" ? 60 : 4 },
+      };
+    },
+    mkdtemp: async () => "/tmp/clawperator-airtouch-test",
+    readPngRgba: async () => ({ width: 1, height: 1, rgba: Buffer.alloc(4) }),
+    rm: async () => {},
+    runClawperatorCommand: (command, args) => {
+      commandCalls.push({ command, args });
+      if (command === "snapshot") {
+        return { ok: true, result: snapshotResponses.shift() };
+      }
+      if (command === "screenshot") {
+        const screenshotPath = args[args.indexOf("--path") + 1];
+        if (screenshotPath.endsWith("power-after-1-1.png") && !failedAfterScreenshot) {
+          failedAfterScreenshot = true;
+          return { ok: false, error: "RESULT_ENVELOPE_TIMEOUT" };
+        }
+      }
+      return { ok: true, result: buildJsonResult() };
+    },
+    sleep: async () => {},
+  });
+  console.log = (...args) => {
+    logLines.push(args.join(" "));
+  };
+
+  try {
+    const exitCode = await runPowerStateSkill({
+      skillId: "au.com.polyaire.airtouch5.set-power-state",
+      requestedState: "on",
+      deviceId: "<device_serial>",
+    });
+
+    const skillResult = captureSkillResult(logLines);
+    assert.strictEqual(exitCode, 0);
+    assert.strictEqual(skillResult.status, "success");
+    assert.strictEqual(skillResult.diagnostics.finalState, "on");
+    assert.strictEqual(skillResult.diagnostics.lastPowerMetrics.screenshotAttempts, 2);
+    assert.strictEqual(commandCalls.filter((call) => call.command === "click").length, 1);
   } finally {
     console.log = originalLog;
     setAirTouchHomeControlsDepsForTest(null);

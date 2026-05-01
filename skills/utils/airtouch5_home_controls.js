@@ -262,6 +262,37 @@ function takeScreenshot(deviceId, operatorPackage, path) {
   return runJsonCommand("screenshot", ["--device", deviceId, "--operator-package", operatorPackage, "--path", path, "--json"]);
 }
 
+function screenshotRetryName(screenshotName, attempt) {
+  if (attempt === 1) {
+    return screenshotName;
+  }
+  if (screenshotName.endsWith(".png")) {
+    return `${screenshotName.slice(0, -4)}-retry-${attempt}.png`;
+  }
+  return `${screenshotName}-retry-${attempt}`;
+}
+
+async function takeScreenshotWithRetry(deviceId, operatorPackage, runDir, screenshotName, options = {}) {
+  const attempts = options.attempts || 3;
+  const retryDelayMs = options.retryDelayMs || 900;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const screenshotPath = join(runDir, screenshotRetryName(screenshotName, attempt));
+    try {
+      takeScreenshot(deviceId, operatorPackage, screenshotPath);
+      return { screenshotPath, attempts: attempt };
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        await getDependency("sleep")(retryDelayMs);
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 
 function computeViewport(nodes) {
   let right = 0;
@@ -527,24 +558,6 @@ function mergePowerStateEvidence(homeState, visualState) {
     modeValue: homeState?.modeValue || null,
     fanLevelValue: homeState?.fanLevelValue || null,
   };
-  const hasLiveControlValues = Boolean(
-    semanticSignals.setPointVisible
-      || semanticSignals.modeValue
-      || semanticSignals.fanLevelValue,
-  );
-
-  if (hasLiveControlValues) {
-    return {
-      state: "on",
-      metrics: {
-        ...(visualState?.metrics || {}),
-        semanticSignals,
-        visualState: visualState?.state || "unknown",
-        resolvedBy: "home_control_values",
-      },
-    };
-  }
-
   return {
     state: visualState?.state || "unknown",
     metrics: {
@@ -561,12 +574,12 @@ async function samplePowerState(deviceId, operatorPackage, powerBounds, runDir, 
     await getDependency("sleep")(waitMs);
   }
   const homeState = await waitForHomeState(deviceId, operatorPackage, { maxAttempts: 6 });
-  const screenshotPath = join(runDir, screenshotName);
-  takeScreenshot(deviceId, operatorPackage, screenshotPath);
+  const { screenshotPath, attempts } = await takeScreenshotWithRetry(deviceId, operatorPackage, runDir, screenshotName);
   const image = await getDependency("readPngRgba")(screenshotPath);
   const stats = getDependency("averageRgba")(image, powerBounds);
   const visualState = getDependency("classifyPowerState")(stats);
   const classified = mergePowerStateEvidence(homeState, visualState);
+  classified.metrics.screenshotAttempts = attempts;
   return { homeState, classified };
 }
 
@@ -596,12 +609,13 @@ async function observePowerTransition(deviceId, operatorPackage, powerBounds, ru
 }
 
 async function readPowerStateFromHome(deviceId, operatorPackage, powerBounds, runDir, screenshotName, homeState) {
-  const screenshotPath = join(runDir, screenshotName);
-  takeScreenshot(deviceId, operatorPackage, screenshotPath);
+  const { screenshotPath, attempts } = await takeScreenshotWithRetry(deviceId, operatorPackage, runDir, screenshotName);
   const image = await getDependency("readPngRgba")(screenshotPath);
   const stats = getDependency("averageRgba")(image, powerBounds);
   const visualState = getDependency("classifyPowerState")(stats);
-  return mergePowerStateEvidence(homeState, visualState);
+  const classified = mergePowerStateEvidence(homeState, visualState);
+  classified.metrics.screenshotAttempts = attempts;
+  return classified;
 }
 
 async function applyPowerStateFromHome({
