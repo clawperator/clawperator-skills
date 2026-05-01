@@ -6,8 +6,15 @@ const {
 } = require("../../utils/airtouch5_home_controls.js");
 
 const skillId = "au.com.polyaire.airtouch5.set-home-controls";
-const deviceId = process.env.CLAWPERATOR_DEVICE_ID || process.argv[2] || "";
-const rawArgs = process.env.CLAWPERATOR_DEVICE_ID ? process.argv.slice(2) : process.argv.slice(3);
+const argvArgs = process.argv.slice(2);
+let deviceId = process.env.CLAWPERATOR_DEVICE_ID || "";
+let rawArgs = argvArgs;
+if (!deviceId && rawArgs[0] && !rawArgs[0].startsWith("--")) {
+  deviceId = rawArgs[0];
+  rawArgs = rawArgs.slice(1);
+} else if (deviceId && rawArgs[0] === deviceId) {
+  rawArgs = rawArgs.slice(1);
+}
 const parsed = parseHomeControlsArgs(rawArgs);
 
 runHomeControlsSkill({
