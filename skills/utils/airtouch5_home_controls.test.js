@@ -6,7 +6,9 @@ const {
   extractChoiceDialogState,
   extractHomeScreenState,
   parseChoiceArg,
+  parseHomeControlsArgs,
   runCyclingSettingSkill,
+  runHomeControlsSkill,
   runPowerStateSkill,
   setAirTouchHomeControlsDepsForTest,
   shouldRetryPowerToggle,
@@ -50,6 +52,7 @@ const HOME_OFF_XML = [
 ].join("\n");
 
 const HOME_HEAT_XML = HOME_XML.replace('text="Cool"', 'text="Heat"');
+const HOME_HIGH_XML = HOME_XML.replace('text="Low"', 'text="High"');
 
 const HOME_WITH_PLACEHOLDER_XML = [
   "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>",
@@ -84,6 +87,21 @@ const MODE_DIALOG_XML = [
   "      <node index=\"3\" text=\"Fan\" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" clickable=\"true\" bounds=\"[498,1374][582,1446]\" />",
   "      <node index=\"4\" text=\"Heat\" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" clickable=\"true\" bounds=\"[273,1206][375,1278]\" />",
   "      <node index=\"5\" text=\"Cool\" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" clickable=\"true\" bounds=\"[348,954][444,1026]\" />",
+  "    </node>",
+  "  </node>",
+  "</hierarchy>",
+].join("\n");
+
+const FAN_DIALOG_XML = [
+  "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>",
+  "<hierarchy rotation=\"0\">",
+  "  <node index=\"0\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"au.com.polyaire.airtouch5\" bounds=\"[0,0][1080,2340]\">",
+  "    <node index=\"1\" text=\"\" resource-id=\"\" class=\"android.app.AlertDialog\" package=\"au.com.polyaire.airtouch5\" bounds=\"[180,810][900,1530]\">",
+  "      <node index=\"0\" text=\"Fan\" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" clickable=\"false\" bounds=\"[498,870][582,942]\" />",
+  "      <node index=\"1\" text=\"Auto\" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" clickable=\"true\" bounds=\"[498,954][582,1026]\" />",
+  "      <node index=\"2\" text=\"Low\" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" clickable=\"true\" bounds=\"[498,1050][582,1122]\" />",
+  "      <node index=\"3\" text=\"Medium\" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" clickable=\"true\" bounds=\"[462,1146][618,1218]\" />",
+  "      <node index=\"4\" text=\"High\" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" clickable=\"true\" bounds=\"[498,1242][582,1314]\" />",
   "    </node>",
   "  </node>",
   "</hierarchy>",
@@ -126,6 +144,24 @@ test("parseChoiceArg skips values that belong to other named flags when using po
   assert.strictEqual(
     parseChoiceArg(["--device", "<device_serial>", "medium"], { flag: "--fan-level", allowedValues: ["auto", "low", "medium", "high"] }),
     "medium",
+  );
+});
+
+test("parseHomeControlsArgs accepts canonical optional Home controls", () => {
+  assert.deepStrictEqual(
+    parseHomeControlsArgs(["--state", "on", "--fan-level=high", "--mode", "cool"]),
+    {
+      request: { state: "on", fanLevel: "high", mode: "cool" },
+      errors: [],
+    },
+  );
+});
+
+test("parseHomeControlsArgs rejects empty and contradictory Home control requests", () => {
+  assert.deepStrictEqual(parseHomeControlsArgs([]).errors, ["Pass at least one of --state, --fan-level, or --mode."]);
+  assert.deepStrictEqual(
+    parseHomeControlsArgs(["--state", "off", "--fan-level", "low"]).errors,
+    ["Do not combine --state off with --fan-level or --mode; Home controls are not adjustable while power is off."],
   );
 });
 
@@ -234,6 +270,79 @@ test("runCyclingSettingSkill opens the selector and verifies the requested mode"
       ["app_opened", "home_screen_ready", "current_value_read", "action_applied", "terminal_state_verified"],
     );
     assert.strictEqual(commandCalls.filter((call) => call.command === "click").length, 2);
+  } finally {
+    console.log = originalLog;
+    setAirTouchHomeControlsDepsForTest(null);
+  }
+});
+
+test("runHomeControlsSkill opens AirTouch once, turns power on first, and verifies fan level", async () => {
+  const commandCalls = [];
+  const snapshotResponses = [
+    buildSnapshotResult(HOME_OFF_XML),
+    buildSnapshotResult(HOME_XML),
+    buildSnapshotResult(HOME_XML),
+    buildSnapshotResult(FAN_DIALOG_XML),
+    buildSnapshotResult(HOME_HIGH_XML),
+  ];
+  const classifiedStates = ["off", "on"];
+  const logLines = [];
+  const originalLog = console.log;
+
+  setAirTouchHomeControlsDepsForTest({
+    averageRgba: (_, bounds) => ({ avgRgba: [0, 0, 0, 255], region: bounds }),
+    classifyPowerState: () => {
+      const state = classifiedStates.shift();
+      return {
+        state,
+        metrics: { brightness: state === "on" ? 100 : 40, blueDominance: state === "on" ? 60 : 4 },
+      };
+    },
+    mkdtemp: async () => "/tmp/clawperator-airtouch-home-controls-test",
+    readPngRgba: async () => ({ width: 1, height: 1, rgba: Buffer.alloc(4) }),
+    rm: async () => {},
+    runClawperatorCommand: (command, args) => {
+      commandCalls.push({ command, args });
+      if (command === "snapshot") {
+        return { ok: true, result: snapshotResponses.shift() };
+      }
+      return { ok: true, result: buildJsonResult() };
+    },
+    sleep: async () => {},
+  });
+  console.log = (...args) => {
+    logLines.push(args.join(" "));
+  };
+
+  try {
+    const exitCode = await runHomeControlsSkill({
+      skillId: "au.com.polyaire.airtouch5.set-home-controls",
+      request: { state: "on", fanLevel: "high", mode: null },
+      parseErrors: [],
+      deviceId: "<device_serial>",
+    });
+
+    const skillResult = captureSkillResult(logLines);
+    assert.strictEqual(exitCode, 0);
+    assert.strictEqual(skillResult.status, "success");
+    assert.deepStrictEqual(skillResult.result.value.requested, { state: "on", fan_level: "high" });
+    assert.deepStrictEqual(skillResult.result.value.final, { state: "on", fan_level: "high" });
+    assert.strictEqual(skillResult.terminalVerification.status, "verified");
+    assert.deepStrictEqual(
+      skillResult.checkpoints.map((checkpoint) => checkpoint.id),
+      [
+        "app_opened",
+        "home_screen_ready",
+        "power_current_value_read",
+        "power_action_applied",
+        "home_controls_visible",
+        "fan_level_current_value_read",
+        "fan_level_action_applied",
+        "terminal_state_verified",
+      ],
+    );
+    assert.strictEqual(commandCalls.filter((call) => call.command === "open").length, 1);
+    assert.strictEqual(commandCalls.filter((call) => call.command === "click").length, 3);
   } finally {
     console.log = originalLog;
     setAirTouchHomeControlsDepsForTest(null);

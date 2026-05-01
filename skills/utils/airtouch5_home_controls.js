@@ -158,6 +158,70 @@ function parseChoiceArg(args, { flag, allowedValues }) {
   return null;
 }
 
+function parseNamedChoiceArg(args, { flag, allowedValues }) {
+  const allowed = new Set((allowedValues || []).map((value) => normalizeChoiceValue(value)));
+  const normalizedFlag = normalizeChoiceValue(flag);
+  const equalsPrefix = `${normalizedFlag}=`;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const current = String(args[index] || "").trim();
+    const currentNormalized = normalizeChoiceValue(current);
+
+    if (currentNormalized === normalizedFlag) {
+      const value = normalizeChoiceValue(args[index + 1]);
+      return {
+        provided: true,
+        value: allowed.has(value) ? value : null,
+      };
+    }
+
+    if (currentNormalized.startsWith(equalsPrefix)) {
+      const value = currentNormalized.slice(equalsPrefix.length);
+      return {
+        provided: true,
+        value: allowed.has(value) ? value : null,
+      };
+    }
+  }
+
+  return { provided: false, value: null };
+}
+
+function parseHomeControlsArgs(args) {
+  const state = parseNamedChoiceArg(args, { flag: "--state", allowedValues: ["on", "off"] });
+  const fanLevel = parseNamedChoiceArg(args, { flag: "--fan-level", allowedValues: FAN_LEVEL_VALUES });
+  const mode = parseNamedChoiceArg(args, { flag: "--mode", allowedValues: MODE_VALUES });
+  const errors = [];
+
+  if (state.provided && !state.value) {
+    errors.push("Pass --state on|off.");
+  }
+  if (fanLevel.provided && !fanLevel.value) {
+    errors.push(`Pass --fan-level ${FAN_LEVEL_VALUES.join("|")}.`);
+  }
+  if (mode.provided && !mode.value) {
+    errors.push(`Pass --mode ${MODE_VALUES.join("|")}.`);
+  }
+
+  const request = {
+    state: state.value,
+    fanLevel: fanLevel.value,
+    mode: mode.value,
+  };
+
+  if (!request.state && !request.fanLevel && !request.mode && errors.length === 0) {
+    errors.push("Pass at least one of --state, --fan-level, or --mode.");
+  }
+  if (request.state === "off" && (request.fanLevel || request.mode)) {
+    errors.push("Do not combine --state off with --fan-level or --mode; Home controls are not adjustable while power is off.");
+  }
+
+  return {
+    request,
+    errors,
+  };
+}
+
 function extractForegroundPackage(rawResult) {
   const foregroundPackage = rawResult?.envelope?.stepResults?.find((step) => isSnapshotStep(step))?.data?.foreground_package;
   return typeof foregroundPackage === "string" ? foregroundPackage : "";
@@ -450,6 +514,10 @@ function shouldRetryPowerToggle(initialState, observedStates) {
   return observedStates.length >= 4 && observedStates.slice(-4).every((state) => state === initialState);
 }
 
+function scopedCheckpointId(scope, id) {
+  return scope ? `${scope}_${id}` : id;
+}
+
 async function samplePowerState(deviceId, operatorPackage, powerBounds, runDir, screenshotName, waitMs) {
   if (waitMs > 0) {
     await getDependency("sleep")(waitMs);
@@ -486,6 +554,164 @@ async function observePowerTransition(deviceId, operatorPackage, powerBounds, ru
   }
 
   return { currentState, homeState, lastMetrics, observations };
+}
+
+async function readPowerStateFromHome(deviceId, operatorPackage, powerBounds, runDir, screenshotName) {
+  const screenshotPath = join(runDir, screenshotName);
+  takeScreenshot(deviceId, operatorPackage, screenshotPath);
+  const image = await getDependency("readPngRgba")(screenshotPath);
+  const stats = getDependency("averageRgba")(image, powerBounds);
+  return getDependency("classifyPowerState")(stats);
+}
+
+async function applyPowerStateFromHome({
+  deviceId,
+  operatorPackage,
+  requestedState,
+  homeState,
+  runDir,
+  result,
+  checkpointPrefix = "",
+}) {
+  const powerBounds = homeState.controlSlots.power;
+  if (!powerBounds) {
+    throw new Error("Could not derive the power control bounds from the Home screen.");
+  }
+
+  const screenshotPrefix = checkpointPrefix ? `${checkpointPrefix}-` : "";
+  const beforeState = await readPowerStateFromHome(deviceId, operatorPackage, powerBounds, runDir, `${screenshotPrefix}power-before.png`);
+  let currentState = beforeState.state;
+  appendCheckpoint(
+    result,
+    scopedCheckpointId(checkpointPrefix, "current_value_read"),
+    "ok",
+    `AirTouch power looked ${currentState} before action.`,
+    { kind: "json", value: { powerBounds, screenshotMetrics: beforeState.metrics, setPointVisible: homeState.setPointVisible, modeValue: homeState.modeValue, fanLevelValue: homeState.fanLevelValue } },
+  );
+
+  const center = boundsCenter(powerBounds);
+  let tapsApplied = 0;
+  let finalHomeState = homeState;
+  let actionNote = `No tap was needed because power was already ${requestedState}.`;
+  const diagnostics = {
+    powerBounds,
+    beforePowerMetrics: beforeState.metrics,
+  };
+
+  if (currentState !== requestedState) {
+    clickCoordinate(deviceId, operatorPackage, center.x, center.y);
+    tapsApplied += 1;
+    const firstAttempt = await observePowerTransition(
+      deviceId,
+      operatorPackage,
+      powerBounds,
+      runDir,
+        `${screenshotPrefix}power-after-1`,
+      requestedState,
+    );
+    finalHomeState = firstAttempt.homeState || finalHomeState;
+    currentState = firstAttempt.currentState;
+    diagnostics.lastPowerMetrics = firstAttempt.lastMetrics;
+    diagnostics.firstTapObservations = firstAttempt.observations;
+
+    if (currentState !== requestedState && shouldRetryPowerToggle(beforeState.state, firstAttempt.observations)) {
+      clickCoordinate(deviceId, operatorPackage, center.x, center.y);
+      tapsApplied += 1;
+      const secondAttempt = await observePowerTransition(
+        deviceId,
+        operatorPackage,
+        powerBounds,
+        runDir,
+          `${screenshotPrefix}power-after-2`,
+        requestedState,
+      );
+      finalHomeState = secondAttempt.homeState || finalHomeState;
+      currentState = secondAttempt.currentState;
+      diagnostics.lastPowerMetrics = secondAttempt.lastMetrics;
+      diagnostics.secondTapObservations = secondAttempt.observations;
+    }
+  }
+
+  if (tapsApplied > 0) {
+    actionNote = `Tapped the power control ${tapsApplied} time(s) at (${center.x},${center.y}).`;
+  }
+  appendCheckpoint(result, scopedCheckpointId(checkpointPrefix, "action_applied"), "ok", actionNote);
+
+  return {
+    homeState: finalHomeState,
+    finalState: currentState,
+    diagnostics,
+  };
+}
+
+async function applyCyclingSettingFromHome({
+  deviceId,
+  operatorPackage,
+  inputKey,
+  requestedValue,
+  allowedValues,
+  homeState,
+  result,
+  checkpointPrefix = "",
+}) {
+  if (!homeState.looksPoweredOn) {
+    throw new Error("Mode and fan controls were not exposed on the Home screen.");
+  }
+
+  const controlBounds = inputKey === "mode" ? homeState.controlSlots.mode : homeState.controlSlots.fan;
+  if (!controlBounds) {
+    throw new Error(`Could not derive the ${inputKey} control bounds from the Home screen.`);
+  }
+
+  let currentValue = inputKey === "mode" ? homeState.modeValue : homeState.fanLevelValue;
+  if (!currentValue || !allowedValues.includes(currentValue)) {
+    throw new Error(`Could not read the current ${inputKey.replace("_", " ")} from the Home snapshot.`);
+  }
+
+  appendCheckpoint(
+    result,
+    scopedCheckpointId(checkpointPrefix, "current_value_read"),
+    "ok",
+    `AirTouch reported ${inputKey.replace("_", " ")}=${currentValue} before action.`,
+    { kind: "json", value: { controlBounds, currentValue } },
+  );
+
+  const center = boundsCenter(controlBounds);
+  let finalHomeState = homeState;
+  let actionNote = `No tap was needed because ${inputKey.replace("_", " ")} was already ${requestedValue}.`;
+  const diagnostics = {
+    controlBounds,
+    transitions: [],
+  };
+
+  if (currentValue !== requestedValue) {
+    clickCoordinate(deviceId, operatorPackage, center.x, center.y);
+    await getDependency("sleep")(1400);
+
+    const dialogState = await waitForChoiceDialog(deviceId, operatorPackage, allowedValues);
+    const targetOption = dialogState.options.find((option) => option.normalized === requestedValue);
+    if (!targetOption) {
+      throw new Error(`AirTouch opened a selector dialog, but ${requestedValue} was not available.`);
+    }
+    diagnostics.transitions.push({
+      selectorOptions: dialogState.options.map((option) => option.normalized),
+      selectedValue: targetOption.normalized,
+    });
+    const optionCenter = boundsCenter(targetOption.bounds);
+    clickCoordinate(deviceId, operatorPackage, optionCenter.x, optionCenter.y);
+    await getDependency("sleep")(1800);
+    finalHomeState = await waitForHomeState(deviceId, operatorPackage, { maxAttempts: 6 });
+    currentValue = inputKey === "mode" ? finalHomeState.modeValue : finalHomeState.fanLevelValue;
+    actionNote = `Opened the ${inputKey.replace("_", " ")} selector at (${center.x},${center.y}) and chose ${requestedValue}.`;
+  }
+
+  appendCheckpoint(result, scopedCheckpointId(checkpointPrefix, "action_applied"), "ok", actionNote);
+
+  return {
+    homeState: finalHomeState,
+    finalValue: currentValue || null,
+    diagnostics,
+  };
 }
 
 async function runCyclingSettingSkill({
@@ -528,48 +754,19 @@ async function runCyclingSettingSkill({
       return failResult(result, "home_controls_visible", "Mode and fan controls were not exposed on the Home screen.");
     }
 
-    const controlBounds = inputKey === "mode" ? homeState.controlSlots.mode : homeState.controlSlots.fan;
-    if (!controlBounds) {
-      return failResult(result, "control_bounds_derived", `Could not derive the ${inputKey} control bounds from the Home screen.`);
-    }
-
-    let currentValue = inputKey === "mode" ? homeState.modeValue : homeState.fanLevelValue;
-    if (!currentValue || !allowedValues.includes(currentValue)) {
-      return failResult(result, "current_value_read", `Could not read the current ${inputKey.replace("_", " ")} from the Home snapshot.`);
-    }
-
-    appendCheckpoint(
+    const applied = await applyCyclingSettingFromHome({
+      deviceId,
+      operatorPackage,
+      inputKey,
+      requestedValue,
+      allowedValues,
+      homeState,
       result,
-      "current_value_read",
-      "ok",
-      `AirTouch reported ${inputKey.replace("_", " ")}=${currentValue} before action.`,
-      { kind: "json", value: { controlBounds, currentValue } },
-    );
-
-    const center = boundsCenter(controlBounds);
-    let actionNote = `No tap was needed because ${inputKey.replace("_", " ")} was already ${requestedValue}.`;
-
-    if (currentValue !== requestedValue) {
-      clickCoordinate(deviceId, operatorPackage, center.x, center.y);
-      await getDependency("sleep")(1400);
-
-      const dialogState = await waitForChoiceDialog(deviceId, operatorPackage, allowedValues);
-      const targetOption = dialogState.options.find((option) => option.normalized === requestedValue);
-      if (!targetOption) {
-        return failResult(result, "selector_opened", `AirTouch opened a selector dialog, but ${requestedValue} was not available.`);
-      }
-      result.diagnostics.transitions.push({
-        selectorOptions: dialogState.options.map((option) => option.normalized),
-        selectedValue: targetOption.normalized,
-      });
-      const optionCenter = boundsCenter(targetOption.bounds);
-      clickCoordinate(deviceId, operatorPackage, optionCenter.x, optionCenter.y);
-      await getDependency("sleep")(1800);
-      homeState = await waitForHomeState(deviceId, operatorPackage, { maxAttempts: 6 });
-      currentValue = inputKey === "mode" ? homeState.modeValue : homeState.fanLevelValue;
-      actionNote = `Opened the ${inputKey.replace("_", " ")} selector at (${center.x},${center.y}) and chose ${requestedValue}.`;
-    }
-    appendCheckpoint(result, "action_applied", "ok", actionNote);
+      checkpointPrefix: "",
+    });
+    homeState = applied.homeState;
+    const currentValue = applied.finalValue;
+    result.diagnostics.transitions.push(...applied.diagnostics.transitions);
 
     result.terminalVerification = {
       status: currentValue === requestedValue ? "verified" : "failed",
@@ -580,7 +777,7 @@ async function runCyclingSettingSkill({
 
     result.diagnostics = {
       ...(result.diagnostics || {}),
-      finalControlBounds: controlBounds,
+      finalControlBounds: applied.diagnostics.controlBounds,
       finalValue: currentValue || null,
     };
 
@@ -592,13 +789,7 @@ async function runCyclingSettingSkill({
       );
     }
 
-    appendCheckpoint(
-      result,
-      "terminal_state_verified",
-      "ok",
-      `Verified ${inputKey.replace("_", " ")}=${requestedValue} from the Home snapshot.`,
-      { kind: "text", text: requestedValue },
-    );
+    appendCheckpoint(result, "terminal_state_verified", "ok", `Verified ${inputKey.replace("_", " ")}=${requestedValue} from the Home snapshot.`, { kind: "text", text: requestedValue });
     result.result = {
       kind: "json",
       value: {
@@ -643,68 +834,19 @@ async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
     let homeState = await waitForHomeState(deviceId, operatorPackage);
     appendCheckpoint(result, "home_screen_ready", "ok", "Opened the AirTouch Home screen.");
 
-    const powerBounds = homeState.controlSlots.power;
-    if (!powerBounds) {
-      return failResult(result, "control_bounds_derived", "Could not derive the power control bounds from the Home screen.");
-    }
-
     runDir = await getDependency("mkdtemp")(join(tmpdir(), "clawperator-airtouch-power-"));
-    const beforePath = join(runDir, "power-before.png");
-    takeScreenshot(deviceId, operatorPackage, beforePath);
-    const beforeImage = await getDependency("readPngRgba")(beforePath);
-    const beforeStats = getDependency("averageRgba")(beforeImage, powerBounds);
-    const beforeState = getDependency("classifyPowerState")(beforeStats);
-    let currentState = beforeState.state;
-    appendCheckpoint(
+    const appliedPower = await applyPowerStateFromHome({
+      deviceId,
+      operatorPackage,
+      requestedState,
+      homeState,
+      runDir,
       result,
-      "current_value_read",
-      "ok",
-      `AirTouch power looked ${currentState} before action.`,
-      { kind: "json", value: { powerBounds, screenshotMetrics: beforeState.metrics, setPointVisible: homeState.setPointVisible, modeValue: homeState.modeValue, fanLevelValue: homeState.fanLevelValue } },
-    );
-
-    const center = boundsCenter(powerBounds);
-    let tapsApplied = 0;
-    let actionNote = `No tap was needed because power was already ${requestedState}.`;
-
-    if (currentState !== requestedState) {
-      clickCoordinate(deviceId, operatorPackage, center.x, center.y);
-      tapsApplied += 1;
-      const firstAttempt = await observePowerTransition(
-        deviceId,
-        operatorPackage,
-        powerBounds,
-        runDir,
-        "power-after-1",
-        requestedState,
-      );
-      homeState = firstAttempt.homeState || homeState;
-      currentState = firstAttempt.currentState;
-      result.diagnostics.lastPowerMetrics = firstAttempt.lastMetrics;
-      result.diagnostics.firstTapObservations = firstAttempt.observations;
-
-      if (currentState !== requestedState && shouldRetryPowerToggle(beforeState.state, firstAttempt.observations)) {
-        clickCoordinate(deviceId, operatorPackage, center.x, center.y);
-        tapsApplied += 1;
-        const secondAttempt = await observePowerTransition(
-          deviceId,
-          operatorPackage,
-          powerBounds,
-          runDir,
-          "power-after-2",
-          requestedState,
-        );
-        homeState = secondAttempt.homeState || homeState;
-        currentState = secondAttempt.currentState;
-        result.diagnostics.lastPowerMetrics = secondAttempt.lastMetrics;
-        result.diagnostics.secondTapObservations = secondAttempt.observations;
-      }
-    }
-
-    if (tapsApplied > 0) {
-      actionNote = `Tapped the power control ${tapsApplied} time(s) at (${center.x},${center.y}).`;
-    }
-    appendCheckpoint(result, "action_applied", "ok", actionNote);
+      checkpointPrefix: "",
+    });
+    homeState = appliedPower.homeState;
+    const currentState = appliedPower.finalState;
+    Object.assign(result.diagnostics, appliedPower.diagnostics);
 
     result.terminalVerification = {
       status: currentState === requestedState ? "verified" : "failed",
@@ -715,8 +857,6 @@ async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
 
     result.diagnostics = {
       ...(result.diagnostics || {}),
-      powerBounds,
-      beforePowerMetrics: beforeState.metrics,
       finalState: currentState,
       finalSnapshot: {
         setPointVisible: homeState.setPointVisible,
@@ -754,6 +894,183 @@ async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
   }
 }
 
+async function runHomeControlsSkill({ skillId, request, parseErrors, deviceId }) {
+  const operatorPackage = resolveOperatorPackage();
+  const inputs = {};
+  if (request && request.state) inputs.state = request.state;
+  if (request && request.fanLevel) inputs.fan_level = request.fanLevel;
+  if (request && request.mode) inputs.mode = request.mode;
+  const result = buildSkillResult(skillId, "set_home_controls", inputs, JSON.stringify(inputs));
+  let runDir = null;
+
+  if (!deviceId) {
+    return failResult(result, "device_selected", "No device id was provided to the skill.");
+  }
+  if (parseErrors && parseErrors.length > 0) {
+    return failResult(result, "input_validated", parseErrors.join(" "));
+  }
+
+  result.diagnostics = {
+    ...(result.diagnostics || {}),
+    runtimeState: "healthy",
+    operatorPackage,
+    deviceSelected: true,
+    allowedValues: {
+      state: ["on", "off"],
+      fan_level: FAN_LEVEL_VALUES,
+      mode: MODE_VALUES,
+    },
+    heuristics: [
+      "Power is classified from the screenshot crop around the Home power control.",
+    ],
+    transitions: [],
+  };
+
+  try {
+    openApp(deviceId, operatorPackage);
+    await getDependency("sleep")(1800);
+    appendAppOpenedCheckpoint(result);
+
+    let homeState = await waitForHomeState(deviceId, operatorPackage);
+    appendCheckpoint(result, "home_screen_ready", "ok", "Opened the AirTouch Home screen.");
+
+    const finalValues = {};
+    const requestedFinalValues = {};
+
+    if (request.state) {
+      runDir = await getDependency("mkdtemp")(join(tmpdir(), "clawperator-airtouch-home-controls-"));
+      const appliedPower = await applyPowerStateFromHome({
+        deviceId,
+        operatorPackage,
+        requestedState: request.state,
+        homeState,
+        runDir,
+        result,
+        checkpointPrefix: "power",
+      });
+      homeState = appliedPower.homeState;
+      finalValues.state = appliedPower.finalState;
+      requestedFinalValues.state = request.state;
+      Object.assign(result.diagnostics, appliedPower.diagnostics);
+
+      if (appliedPower.finalState !== request.state) {
+        result.terminalVerification = {
+          status: "failed",
+          expected: { kind: "json", value: requestedFinalValues },
+          observed: { kind: "json", value: finalValues },
+          note: `Requested power=${request.state} but the Home screen still looked ${appliedPower.finalState}.`,
+        };
+        return failResult(result, "terminal_state_verified", result.terminalVerification.note);
+      }
+
+      if (request.state === "on" && (request.fanLevel || request.mode)) {
+        homeState = await waitForHomeState(deviceId, operatorPackage, { maxAttempts: 6 });
+        if (!homeState.looksPoweredOn) {
+          return failResult(result, "home_controls_visible", "Power was requested on, but the Home controls did not expose mode and fan values.");
+        }
+        appendCheckpoint(result, "home_controls_visible", "ok", "Verified Home controls are visible after turning power on.");
+      }
+    } else if ((request.fanLevel || request.mode) && !homeState.looksPoweredOn) {
+      result.terminalVerification.note = "Home controls did not expose live values, which usually means the system power is off.";
+      return failResult(result, "home_controls_visible", "Mode and fan controls were not exposed on the Home screen.");
+    }
+
+    if (request.mode) {
+      const appliedMode = await applyCyclingSettingFromHome({
+        deviceId,
+        operatorPackage,
+        inputKey: "mode",
+        requestedValue: request.mode,
+        allowedValues: MODE_VALUES,
+        homeState,
+        result,
+        checkpointPrefix: "mode",
+      });
+      homeState = appliedMode.homeState;
+      finalValues.mode = appliedMode.finalValue;
+      requestedFinalValues.mode = request.mode;
+      result.diagnostics.transitions.push(...appliedMode.diagnostics.transitions);
+      result.diagnostics.modeControlBounds = appliedMode.diagnostics.controlBounds;
+    }
+
+    if (request.fanLevel) {
+      if (!homeState.fanLevelValue) {
+        result.terminalVerification = {
+          status: "failed",
+          expected: { kind: "json", value: { ...requestedFinalValues, fan_level: request.fanLevel } },
+          observed: { kind: "json", value: finalValues },
+          note: "The Home snapshot did not expose a fan level. The current mode may not support fan-level changes.",
+        };
+        return failResult(
+          result,
+          "fan_control_visible",
+          "The Home snapshot did not expose a fan level. Pass a mode that exposes fan controls, such as --mode cool, before --fan-level.",
+          { runtimeState: "healthy" },
+        );
+      }
+
+      const appliedFan = await applyCyclingSettingFromHome({
+        deviceId,
+        operatorPackage,
+        inputKey: "fan_level",
+        requestedValue: request.fanLevel,
+        allowedValues: FAN_LEVEL_VALUES,
+        homeState,
+        result,
+        checkpointPrefix: "fan_level",
+      });
+      homeState = appliedFan.homeState;
+      finalValues.fan_level = appliedFan.finalValue;
+      requestedFinalValues.fan_level = request.fanLevel;
+      result.diagnostics.transitions.push(...appliedFan.diagnostics.transitions);
+      result.diagnostics.fanLevelControlBounds = appliedFan.diagnostics.controlBounds;
+    }
+
+    const failures = Object.entries(requestedFinalValues)
+      .filter(([key, expected]) => finalValues[key] !== expected)
+      .map(([key, expected]) => `${key} expected ${expected} but observed ${finalValues[key] || "unknown"}`);
+
+    result.terminalVerification = {
+      status: failures.length === 0 ? "verified" : "failed",
+      expected: { kind: "json", value: requestedFinalValues },
+      observed: { kind: "json", value: finalValues },
+      note: failures.length === 0 ? "Verified every requested Home control." : failures.join("; "),
+    };
+
+    result.diagnostics = {
+      ...(result.diagnostics || {}),
+      finalValues,
+      finalSnapshot: {
+        setPointVisible: homeState.setPointVisible,
+        modeValue: homeState.modeValue,
+        fanLevelValue: homeState.fanLevelValue,
+      },
+    };
+
+    if (failures.length > 0) {
+      return failResult(result, "terminal_state_verified", result.terminalVerification.note);
+    }
+
+    appendCheckpoint(result, "terminal_state_verified", "ok", "Verified every requested Home control.", { kind: "json", value: finalValues });
+    result.result = {
+      kind: "json",
+      value: {
+        requested: requestedFinalValues,
+        final: finalValues,
+      },
+    };
+    result.status = "success";
+    emitSkillResult(result);
+    return 0;
+  } catch (error) {
+    return failResult(result, "runtime_execution", summarizeError(error), { runtimeState: "poisoned" });
+  } finally {
+    if (runDir) {
+      await getDependency("rm")(runDir, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+}
+
 module.exports = {
   AIRTOUCH_PACKAGE,
   FAN_LEVEL_VALUES,
@@ -763,8 +1080,11 @@ module.exports = {
   extractChoiceDialogState,
   extractHomeScreenState,
   parseChoiceArg,
+  parseHomeControlsArgs,
+  parseNamedChoiceArg,
   parseXmlNodes,
   runCyclingSettingSkill,
+  runHomeControlsSkill,
   runPowerStateSkill,
   setAirTouchHomeControlsDepsForTest,
   shouldRetryPowerToggle,
