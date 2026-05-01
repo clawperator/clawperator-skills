@@ -571,7 +571,7 @@ function extractHomeScreenState(xml) {
   return {
     nodes,
     viewport,
-    isHomeScreen: navCount >= 4 && (Boolean(homeRoot) || Boolean(modeValue) || Boolean(fanLevelValue) || setPointVisible || navCount >= 5),
+    isHomeScreen: navCount >= 4 && (Boolean(homeRoot) || Boolean(modeValue) || Boolean(fanLevelValue) || setPointVisible),
     homeRootBounds: homeRoot ? homeRoot.bounds : null,
     controlSlots: {
       power: powerBounds,

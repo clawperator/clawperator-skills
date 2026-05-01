@@ -53,6 +53,20 @@ const HOME_OFF_XML = [
   "</hierarchy>",
 ].join("\n");
 
+const NON_HOME_NAV_XML = [
+  "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>",
+  "<hierarchy rotation=\"0\">",
+  "  <node index=\"0\" text=\"\" resource-id=\"root\" class=\"android.view.View\" package=\"au.com.polyaire.airtouch5\" bounds=\"[0,0][1080,2340]\">",
+  "    <node index=\"1\" text=\"Settings\" resource-id=\"settings-root\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" bounds=\"[48,160][300,232]\" />",
+  "    <node index=\"2\" text=\"Home\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[0,2052][216,2220]\" />",
+  "    <node index=\"3\" text=\"Zones\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[216,2052][432,2220]\" />",
+  "    <node index=\"4\" text=\"Timer\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[432,2052][648,2220]\" />",
+  "    <node index=\"5\" text=\"Programs\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[648,2052][864,2220]\" />",
+  "    <node index=\"6\" text=\"Insights\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[864,2052][1080,2220]\" />",
+  "  </node>",
+  "</hierarchy>",
+].join("\n");
+
 const HOME_HEAT_XML = HOME_XML.replace('text="Cool"', 'text="Heat"');
 const HOME_HIGH_XML = HOME_XML.replace('text="Low"', 'text="High"');
 const HOME_HEAT_HIGH_XML = HOME_HEAT_XML.replace('text="Low"', 'text="High"');
@@ -286,6 +300,15 @@ test("extractHomeScreenState marks the Home screen as powered off when live valu
   assert.strictEqual(state.modeValue, null);
   assert.strictEqual(state.fanLevelValue, null);
   assert.deepStrictEqual(state.controlSlots.power, { left: 48, top: 462, right: 312, bottom: 726 });
+});
+
+test("extractHomeScreenState does not treat a non-Home screen with bottom nav as Home", () => {
+  const state = extractHomeScreenState(NON_HOME_NAV_XML);
+
+  assert.strictEqual(state.isHomeScreen, false);
+  assert.strictEqual(state.looksPoweredOn, false);
+  assert.strictEqual(state.modeValue, null);
+  assert.strictEqual(state.fanLevelValue, null);
 });
 
 test("extractHomeScreenState prefers label-matched controls over a stray placeholder tile", () => {
