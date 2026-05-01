@@ -1,0 +1,24 @@
+{
+  "id": "au.com.polyaire.airtouch5.set-home-controls",
+  "applicationId": "au.com.polyaire.airtouch5",
+  "intent": "set-home-controls",
+  "summary": "Set one or more AirTouch 5 Home-screen controls in a single run.",
+  "path": "skills/au.com.polyaire.airtouch5.set-home-controls",
+  "skillFile": "skills/au.com.polyaire.airtouch5.set-home-controls/SKILL.md",
+  "scripts": [
+    "skills/au.com.polyaire.airtouch5.set-home-controls/scripts/run.js",
+    "skills/au.com.polyaire.airtouch5.set-home-controls/scripts/run.sh"
+  ],
+  "artifacts": [],
+  "contract": {
+    "inputs": {
+      "state": "string",
+      "fan_level": "string",
+      "mode": "string"
+    },
+    "goal": {
+      "kind": "set_home_controls"
+    },
+    "verification": null
+  }
+}
