@@ -343,6 +343,125 @@ test("runCyclingSettingSkill opens the selector and verifies the requested mode"
   }
 });
 
+test("runCyclingSettingSkill retries a failed selector-opening click after observing Home", async () => {
+  const commandCalls = [];
+  const snapshotResponses = [
+    buildSnapshotResult(HOME_XML),
+    buildSnapshotResult(HOME_XML),
+    buildSnapshotResult(HOME_XML),
+    buildSnapshotResult(MODE_DIALOG_XML),
+    buildSnapshotResult(HOME_HEAT_XML),
+  ];
+  const logLines = [];
+  const originalLog = console.log;
+
+  setAirTouchHomeControlsDepsForTest({
+    averageRgba: (_, bounds) => ({ avgRgba: [0, 0, 0, 255], region: bounds }),
+    classifyPowerState: () => ({
+      state: "on",
+      metrics: { brightness: 100, blueDominance: 60 },
+    }),
+    mkdtemp: async () => "/tmp/clawperator-airtouch-cycling-test",
+    readPngRgba: async () => ({ width: 1, height: 1, rgba: Buffer.alloc(4) }),
+    rm: async () => {},
+    runClawperatorCommand: (command, args) => {
+      commandCalls.push({ command, args });
+      if (command === "snapshot") {
+        return { ok: true, result: snapshotResponses.shift() };
+      }
+      if (command === "click" && commandCalls.filter((call) => call.command === "click").length === 1) {
+        return { ok: false, error: "Command failed: click timed out" };
+      }
+      return { ok: true, result: buildJsonResult() };
+    },
+    sleep: async () => {},
+  });
+  console.log = (...args) => {
+    logLines.push(args.join(" "));
+  };
+
+  try {
+    const exitCode = await runCyclingSettingSkill({
+      skillId: "au.com.polyaire.airtouch5.set-mode",
+      goalKind: "set_mode",
+      inputKey: "mode",
+      requestedValue: "heat",
+      allowedValues: ["cool", "heat", "fan", "dry", "auto"],
+      deviceId: "<device_serial>",
+    });
+
+    const skillResult = captureSkillResult(logLines);
+    assert.strictEqual(exitCode, 0);
+    assert.strictEqual(skillResult.status, "success");
+    assert.strictEqual(skillResult.terminalVerification.status, "verified");
+    assert.strictEqual(skillResult.diagnostics.finalValue, "heat");
+    assert.strictEqual(commandCalls.filter((call) => call.command === "click").length, 3);
+  } finally {
+    console.log = originalLog;
+    setAirTouchHomeControlsDepsForTest(null);
+  }
+});
+
+test("runCyclingSettingSkill retries a failed selector option click when the dialog stays open", async () => {
+  const commandCalls = [];
+  const snapshotResponses = [
+    buildSnapshotResult(HOME_XML),
+    buildSnapshotResult(MODE_DIALOG_XML),
+    buildSnapshotResult(MODE_DIALOG_XML),
+    buildSnapshotResult(MODE_DIALOG_XML),
+    buildSnapshotResult(MODE_DIALOG_XML),
+    buildSnapshotResult(HOME_HEAT_XML),
+  ];
+  const logLines = [];
+  const originalLog = console.log;
+
+  setAirTouchHomeControlsDepsForTest({
+    averageRgba: (_, bounds) => ({ avgRgba: [0, 0, 0, 255], region: bounds }),
+    classifyPowerState: () => ({
+      state: "on",
+      metrics: { brightness: 100, blueDominance: 60 },
+    }),
+    mkdtemp: async () => "/tmp/clawperator-airtouch-cycling-test",
+    readPngRgba: async () => ({ width: 1, height: 1, rgba: Buffer.alloc(4) }),
+    rm: async () => {},
+    runClawperatorCommand: (command, args) => {
+      commandCalls.push({ command, args });
+      if (command === "snapshot") {
+        return { ok: true, result: snapshotResponses.shift() };
+      }
+      if (command === "click" && commandCalls.filter((call) => call.command === "click").length === 2) {
+        return { ok: false, error: "Command failed: click timed out" };
+      }
+      return { ok: true, result: buildJsonResult() };
+    },
+    sleep: async () => {},
+  });
+  console.log = (...args) => {
+    logLines.push(args.join(" "));
+  };
+
+  try {
+    const exitCode = await runCyclingSettingSkill({
+      skillId: "au.com.polyaire.airtouch5.set-mode",
+      goalKind: "set_mode",
+      inputKey: "mode",
+      requestedValue: "heat",
+      allowedValues: ["cool", "heat", "fan", "dry", "auto"],
+      deviceId: "<device_serial>",
+    });
+
+    const skillResult = captureSkillResult(logLines);
+    assert.strictEqual(exitCode, 0);
+    assert.strictEqual(skillResult.status, "success");
+    assert.strictEqual(skillResult.terminalVerification.status, "verified");
+    assert.strictEqual(skillResult.diagnostics.finalValue, "heat");
+    assert.strictEqual(commandCalls.filter((call) => call.command === "click").length, 3);
+  } finally {
+    console.log = originalLog;
+    setAirTouchHomeControlsDepsForTest(null);
+  }
+});
+
 test("runHomeControlsSkill opens AirTouch once, turns power on first, and verifies fan level", async () => {
   const commandCalls = [];
   const snapshotResponses = [
@@ -353,7 +472,7 @@ test("runHomeControlsSkill opens AirTouch once, turns power on first, and verifi
     buildSnapshotResult(HOME_HIGH_XML),
     buildSnapshotResult(HOME_HIGH_XML),
   ];
-  const classifiedStates = ["off", "on"];
+  const classifiedStates = ["off", "on", "on"];
   const logLines = [];
   const originalLog = console.log;
 
@@ -411,6 +530,62 @@ test("runHomeControlsSkill opens AirTouch once, turns power on first, and verifi
     );
     assert.strictEqual(commandCalls.filter((call) => call.command === "open").length, 1);
     assert.strictEqual(commandCalls.filter((call) => call.command === "click").length, 3);
+  } finally {
+    console.log = originalLog;
+    setAirTouchHomeControlsDepsForTest(null);
+  }
+});
+
+test("runHomeControlsSkill rechecks visual power in the final terminal state", async () => {
+  const snapshotResponses = [
+    buildSnapshotResult(HOME_XML),
+    buildSnapshotResult(MODE_DIALOG_XML),
+    buildSnapshotResult(HOME_HEAT_XML),
+    buildSnapshotResult(HOME_HEAT_XML),
+  ];
+  const classifiedStates = ["on", "off"];
+  const logLines = [];
+  const originalLog = console.log;
+
+  setAirTouchHomeControlsDepsForTest({
+    averageRgba: (_, bounds) => ({ avgRgba: [0, 0, 0, 255], region: bounds }),
+    classifyPowerState: () => {
+      const state = classifiedStates.shift();
+      return {
+        state,
+        metrics: { brightness: state === "on" ? 100 : 40, blueDominance: state === "on" ? 60 : 4 },
+      };
+    },
+    mkdtemp: async () => "/tmp/clawperator-airtouch-home-controls-test",
+    readPngRgba: async () => ({ width: 1, height: 1, rgba: Buffer.alloc(4) }),
+    rm: async () => {},
+    runClawperatorCommand: (command) => {
+      if (command === "snapshot") {
+        return { ok: true, result: snapshotResponses.shift() };
+      }
+      return { ok: true, result: buildJsonResult() };
+    },
+    sleep: async () => {},
+  });
+  console.log = (...args) => {
+    logLines.push(args.join(" "));
+  };
+
+  try {
+    const exitCode = await runHomeControlsSkill({
+      skillId: "au.com.polyaire.airtouch5.set-home-controls",
+      request: { state: "on", fanLevel: null, mode: "heat" },
+      parseErrors: [],
+      deviceId: "<device_serial>",
+    });
+
+    const skillResult = captureSkillResult(logLines);
+    assert.strictEqual(exitCode, 1);
+    assert.strictEqual(skillResult.status, "failed");
+    assert.deepStrictEqual(skillResult.terminalVerification.expected.value, { state: "on", mode: "heat" });
+    assert.deepStrictEqual(skillResult.terminalVerification.observed.value, { state: "off", mode: "heat" });
+    assert.match(skillResult.terminalVerification.note, /state expected on but observed off/);
+    assert.deepStrictEqual(skillResult.diagnostics.finalValues, { state: "off", mode: "heat" });
   } finally {
     console.log = originalLog;
     setAirTouchHomeControlsDepsForTest(null);

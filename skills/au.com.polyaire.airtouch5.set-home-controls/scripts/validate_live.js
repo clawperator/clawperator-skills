@@ -3,6 +3,8 @@
 const { spawnSync } = require("node:child_process");
 const { resolve } = require("node:path");
 
+const { resolveClawperatorBin } = require("../../utils/common.js");
+
 const SKILL_ID = "au.com.polyaire.airtouch5.set-home-controls";
 
 function parseArgs(argv) {
@@ -37,20 +39,42 @@ function usage() {
   ].join("\n");
 }
 
-function runSkill({ deviceId, registry, request }) {
+function isRetriableRuntimeFailure(skillResult) {
+  if (!skillResult || skillResult.status !== "failed") {
+    return false;
+  }
+  const checkpoints = skillResult.checkpoints || [];
+  const lastCheckpoint = checkpoints.at(-1);
+  const mutatingActionStarted = checkpoints.some((checkpoint) => {
+    const id = String(checkpoint.id || "");
+    if (id === "mode_action_applied" || id === "fan_level_action_applied") {
+      return true;
+    }
+    if (id === "power_action_applied") {
+      return !String(checkpoint.note || "").startsWith("No tap was needed");
+    }
+    return false;
+  });
+  return lastCheckpoint?.id === "runtime_execution" && !mutatingActionStarted;
+}
+
+function runSkillOnce({ deviceId, registry, request }) {
   const args = [
     "skills",
     "run",
     SKILL_ID,
     "--device",
     deviceId,
+    "--timeout",
+    "300000",
   ];
 
   if (request.state) args.push("--state", request.state);
   if (request.mode) args.push("--mode", request.mode);
   if (request.fan_level) args.push("--fan-level", request.fan_level);
 
-  const run = spawnSync("clawperator", args, {
+  const clawperatorBin = resolveClawperatorBin();
+  const run = spawnSync(clawperatorBin.cmd, [...clawperatorBin.args, ...args], {
     encoding: "utf-8",
     env: {
       ...process.env,
@@ -68,11 +92,38 @@ function runSkill({ deviceId, registry, request }) {
   }
 
   if (run.status !== 0 || payload.status === "failed") {
-    const note = payload.skillResult?.checkpoints?.at(-1)?.note || payload.message || "skill failed";
-    throw new Error(`Skill command failed: ${note}`);
+    return {
+      ok: false,
+      skillResult: payload.skillResult || null,
+      note: payload.skillResult?.checkpoints?.at(-1)?.note || payload.message || "skill failed",
+    };
   }
 
-  return payload.skillResult || payload;
+  return {
+    ok: true,
+    skillResult: payload.skillResult || payload,
+  };
+}
+
+function runSkill({ deviceId, registry, request }) {
+  const maxAttempts = 4;
+  let lastFailure = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const result = runSkillOnce({ deviceId, registry, request });
+    if (result.ok) {
+      return result.skillResult;
+    }
+
+    lastFailure = result;
+    if (attempt < maxAttempts && isRetriableRuntimeFailure(result.skillResult)) {
+      process.stdout.write("retrying transient runtime failure ... ");
+      continue;
+    }
+    break;
+  }
+
+  throw new Error(`Skill command failed: ${lastFailure?.note || "skill failed"}`);
 }
 
 function assertTransitionResult(name, skillResult, expected, { requireNoPowerTap = true } = {}) {

@@ -231,7 +231,8 @@ function extractForegroundPackage(rawResult) {
 }
 
 function runJsonCommand(command, args) {
-  const response = getDependency("runClawperatorCommand")(command, args, { encoding: "utf-8", timeoutMs: 30000 });
+  const commandArgs = args.includes("--no-daemon") ? args : [...args, "--no-daemon"];
+  const response = getDependency("runClawperatorCommand")(command, commandArgs, { encoding: "utf-8", timeoutMs: 30000 });
   if (!response.ok) {
     throw new Error(truncateText(response.error));
   }
@@ -558,6 +559,91 @@ async function waitForChoiceDialog(deviceId, operatorPackage, allowedValues, { m
   throw new Error("AirTouch selector dialog did not appear after tapping the Home control.");
 }
 
+async function observeHomeStateWithoutNavigation(deviceId, operatorPackage, { maxAttempts = 2 } = {}) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const { result: snapResult } = await snapshotWithRetry(deviceId, operatorPackage);
+    const foregroundPackage = extractForegroundPackage(snapResult);
+    const xml = extractSnapshotXml(snapResult);
+    if (foregroundPackage === AIRTOUCH_PACKAGE) {
+      const homeState = extractHomeScreenState(xml);
+      if (homeState.isHomeScreen) {
+        return homeState;
+      }
+    }
+    await getDependency("sleep")(800);
+  }
+  return null;
+}
+
+async function openChoiceDialogFromHome(deviceId, operatorPackage, center, allowedValues) {
+  const maxAttempts = 4;
+  let firstError = null;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      clickCoordinate(deviceId, operatorPackage, center.x, center.y);
+    } catch (error) {
+      firstError = firstError || error;
+      lastError = error;
+    }
+
+    await getDependency("sleep")(1400);
+
+    try {
+      return {
+        dialogState: await waitForChoiceDialog(deviceId, operatorPackage, allowedValues, { maxAttempts: attempt === 1 && !lastError ? 6 : 2 }),
+        retried: attempt > 1,
+        firstError: firstError ? summarizeError(firstError) : null,
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError;
+}
+
+async function chooseDialogOption(deviceId, operatorPackage, allowedValues, requestedValue, optionCenter) {
+  const maxAttempts = 4;
+  let center = optionCenter;
+  let firstError = null;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      clickCoordinate(deviceId, operatorPackage, center.x, center.y);
+    } catch (error) {
+      firstError = firstError || error;
+      lastError = error;
+    }
+
+    await getDependency("sleep")(1800);
+
+    const observedHomeState = await observeHomeStateWithoutNavigation(deviceId, operatorPackage, { maxAttempts: 2 });
+    if (observedHomeState) {
+      return {
+        homeState: observedHomeState,
+        retried: attempt > 1,
+        firstError: firstError ? summarizeError(firstError) : null,
+      };
+    }
+
+    try {
+      const dialogState = await waitForChoiceDialog(deviceId, operatorPackage, allowedValues, { maxAttempts: 2 });
+      const targetOption = dialogState.options.find((option) => option.normalized === requestedValue);
+      if (!targetOption) {
+        throw new Error(`AirTouch selector stayed open after a failed click, but ${requestedValue} was no longer available.`);
+      }
+      center = boundsCenter(targetOption.bounds);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError;
+}
+
 function describeSelectedDevice() {
   return "the selected device";
 }
@@ -746,10 +832,12 @@ async function applyCyclingSettingFromHome({
   };
 
   if (currentValue !== requestedValue) {
-    clickCoordinate(deviceId, operatorPackage, center.x, center.y);
-    await getDependency("sleep")(1400);
-
-    const dialogState = await waitForChoiceDialog(deviceId, operatorPackage, allowedValues);
+    const dialogOpen = await openChoiceDialogFromHome(deviceId, operatorPackage, center, allowedValues);
+    const dialogState = dialogOpen.dialogState;
+    if (dialogOpen.retried) {
+      diagnostics.selectorOpenClickRetried = true;
+      diagnostics.selectorOpenFirstError = dialogOpen.firstError;
+    }
     const targetOption = dialogState.options.find((option) => option.normalized === requestedValue);
     if (!targetOption) {
       throw new Error(`AirTouch opened a selector dialog, but ${requestedValue} was not available.`);
@@ -759,9 +847,12 @@ async function applyCyclingSettingFromHome({
       selectedValue: targetOption.normalized,
     });
     const optionCenter = boundsCenter(targetOption.bounds);
-    clickCoordinate(deviceId, operatorPackage, optionCenter.x, optionCenter.y);
-    await getDependency("sleep")(1800);
-    finalHomeState = await waitForHomeState(deviceId, operatorPackage, { maxAttempts: 6 });
+    const optionChoice = await chooseDialogOption(deviceId, operatorPackage, allowedValues, requestedValue, optionCenter);
+    finalHomeState = optionChoice.homeState;
+    if (optionChoice.retried) {
+      diagnostics.selectorOptionClickRetried = true;
+      diagnostics.selectorOptionFirstError = optionChoice.firstError;
+    }
     currentValue = inputKey === "mode" ? finalHomeState.modeValue : finalHomeState.fanLevelValue;
     actionNote = `Opened the ${inputKey.replace("_", " ")} selector at (${center.x},${center.y}) and chose ${requestedValue}.`;
   }
@@ -1149,6 +1240,19 @@ async function runHomeControlsSkill({ skillId, request, parseErrors, deviceId })
       if (request.fanLevel) {
         finalValues.fan_level = homeState.fanLevelValue || null;
       }
+    }
+
+    if (request.state) {
+      const finalPowerState = await readPowerStateFromHome(
+        deviceId,
+        operatorPackage,
+        homeState.controlSlots.power,
+        runDir,
+        "power-final.png",
+        homeState,
+      );
+      finalValues.state = finalPowerState.state;
+      result.diagnostics.finalPowerMetrics = finalPowerState.metrics;
     }
 
     const failures = Object.entries(requestedFinalValues)
