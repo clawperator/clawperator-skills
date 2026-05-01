@@ -785,6 +785,7 @@ async function runCyclingSettingSkill({
 }) {
   const operatorPackage = resolveOperatorPackage();
   const result = buildSkillResult(skillId, goalKind, { [inputKey]: requestedValue }, requestedValue);
+  let runDir = null;
 
   if (!deviceId) {
     return failResult(result, "device_selected", "No device id was provided to the skill.");
@@ -799,6 +800,9 @@ async function runCyclingSettingSkill({
     operatorPackage,
     deviceSelected: true,
     allowedValues,
+    heuristics: [
+      "Power is classified from the screenshot crop around the Home power control before trusting Home control labels.",
+    ],
     transitions: [],
   };
 
@@ -809,6 +813,28 @@ async function runCyclingSettingSkill({
 
     let homeState = await waitForHomeState(deviceId, operatorPackage);
     appendCheckpoint(result, "home_screen_ready", "ok", "Opened the AirTouch Home screen.");
+
+    runDir = await getDependency("mkdtemp")(join(tmpdir(), "clawperator-airtouch-cycling-"));
+    const powerState = await readPowerStateFromHome(deviceId, operatorPackage, homeState.controlSlots.power, runDir, "power-before-controls.png", homeState);
+    result.diagnostics.powerBounds = homeState.controlSlots.power;
+    result.diagnostics.beforePowerMetrics = powerState.metrics;
+    appendCheckpoint(
+      result,
+      "power_current_value_read",
+      "ok",
+      `AirTouch power looked ${powerState.state} before trusting Home control labels.`,
+      { kind: "json", value: { powerBounds: homeState.controlSlots.power, screenshotMetrics: powerState.metrics, setPointVisible: homeState.setPointVisible, modeValue: homeState.modeValue, fanLevelValue: homeState.fanLevelValue } },
+    );
+
+    if (powerState.state !== "on") {
+      result.terminalVerification = {
+        status: "failed",
+        expected: { kind: "text", text: "on" },
+        observed: { kind: "text", text: powerState.state },
+        note: "Power did not look on from the Home power-control screenshot crop.",
+      };
+      return failResult(result, "home_controls_visible", "Mode and fan controls were not trusted because power did not look on.");
+    }
 
     if (!homeState.looksPoweredOn) {
       result.terminalVerification.note = "Home controls did not expose live values, which usually means the system power is off.";
@@ -862,6 +888,10 @@ async function runCyclingSettingSkill({
     return 0;
   } catch (error) {
     return failResult(result, "runtime_execution", summarizeError(error), { runtimeState: "poisoned" });
+  } finally {
+    if (runDir) {
+      await getDependency("rm")(runDir, { recursive: true, force: true }).catch(() => {});
+    }
   }
 }
 
@@ -1031,9 +1061,33 @@ async function runHomeControlsSkill({ skillId, request, parseErrors, deviceId })
         }
         appendCheckpoint(result, "home_controls_visible", "ok", "Verified Home controls are visible after turning power on.");
       }
-    } else if ((request.fanLevel || request.mode) && !homeState.looksPoweredOn) {
-      result.terminalVerification.note = "Home controls did not expose live values, which usually means the system power is off.";
-      return failResult(result, "home_controls_visible", "Mode and fan controls were not exposed on the Home screen.");
+    } else if (request.fanLevel || request.mode) {
+      runDir = await getDependency("mkdtemp")(join(tmpdir(), "clawperator-airtouch-home-controls-"));
+      const powerState = await readPowerStateFromHome(deviceId, operatorPackage, homeState.controlSlots.power, runDir, "power-before-controls.png", homeState);
+      result.diagnostics.powerBounds = homeState.controlSlots.power;
+      result.diagnostics.beforePowerMetrics = powerState.metrics;
+      appendCheckpoint(
+        result,
+        "power_current_value_read",
+        "ok",
+        `AirTouch power looked ${powerState.state} before trusting Home control labels.`,
+        { kind: "json", value: { powerBounds: homeState.controlSlots.power, screenshotMetrics: powerState.metrics, setPointVisible: homeState.setPointVisible, modeValue: homeState.modeValue, fanLevelValue: homeState.fanLevelValue } },
+      );
+
+      if (powerState.state !== "on") {
+        result.terminalVerification = {
+          status: "failed",
+          expected: { kind: "json", value: { state: "on" } },
+          observed: { kind: "json", value: { state: powerState.state } },
+          note: "Power did not look on from the Home power-control screenshot crop.",
+        };
+        return failResult(result, "home_controls_visible", "Mode and fan controls were not trusted because power did not look on.");
+      }
+
+      if (!homeState.looksPoweredOn) {
+        result.terminalVerification.note = "Home controls did not expose live values, which usually means the system power is off.";
+        return failResult(result, "home_controls_visible", "Mode and fan controls were not exposed on the Home screen.");
+      }
     }
 
     if (request.mode) {
