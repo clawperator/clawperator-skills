@@ -188,10 +188,43 @@ function parseNamedChoiceArg(args, { flag, allowedValues }) {
 }
 
 function parseHomeControlsArgs(args) {
+  const allowedFlags = new Set(["--state", "--fan-level", "--mode"]);
+  const seenFlags = new Set();
+  const errors = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const token = String(args[index] || "").trim();
+    if (!token) {
+      continue;
+    }
+
+    if (token.startsWith("--")) {
+      const flag = token.includes("=") ? token.slice(0, token.indexOf("=")) : token;
+      if (!allowedFlags.has(flag)) {
+        errors.push(`Unknown argument ${flag}.`);
+        if (!token.includes("=") && args[index + 1] && !String(args[index + 1]).startsWith("--")) {
+          index += 1;
+        }
+        continue;
+      }
+
+      if (seenFlags.has(flag)) {
+        errors.push(`Pass ${flag} only once.`);
+      }
+      seenFlags.add(flag);
+
+      if (!token.includes("=") && args[index + 1] && !String(args[index + 1]).startsWith("--")) {
+        index += 1;
+      }
+      continue;
+    }
+
+    errors.push(`Unknown argument ${token}.`);
+  }
+
   const state = parseNamedChoiceArg(args, { flag: "--state", allowedValues: ["on", "off"] });
   const fanLevel = parseNamedChoiceArg(args, { flag: "--fan-level", allowedValues: FAN_LEVEL_VALUES });
   const mode = parseNamedChoiceArg(args, { flag: "--mode", allowedValues: MODE_VALUES });
-  const errors = [];
 
   if (state.provided && !state.value) {
     errors.push("Pass --state on|off.");

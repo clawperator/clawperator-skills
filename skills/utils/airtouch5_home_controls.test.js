@@ -171,6 +171,25 @@ test("parseHomeControlsArgs rejects empty and contradictory Home control request
   );
 });
 
+test("parseHomeControlsArgs rejects unknown and duplicate inputs", () => {
+  assert.deepStrictEqual(
+    parseHomeControlsArgs(["--state", "on", "--fan", "high"]).errors,
+    ["Unknown argument --fan."],
+  );
+  assert.deepStrictEqual(
+    parseHomeControlsArgs(["--state", "on", "high"]).errors,
+    ["Unknown argument high."],
+  );
+  assert.deepStrictEqual(
+    parseHomeControlsArgs(["--mode", "cool", "--mode", "dry", "--fan-level", "high"]).errors,
+    ["Pass --mode only once."],
+  );
+  assert.deepStrictEqual(
+    parseHomeControlsArgs(["--mode=fan", "--mode=dry"]).errors,
+    ["Pass --mode only once."],
+  );
+});
+
 test("extractHomeScreenState reads live mode and fan values from the Home screen", () => {
   const state = extractHomeScreenState(HOME_XML);
 
