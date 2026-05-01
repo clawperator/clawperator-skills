@@ -170,6 +170,26 @@ test('runClawperatorCommand forwards normalized timeoutMs to execFileSync', () =
   }
 });
 
+test('runClawperatorCommand places Clawperator global flags before the subcommand', () => {
+  const calls = [];
+  setExecFileSyncForTest((cmd, args, options) => {
+    calls.push({ cmd, args, options });
+    return Buffer.from('ok');
+  });
+
+  try {
+    const result = runClawperatorCommand('snapshot', ['--device', '<device_serial>', '--timeout', '60000', '--json', '--no-daemon'], { timeoutMs: 75000 });
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(calls.length, 1);
+    const commandIndex = calls[0].args.indexOf('snapshot');
+    assert.ok(commandIndex > 0);
+    assert.deepStrictEqual(calls[0].args.slice(commandIndex - 3, commandIndex), ['--timeout', '60000', '--no-daemon']);
+    assert.deepStrictEqual(calls[0].args.slice(commandIndex + 1), ['--device', '<device_serial>', '--json']);
+  } finally {
+    setExecFileSyncForTest(null);
+  }
+});
+
 test('runClawperatorCommand returns a bounded error when execFileSync times out', () => {
   setExecFileSyncForTest(() => {
     const error = new Error('spawnSync clawperator --device <device_serial> /Users/<local_user>/tmp ETIMEDOUT');

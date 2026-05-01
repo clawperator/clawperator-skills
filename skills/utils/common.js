@@ -266,7 +266,23 @@ function buildExecErrorMessage(error) {
 function runClawperatorCommand(command, args, { encoding = null, throwOnNonZero = true, timeoutMs = null } = {}) {
   const resolved = resolveClawperatorBin();
   const cmd = resolved.cmd;
-  const cmdArgs = [...resolved.args, command, ...args];
+  const preCommandArgs = [];
+  const postCommandArgs = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--timeout' || arg === '--timeout-ms') {
+      preCommandArgs.push(arg);
+      if (args[index + 1] !== undefined) {
+        preCommandArgs.push(args[index + 1]);
+        index += 1;
+      }
+    } else if (arg === '--no-daemon') {
+      preCommandArgs.push(arg);
+    } else {
+      postCommandArgs.push(arg);
+    }
+  }
+  const cmdArgs = [...resolved.args, ...preCommandArgs, command, ...postCommandArgs];
   const normalizedTimeoutMs = normalizeTimeoutMs(timeoutMs);
 
   try {

@@ -230,9 +230,16 @@ function extractForegroundPackage(rawResult) {
   return typeof foregroundPackage === "string" ? foregroundPackage : "";
 }
 
+function addDefaultFlag(args, flag, value) {
+  if (args.includes(flag)) {
+    return args;
+  }
+  return value === undefined ? [...args, flag] : [...args, flag, value];
+}
+
 function runJsonCommand(command, args) {
-  const commandArgs = args.includes("--no-daemon") ? args : [...args, "--no-daemon"];
-  const response = getDependency("runClawperatorCommand")(command, commandArgs, { encoding: "utf-8", timeoutMs: 30000 });
+  const commandArgs = addDefaultFlag(args, "--timeout", "60000");
+  const response = getDependency("runClawperatorCommand")(command, commandArgs, { encoding: "utf-8", timeoutMs: 75000 });
   if (!response.ok) {
     throw new Error(truncateText(response.error));
   }
@@ -252,8 +259,8 @@ function snapshot(deviceId, operatorPackage) {
 }
 
 async function snapshotWithRetry(deviceId, operatorPackage, options = {}) {
-  const attempts = options.attempts || 3;
-  const retryDelayMs = options.retryDelayMs || 900;
+  const attempts = options.attempts || 5;
+  const retryDelayMs = options.retryDelayMs || 1200;
   let lastError = null;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -296,8 +303,8 @@ function screenshotRetryName(screenshotName, attempt) {
 }
 
 async function takeScreenshotWithRetry(deviceId, operatorPackage, runDir, screenshotName, options = {}) {
-  const attempts = options.attempts || 3;
-  const retryDelayMs = options.retryDelayMs || 900;
+  const attempts = options.attempts || 5;
+  const retryDelayMs = options.retryDelayMs || 1200;
   let lastError = null;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
