@@ -448,6 +448,44 @@ function detectControlSlots(nodes, homeRootBounds) {
   return uniqueCandidates.sort((left, right) => left.left - right.left);
 }
 
+function detectHomePanelStack(nodes, viewport) {
+  const viewportWidth = Math.max(1, boundsWidth(viewport));
+  const viewportHeight = Math.max(1, boundsHeight(viewport));
+  const minWidth = viewportWidth * 0.85;
+  const minHeight = viewportHeight * 0.18;
+  const maxHeight = viewportHeight * 0.32;
+  const panelTopFloor = viewport.top + viewportHeight * 0.14;
+  const panelBottomCeiling = viewport.bottom - viewportHeight * 0.18;
+
+  const panels = nodes
+    .filter((node) => {
+      const width = boundsWidth(node.bounds);
+      const height = boundsHeight(node.bounds);
+      if (width < minWidth || height < minHeight || height > maxHeight) {
+        return false;
+      }
+      if (node.bounds.top < panelTopFloor || node.bounds.bottom > panelBottomCeiling) {
+        return false;
+      }
+      return true;
+    })
+    .sort((left, right) => left.bounds.top - right.bounds.top);
+
+  if (panels.length < 2) {
+    return false;
+  }
+
+  for (let index = 1; index < panels.length; index += 1) {
+    const previous = panels[index - 1].bounds;
+    const current = panels[index].bounds;
+    if (current.top - previous.bottom >= viewportHeight * 0.01) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function buildFallbackControlSlots(viewport) {
   const width = Math.max(1, boundsWidth(viewport));
   const height = Math.max(1, boundsHeight(viewport));
@@ -567,11 +605,12 @@ function extractHomeScreenState(xml) {
   const setPointVisible = nodes.some((node) => normalizeChoiceValue(node.text) === "set point");
   const navLabels = ["home", "zones", "timer", "programs", "insights"];
   const navCount = navLabels.filter((label) => nodes.some((node) => normalizeChoiceValue(node.text) === label)).length;
+  const hasHomePanelStack = detectHomePanelStack(nodes, viewport);
 
   return {
     nodes,
     viewport,
-    isHomeScreen: navCount >= 4 && (Boolean(homeRoot) || Boolean(modeValue) || Boolean(fanLevelValue) || setPointVisible),
+    isHomeScreen: navCount >= 4 && (Boolean(homeRoot) || Boolean(modeValue) || Boolean(fanLevelValue) || setPointVisible || hasHomePanelStack),
     homeRootBounds: homeRoot ? homeRoot.bounds : null,
     controlSlots: {
       power: powerBounds,
