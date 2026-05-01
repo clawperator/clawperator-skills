@@ -39,6 +39,20 @@ function usage() {
   ].join("\n");
 }
 
+function sanitizePreview(value, maxLength = 1000) {
+  const text = String(value || "")
+    .replace(/--device\s+\S+/g, "--device <device_serial>")
+    .replace(/(\bdevice(?:Id)?=)\S+/gi, "$1<device_serial>")
+    .replace(/\/Users\/[^/\s]+/g, "/Users/<local_user>")
+    .replace(/\/var\/folders\/\S+/g, "<tmp_path>")
+    .trim()
+    .replace(/\s+/g, " ");
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, maxLength - 3)}...`;
+}
+
 function isRetriableRuntimeFailure(skillResult) {
   if (!skillResult || skillResult.status !== "failed") {
     return false;
@@ -88,7 +102,7 @@ function runSkillOnce({ deviceId, registry, request }) {
   try {
     payload = JSON.parse(stdout);
   } catch (error) {
-    throw new Error(`Could not parse clawperator JSON output: ${error.message}\n${stdout}`);
+    throw new Error(`Could not parse clawperator JSON output: ${error.message}; stdout=${sanitizePreview(stdout)}`);
   }
 
   if (run.status !== 0 || payload.status === "failed") {

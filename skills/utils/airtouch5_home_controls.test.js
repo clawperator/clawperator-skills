@@ -349,6 +349,7 @@ test("runCyclingSettingSkill retries a failed selector-opening click after obser
     buildSnapshotResult(HOME_XML),
     buildSnapshotResult(HOME_XML),
     buildSnapshotResult(HOME_XML),
+    buildSnapshotResult(HOME_XML),
     buildSnapshotResult(MODE_DIALOG_XML),
     buildSnapshotResult(HOME_HEAT_XML),
   ];
@@ -456,6 +457,62 @@ test("runCyclingSettingSkill retries a failed selector option click when the dia
     assert.strictEqual(skillResult.terminalVerification.status, "verified");
     assert.strictEqual(skillResult.diagnostics.finalValue, "heat");
     assert.strictEqual(commandCalls.filter((call) => call.command === "click").length, 3);
+  } finally {
+    console.log = originalLog;
+    setAirTouchHomeControlsDepsForTest(null);
+  }
+});
+
+test("runCyclingSettingSkill rechecks visual power before terminal success", async () => {
+  const snapshotResponses = [
+    buildSnapshotResult(HOME_XML),
+    buildSnapshotResult(MODE_DIALOG_XML),
+    buildSnapshotResult(HOME_HEAT_XML),
+  ];
+  const classifiedStates = ["on", "off"];
+  const logLines = [];
+  const originalLog = console.log;
+
+  setAirTouchHomeControlsDepsForTest({
+    averageRgba: (_, bounds) => ({ avgRgba: [0, 0, 0, 255], region: bounds }),
+    classifyPowerState: () => {
+      const state = classifiedStates.shift();
+      return {
+        state,
+        metrics: { brightness: state === "on" ? 100 : 40, blueDominance: state === "on" ? 60 : 4 },
+      };
+    },
+    mkdtemp: async () => "/tmp/clawperator-airtouch-cycling-test",
+    readPngRgba: async () => ({ width: 1, height: 1, rgba: Buffer.alloc(4) }),
+    rm: async () => {},
+    runClawperatorCommand: (command) => {
+      if (command === "snapshot") {
+        return { ok: true, result: snapshotResponses.shift() };
+      }
+      return { ok: true, result: buildJsonResult() };
+    },
+    sleep: async () => {},
+  });
+  console.log = (...args) => {
+    logLines.push(args.join(" "));
+  };
+
+  try {
+    const exitCode = await runCyclingSettingSkill({
+      skillId: "au.com.polyaire.airtouch5.set-mode",
+      goalKind: "set_mode",
+      inputKey: "mode",
+      requestedValue: "heat",
+      allowedValues: ["cool", "heat", "fan", "dry", "auto"],
+      deviceId: "<device_serial>",
+    });
+
+    const skillResult = captureSkillResult(logLines);
+    assert.strictEqual(exitCode, 1);
+    assert.strictEqual(skillResult.status, "failed");
+    assert.deepStrictEqual(skillResult.terminalVerification.expected.value, { mode: "heat", state: "on" });
+    assert.deepStrictEqual(skillResult.terminalVerification.observed.value, { mode: "heat", state: "off" });
+    assert.match(skillResult.terminalVerification.note, /power off/);
   } finally {
     console.log = originalLog;
     setAirTouchHomeControlsDepsForTest(null);
@@ -636,10 +693,67 @@ test("runHomeControlsSkill verifies mode and fan from one final Home snapshot", 
     const skillResult = captureSkillResult(logLines);
     assert.strictEqual(exitCode, 1);
     assert.strictEqual(skillResult.status, "failed");
-    assert.deepStrictEqual(skillResult.terminalVerification.expected.value, { mode: "heat", fan_level: "high" });
-    assert.deepStrictEqual(skillResult.terminalVerification.observed.value, { mode: "cool", fan_level: "high" });
+    assert.deepStrictEqual(skillResult.terminalVerification.expected.value, { mode: "heat", fan_level: "high", state: "on" });
+    assert.deepStrictEqual(skillResult.terminalVerification.observed.value, { mode: "cool", fan_level: "high", state: "on" });
     assert.match(skillResult.terminalVerification.note, /mode expected heat but observed cool/);
-    assert.deepStrictEqual(skillResult.diagnostics.finalValues, { mode: "cool", fan_level: "high" });
+    assert.deepStrictEqual(skillResult.diagnostics.finalValues, { mode: "cool", fan_level: "high", state: "on" });
+  } finally {
+    console.log = originalLog;
+    setAirTouchHomeControlsDepsForTest(null);
+  }
+});
+
+test("runHomeControlsSkill rechecks visual power for mode and fan terminal verification", async () => {
+  const snapshotResponses = [
+    buildSnapshotResult(HOME_XML),
+    buildSnapshotResult(MODE_DIALOG_XML),
+    buildSnapshotResult(HOME_HEAT_XML),
+    buildSnapshotResult(FAN_DIALOG_XML),
+    buildSnapshotResult(HOME_HEAT_HIGH_XML),
+    buildSnapshotResult(HOME_HEAT_HIGH_XML),
+  ];
+  const classifiedStates = ["on", "off"];
+  const logLines = [];
+  const originalLog = console.log;
+
+  setAirTouchHomeControlsDepsForTest({
+    averageRgba: (_, bounds) => ({ avgRgba: [0, 0, 0, 255], region: bounds }),
+    classifyPowerState: () => {
+      const state = classifiedStates.shift();
+      return {
+        state,
+        metrics: { brightness: state === "on" ? 100 : 40, blueDominance: state === "on" ? 60 : 4 },
+      };
+    },
+    mkdtemp: async () => "/tmp/clawperator-airtouch-home-controls-test",
+    readPngRgba: async () => ({ width: 1, height: 1, rgba: Buffer.alloc(4) }),
+    rm: async () => {},
+    runClawperatorCommand: (command) => {
+      if (command === "snapshot") {
+        return { ok: true, result: snapshotResponses.shift() };
+      }
+      return { ok: true, result: buildJsonResult() };
+    },
+    sleep: async () => {},
+  });
+  console.log = (...args) => {
+    logLines.push(args.join(" "));
+  };
+
+  try {
+    const exitCode = await runHomeControlsSkill({
+      skillId: "au.com.polyaire.airtouch5.set-home-controls",
+      request: { state: null, fanLevel: "high", mode: "heat" },
+      parseErrors: [],
+      deviceId: "<device_serial>",
+    });
+
+    const skillResult = captureSkillResult(logLines);
+    assert.strictEqual(exitCode, 1);
+    assert.strictEqual(skillResult.status, "failed");
+    assert.deepStrictEqual(skillResult.terminalVerification.expected.value, { mode: "heat", fan_level: "high", state: "on" });
+    assert.deepStrictEqual(skillResult.terminalVerification.observed.value, { mode: "heat", fan_level: "high", state: "off" });
+    assert.match(skillResult.terminalVerification.note, /state expected on but observed off/);
   } finally {
     console.log = originalLog;
     setAirTouchHomeControlsDepsForTest(null);

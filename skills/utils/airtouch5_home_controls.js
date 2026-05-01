@@ -575,12 +575,23 @@ async function observeHomeStateWithoutNavigation(deviceId, operatorPackage, { ma
   return null;
 }
 
-async function openChoiceDialogFromHome(deviceId, operatorPackage, center, allowedValues) {
+function controlBoundsForInput(homeState, inputKey) {
+  return inputKey === "mode" ? homeState.controlSlots.mode : homeState.controlSlots.fan;
+}
+
+async function openChoiceDialogFromHome({ deviceId, operatorPackage, inputKey, allowedValues, homeState }) {
   const maxAttempts = 4;
   let firstError = null;
   let lastError = null;
+  let observedHomeState = homeState;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const controlBounds = controlBoundsForInput(observedHomeState, inputKey);
+    if (!controlBounds || !observedHomeState.looksPoweredOn) {
+      throw new Error(`Could not re-observe the ${inputKey.replace("_", " ")} control on the Home screen before opening the selector.`);
+    }
+    const center = boundsCenter(controlBounds);
+
     try {
       clickCoordinate(deviceId, operatorPackage, center.x, center.y);
     } catch (error) {
@@ -598,6 +609,11 @@ async function openChoiceDialogFromHome(deviceId, operatorPackage, center, allow
       };
     } catch (error) {
       lastError = error;
+    }
+
+    const nextHomeState = await observeHomeStateWithoutNavigation(deviceId, operatorPackage, { maxAttempts: 2 });
+    if (nextHomeState && nextHomeState.looksPoweredOn) {
+      observedHomeState = nextHomeState;
     }
   }
 
@@ -832,7 +848,13 @@ async function applyCyclingSettingFromHome({
   };
 
   if (currentValue !== requestedValue) {
-    const dialogOpen = await openChoiceDialogFromHome(deviceId, operatorPackage, center, allowedValues);
+    const dialogOpen = await openChoiceDialogFromHome({
+      deviceId,
+      operatorPackage,
+      inputKey,
+      allowedValues,
+      homeState,
+    });
     const dialogState = dialogOpen.dialogState;
     if (dialogOpen.retried) {
       diagnostics.selectorOpenClickRetried = true;
@@ -945,12 +967,24 @@ async function runCyclingSettingSkill({
     homeState = applied.homeState;
     const currentValue = applied.finalValue;
     result.diagnostics.transitions.push(...applied.diagnostics.transitions);
+    const finalPowerState = await readPowerStateFromHome(
+      deviceId,
+      operatorPackage,
+      homeState.controlSlots.power,
+      runDir,
+      "power-final-controls.png",
+      homeState,
+    );
+    result.diagnostics.finalPowerMetrics = finalPowerState.metrics;
+    const verified = currentValue === requestedValue && finalPowerState.state === "on";
 
     result.terminalVerification = {
-      status: currentValue === requestedValue ? "verified" : "failed",
-      expected: { kind: "text", text: requestedValue },
-      observed: { kind: "text", text: currentValue || "unknown" },
-      note: `Snapshot text above the ${inputKey.replace("_", " ")} control read ${currentValue || "unknown"}.`,
+      status: verified ? "verified" : "failed",
+      expected: { kind: "json", value: { [inputKey]: requestedValue, state: "on" } },
+      observed: { kind: "json", value: { [inputKey]: currentValue || null, state: finalPowerState.state } },
+      note: verified
+        ? `Verified ${inputKey.replace("_", " ")}=${requestedValue} and power looked on.`
+        : `Expected ${inputKey.replace("_", " ")}=${requestedValue} with power on, but observed ${currentValue || "unknown"} and power ${finalPowerState.state}.`,
     };
 
     result.diagnostics = {
@@ -959,15 +993,15 @@ async function runCyclingSettingSkill({
       finalValue: currentValue || null,
     };
 
-    if (currentValue !== requestedValue) {
+    if (!verified) {
       return failResult(
         result,
         "terminal_state_verified",
-        `Requested ${inputKey.replace("_", " ")}=${requestedValue} but the Home snapshot still reported ${currentValue || "unknown"}.`,
+        result.terminalVerification.note,
       );
     }
 
-    appendCheckpoint(result, "terminal_state_verified", "ok", `Verified ${inputKey.replace("_", " ")}=${requestedValue} from the Home snapshot.`, { kind: "text", text: requestedValue });
+    appendCheckpoint(result, "terminal_state_verified", "ok", result.terminalVerification.note, { kind: "json", value: result.terminalVerification.observed.value });
     result.result = {
       kind: "json",
       value: {
@@ -1242,7 +1276,7 @@ async function runHomeControlsSkill({ skillId, request, parseErrors, deviceId })
       }
     }
 
-    if (request.state) {
+    if (request.state || request.mode || request.fanLevel) {
       const finalPowerState = await readPowerStateFromHome(
         deviceId,
         operatorPackage,
@@ -1253,6 +1287,9 @@ async function runHomeControlsSkill({ skillId, request, parseErrors, deviceId })
       );
       finalValues.state = finalPowerState.state;
       result.diagnostics.finalPowerMetrics = finalPowerState.metrics;
+      if (!request.state && (request.mode || request.fanLevel)) {
+        requestedFinalValues.state = "on";
+      }
     }
 
     const failures = Object.entries(requestedFinalValues)
