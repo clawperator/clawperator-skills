@@ -451,7 +451,9 @@ function detectControlSlots(nodes, homeRootBounds) {
 function detectPoweredOffHomeSkeleton(nodes, viewport) {
   const viewportWidth = Math.max(1, boundsWidth(viewport));
   const viewportHeight = Math.max(1, boundsHeight(viewport));
-  const headerLogoPresent = nodes.some((node) => node.text === "header_logo_e247be1b");
+  const headerLogoPresent = nodes.some((node) => node.className === "android.widget.Image"
+    && normalizeChoiceValue(node.text).startsWith("header_logo_")
+    && node.bounds.top <= viewport.top + viewportHeight * 0.18);
   if (!headerLogoPresent) {
     return false;
   }
@@ -510,6 +512,7 @@ function detectPoweredOffHomeSkeleton(nodes, viewport) {
 }
 
 function detectFocusedBottomNavLabel(xml) {
+  const navLabels = new Set(["home", "zones", "timer", "programs", "insights"]);
   const nodeRegex = /<node\s+([^>]*)(?:\/>|>)/g;
   let match;
   while ((match = nodeRegex.exec(xml)) !== null) {
@@ -522,16 +525,8 @@ function detectFocusedBottomNavLabel(xml) {
     if (attrs.class !== "android.widget.Button" || attrs.focused !== "true") {
       continue;
     }
-    const bounds = /^\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]$/.exec(String(attrs.bounds || ""));
-    if (!bounds) {
-      continue;
-    }
-    const top = Number.parseInt(bounds[2], 10);
-    if (!Number.isFinite(top) || top < 2000) {
-      continue;
-    }
     const label = normalizeChoiceValue(attrs.text || "");
-    if (label) {
+    if (navLabels.has(label)) {
       return label;
     }
   }

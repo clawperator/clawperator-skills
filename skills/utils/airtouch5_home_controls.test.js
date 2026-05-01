@@ -95,6 +95,24 @@ const HOME_OFF_EMULATOR_XML = [
   "</hierarchy>",
 ].join("\n");
 
+const HOME_OFF_EMULATOR_SHORT_XML = HOME_OFF_EMULATOR_XML
+  .replace("header_logo_e247be1b", "header_logo_variant")
+  .replace("[0,0][1080,2400]", "[0,0][1080,1920]")
+  .replace("[0,0][1084,2402]", "[0,0][1084,1922]")
+  .replace("[42,412][1034,1047]", "[42,330][1034,838]")
+  .replace("[84,456][97,488]", "[84,364][97,390]")
+  .replace("[330,622][346,674]", "[330,498][346,540]")
+  .replace("[273,868][378,934]", "[273,694][378,746]")
+  .replace("[42,1078][1034,1714]", "[42,862][1034,1370]")
+  .replace("[84,1123][97,1155]", "[84,898][97,924]")
+  .replace("[330,1288][346,1341]", "[330,1030][346,1072]")
+  .replace("[273,1535][378,1601]", "[273,1228][378,1280]")
+  .replace("[-2,2149][217,2299]", "[-2,1719][217,1839]")
+  .replace("[215,2149][433,2299]", "[215,1719][433,1839]")
+  .replace("[430,2149][651,2299]", "[430,1719][651,1839]")
+  .replace("[648,2149][866,2299]", "[648,1719][866,1839]")
+  .replace("[863,2149][1084,2299]", "[863,1719][1084,1839]");
+
 const NON_HOME_STACKED_PANELS_XML = [
   "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>",
   "<hierarchy rotation=\"0\">",
@@ -373,12 +391,22 @@ test("detectPoweredOffHomeSkeleton matches the powered-off emulator Home shell o
 
 test("detectFocusedBottomNavLabel reads the active AirTouch tab", () => {
   assert.strictEqual(detectFocusedBottomNavLabel(HOME_OFF_EMULATOR_XML), "home");
+  assert.strictEqual(detectFocusedBottomNavLabel(HOME_OFF_EMULATOR_SHORT_XML), "home");
   assert.strictEqual(detectFocusedBottomNavLabel(NON_HOME_STACKED_PANELS_XML), "zones");
   assert.strictEqual(detectFocusedBottomNavLabel(NON_HOME_NAV_XML), null);
 });
 
 test("extractHomeScreenState recognizes the powered-off emulator Home layout", () => {
   const state = extractHomeScreenState(HOME_OFF_EMULATOR_XML);
+
+  assert.strictEqual(state.isHomeScreen, true);
+  assert.strictEqual(state.looksPoweredOn, false);
+  assert.strictEqual(state.modeValue, null);
+  assert.strictEqual(state.fanLevelValue, null);
+});
+
+test("extractHomeScreenState recognizes the powered-off emulator Home layout at a shorter height", () => {
+  const state = extractHomeScreenState(HOME_OFF_EMULATOR_SHORT_XML);
 
   assert.strictEqual(state.isHomeScreen, true);
   assert.strictEqual(state.looksPoweredOn, false);
