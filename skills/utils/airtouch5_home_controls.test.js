@@ -11,6 +11,7 @@ const {
   runCyclingSettingSkill,
   runHomeControlsSkill,
   runPowerStateSkill,
+  splitDeviceAndArgs,
   setAirTouchHomeControlsDepsForTest,
   shouldRetryPowerToggle,
 } = require("./airtouch5_home_controls.js");
@@ -43,6 +44,20 @@ const HOME_OFF_XML = [
   "    <node index=\"1\" text=\"\" resource-id=\"comp-home-single-ac\" class=\"android.view.View\" package=\"au.com.polyaire.airtouch5\" bounds=\"[0,402][1080,2052]\">",
   "      <node index=\"0\" text=\" \" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" bounds=\"[48,462][312,726]\" />",
   "    </node>",
+  "    <node index=\"2\" text=\"Home\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[0,2052][216,2220]\" />",
+  "    <node index=\"3\" text=\"Zones\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[216,2052][432,2220]\" />",
+  "    <node index=\"4\" text=\"Timer\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[432,2052][648,2220]\" />",
+  "    <node index=\"5\" text=\"Programs\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[648,2052][864,2220]\" />",
+  "    <node index=\"6\" text=\"Insights\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[864,2052][1080,2220]\" />",
+  "  </node>",
+  "</hierarchy>",
+].join("\n");
+
+const NON_HOME_NAV_XML = [
+  "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>",
+  "<hierarchy rotation=\"0\">",
+  "  <node index=\"0\" text=\"\" resource-id=\"root\" class=\"android.view.View\" package=\"au.com.polyaire.airtouch5\" bounds=\"[0,0][1080,2340]\">",
+  "    <node index=\"1\" text=\"Settings\" resource-id=\"settings-root\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" bounds=\"[48,160][300,232]\" />",
   "    <node index=\"2\" text=\"Home\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[0,2052][216,2220]\" />",
   "    <node index=\"3\" text=\"Zones\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[216,2052][432,2220]\" />",
   "    <node index=\"4\" text=\"Timer\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[432,2052][648,2220]\" />",
@@ -135,6 +150,51 @@ function captureSkillResult(logLines) {
   return JSON.parse(logLines[markerIndex + 1]);
 }
 
+function buildPowerStateCommandCapture({ deviceId = "", requestedState = "off" } = {}) {
+  const commandCalls = [];
+  const logLines = [];
+  const originalLog = console.log;
+
+  setAirTouchHomeControlsDepsForTest({
+    averageRgba: (_, bounds) => ({ avgRgba: [0, 0, 0, 255], region: bounds }),
+    classifyPowerState: () => ({
+      state: "off",
+      metrics: { brightness: 40, blueDominance: 4 },
+    }),
+    mkdtemp: async () => "/tmp/clawperator-airtouch-power-test",
+    readPngRgba: async () => ({ width: 1, height: 1, rgba: Buffer.alloc(4) }),
+    rm: async () => {},
+    runClawperatorCommand: (command, args) => {
+      commandCalls.push({ command, args });
+      if (command === "snapshot") {
+        return { ok: true, result: buildSnapshotResult(HOME_OFF_XML) };
+      }
+      return { ok: true, result: buildJsonResult() };
+    },
+    sleep: async () => {},
+  });
+  console.log = (...args) => {
+    logLines.push(args.join(" "));
+  };
+
+  return {
+    async run() {
+      try {
+        const exitCode = await runPowerStateSkill({
+          skillId: "au.com.polyaire.airtouch5.set-power-state",
+          requestedState,
+          deviceId,
+        });
+        const skillResult = captureSkillResult(logLines);
+        return { exitCode, skillResult, commandCalls };
+      } finally {
+        console.log = originalLog;
+        setAirTouchHomeControlsDepsForTest(null);
+      }
+    },
+  };
+}
+
 test("parseChoiceArg prefers an explicit named flag over positional fallbacks", () => {
   assert.strictEqual(
     parseChoiceArg(["--mode", "heat", "cool"], { flag: "--mode", allowedValues: ["cool", "heat", "fan", "dry", "auto"] }),
@@ -146,6 +206,36 @@ test("parseChoiceArg skips values that belong to other named flags when using po
   assert.strictEqual(
     parseChoiceArg(["--device", "<device_serial>", "medium"], { flag: "--fan-level", allowedValues: ["auto", "low", "medium", "high"] }),
     "medium",
+  );
+});
+
+test("splitDeviceAndArgs keeps a leading flag as skill input instead of a device id", () => {
+  assert.deepStrictEqual(
+    splitDeviceAndArgs(["--state", "off"]),
+    {
+      deviceId: "",
+      rawArgs: ["--state", "off"],
+    },
+  );
+});
+
+test("splitDeviceAndArgs preserves an explicit device from the wrapper env", () => {
+  assert.deepStrictEqual(
+    splitDeviceAndArgs(["emulator-5554", "--state", "off"], "emulator-5554"),
+    {
+      deviceId: "emulator-5554",
+      rawArgs: ["--state", "off"],
+    },
+  );
+});
+
+test("splitDeviceAndArgs strips an explicit positional device from the forwarded args", () => {
+  assert.deepStrictEqual(
+    splitDeviceAndArgs(["emulator-5554", "--state", "off"]),
+    {
+      deviceId: "emulator-5554",
+      rawArgs: ["--state", "off"],
+    },
   );
 });
 
@@ -210,6 +300,15 @@ test("extractHomeScreenState marks the Home screen as powered off when live valu
   assert.strictEqual(state.modeValue, null);
   assert.strictEqual(state.fanLevelValue, null);
   assert.deepStrictEqual(state.controlSlots.power, { left: 48, top: 462, right: 312, bottom: 726 });
+});
+
+test("extractHomeScreenState does not treat a non-Home screen with bottom nav as Home", () => {
+  const state = extractHomeScreenState(NON_HOME_NAV_XML);
+
+  assert.strictEqual(state.isHomeScreen, false);
+  assert.strictEqual(state.looksPoweredOn, false);
+  assert.strictEqual(state.modeValue, null);
+  assert.strictEqual(state.fanLevelValue, null);
 });
 
 test("extractHomeScreenState prefers label-matched controls over a stray placeholder tile", () => {
@@ -998,6 +1097,45 @@ test("runPowerStateSkill does not retry a power toggle after unchanged observati
   } finally {
     console.log = originalLog;
     setAirTouchHomeControlsDepsForTest(null);
+  }
+});
+
+test("runPowerStateSkill omits --device when no explicit device is available", async () => {
+  const { run } = buildPowerStateCommandCapture({ deviceId: "" });
+  const { exitCode, skillResult, commandCalls } = await run();
+
+  assert.strictEqual(exitCode, 0);
+  assert.strictEqual(skillResult.status, "success");
+  assert.strictEqual(skillResult.diagnostics.deviceSelected, true);
+  assert.ok(commandCalls.length > 0);
+  for (const call of commandCalls) {
+    assert.ok(!call.args.includes("--device"), `${call.command} should let Clawperator resolve the device automatically`);
+  }
+});
+
+test("runPowerStateSkill forwards an explicit device id from CLAWPERATOR_DEVICE_ID", async () => {
+  const { deviceId } = splitDeviceAndArgs(["--state", "off"], "emulator-5554");
+  const { run } = buildPowerStateCommandCapture({ deviceId });
+  const { exitCode, skillResult, commandCalls } = await run();
+
+  assert.strictEqual(exitCode, 0);
+  assert.strictEqual(skillResult.status, "success");
+  for (const call of commandCalls) {
+    assert.ok(call.args.includes("--device"), `${call.command} should forward the explicit device id`);
+    assert.ok(call.args.includes("emulator-5554"), `${call.command} should forward the explicit device serial`);
+  }
+});
+
+test("runPowerStateSkill forwards an explicit positional device id", async () => {
+  const { deviceId } = splitDeviceAndArgs(["emulator-5554", "--state", "off"]);
+  const { run } = buildPowerStateCommandCapture({ deviceId });
+  const { exitCode, skillResult, commandCalls } = await run();
+
+  assert.strictEqual(exitCode, 0);
+  assert.strictEqual(skillResult.status, "success");
+  for (const call of commandCalls) {
+    assert.ok(call.args.includes("--device"), `${call.command} should forward the positional device id`);
+    assert.ok(call.args.includes("emulator-5554"), `${call.command} should forward the positional device serial`);
   }
 });
 

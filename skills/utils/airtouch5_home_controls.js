@@ -43,9 +43,9 @@ function truncateText(value, maxLength = 220) {
 
 function summarizeError(error) {
   if (error instanceof Error) {
-    return truncateText(error.message);
+    return truncateText(error.message, 900);
   }
-  return truncateText(String(error));
+  return truncateText(String(error), 900);
 }
 
 const defaultDependencies = {
@@ -187,6 +187,30 @@ function parseNamedChoiceArg(args, { flag, allowedValues }) {
   return { provided: false, value: null };
 }
 
+function splitDeviceAndArgs(argvArgs, envDeviceId = "") {
+  const args = Array.isArray(argvArgs) ? argvArgs.map((arg) => String(arg || "")) : [];
+  const deviceId = String(envDeviceId || "").trim();
+
+  if (deviceId) {
+    if (args[0] === deviceId) {
+      return { deviceId, rawArgs: args.slice(1) };
+    }
+    return { deviceId, rawArgs: args };
+  }
+
+  if (args[0] && !args[0].startsWith("--")) {
+    return {
+      deviceId: args[0],
+      rawArgs: args.slice(1),
+    };
+  }
+
+  return {
+    deviceId: "",
+    rawArgs: args,
+  };
+}
+
 function parseHomeControlsArgs(args) {
   const allowedFlags = new Set(["--state", "--fan-level", "--mode"]);
   const seenFlags = new Set();
@@ -270,11 +294,30 @@ function addDefaultFlag(args, flag, value) {
   return value === undefined ? [...args, flag] : [...args, flag, value];
 }
 
+function withOptionalDeviceArgs(deviceId, args) {
+  return deviceId ? ["--device", deviceId, ...args] : [...args];
+}
+
+function sanitizeCommandArgs(args) {
+  const sanitized = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = String(args[index] || "");
+    if (arg === "--device" && args[index + 1] !== undefined) {
+      sanitized.push(arg, "<device_serial>");
+      index += 1;
+      continue;
+    }
+    sanitized.push(arg);
+  }
+  return sanitized;
+}
+
 function runJsonCommand(command, args) {
   const commandArgs = addDefaultFlag(args, "--timeout", "60000");
   const response = getDependency("runClawperatorCommand")(command, commandArgs, { encoding: "utf-8", timeoutMs: 75000 });
   if (!response.ok) {
-    throw new Error(truncateText(response.error));
+    const commandLine = [command, ...sanitizeCommandArgs(commandArgs)].join(" ");
+    throw new Error(`Clawperator ${command} command failed (${commandLine}): ${truncateText(response.error, 900)}`);
   }
   try {
     return JSON.parse(response.result);
@@ -284,11 +327,11 @@ function runJsonCommand(command, args) {
 }
 
 function openApp(deviceId, operatorPackage) {
-  return runJsonCommand("open", [AIRTOUCH_PACKAGE, "--device", deviceId, "--operator-package", operatorPackage, "--json"]);
+  return runJsonCommand("open", withOptionalDeviceArgs(deviceId, [AIRTOUCH_PACKAGE, "--operator-package", operatorPackage, "--json"]));
 }
 
 function snapshot(deviceId, operatorPackage) {
-  return runJsonCommand("snapshot", ["--device", deviceId, "--operator-package", operatorPackage, "--json"]);
+  return runJsonCommand("snapshot", withOptionalDeviceArgs(deviceId, ["--operator-package", operatorPackage, "--json"]));
 }
 
 async function snapshotWithRetry(deviceId, operatorPackage, options = {}) {
@@ -314,15 +357,15 @@ async function snapshotWithRetry(deviceId, operatorPackage, options = {}) {
 }
 
 function clickText(deviceId, operatorPackage, text) {
-  return runJsonCommand("click", ["--text", text, "--device", deviceId, "--operator-package", operatorPackage, "--json"]);
+  return runJsonCommand("click", withOptionalDeviceArgs(deviceId, ["--text", text, "--operator-package", operatorPackage, "--json"]));
 }
 
 function clickCoordinate(deviceId, operatorPackage, x, y) {
-  return runJsonCommand("click", ["--coordinate", String(x), String(y), "--device", deviceId, "--operator-package", operatorPackage, "--json"]);
+  return runJsonCommand("click", withOptionalDeviceArgs(deviceId, ["--coordinate", String(x), String(y), "--operator-package", operatorPackage, "--json"]));
 }
 
 function takeScreenshot(deviceId, operatorPackage, path) {
-  return runJsonCommand("screenshot", ["--device", deviceId, "--operator-package", operatorPackage, "--path", path, "--json"]);
+  return runJsonCommand("screenshot", withOptionalDeviceArgs(deviceId, ["--operator-package", operatorPackage, "--path", path, "--json"]));
 }
 
 function screenshotRetryName(screenshotName, attempt) {
@@ -958,9 +1001,6 @@ async function runCyclingSettingSkill({
   const result = buildSkillResult(skillId, goalKind, { [inputKey]: requestedValue }, requestedValue);
   let runDir = null;
 
-  if (!deviceId) {
-    return failResult(result, "device_selected", "No device id was provided to the skill.");
-  }
   if (!requestedValue || !allowedValues.includes(requestedValue)) {
     return failResult(result, "input_validated", `Pass ${inputKey === "mode" ? "--mode" : "--fan-level"} ${allowedValues.join("|")}.`);
   }
@@ -1083,9 +1123,6 @@ async function runPowerStateSkill({ skillId, requestedState, deviceId }) {
   const result = buildSkillResult(skillId, "set_power_state", { state: requestedState }, requestedState);
   let runDir = null;
 
-  if (!deviceId) {
-    return failResult(result, "device_selected", "No device id was provided to the skill.");
-  }
   if (requestedState !== "on" && requestedState !== "off") {
     return failResult(result, "input_validated", "Pass --state on or --state off.");
   }
@@ -1177,9 +1214,6 @@ async function runHomeControlsSkill({ skillId, request, parseErrors, deviceId })
   const result = buildSkillResult(skillId, "set_home_controls", inputs, JSON.stringify(inputs));
   let runDir = null;
 
-  if (!deviceId) {
-    return failResult(result, "device_selected", "No device id was provided to the skill.");
-  }
   if (parseErrors && parseErrors.length > 0) {
     return failResult(result, "input_validated", parseErrors.join(" "));
   }
@@ -1406,6 +1440,7 @@ module.exports = {
   parseChoiceArg,
   parseHomeControlsArgs,
   parseNamedChoiceArg,
+  splitDeviceAndArgs,
   parseXmlNodes,
   mergePowerStateEvidence,
   runCyclingSettingSkill,
