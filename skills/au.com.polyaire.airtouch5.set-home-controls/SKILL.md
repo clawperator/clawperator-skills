@@ -50,7 +50,7 @@ Known caveats:
 Run through the wrapper:
 
 ```bash
-clawperator skills run au.com.polyaire.airtouch5.set-home-controls --device <device_serial> --operator-package <operator_package> -- --state on --fan-level high
+clawperator skills run au.com.polyaire.airtouch5.set-home-controls --device <device_serial> --operator-package <operator_package> --state on --fan-level high
 ```
 
 Direct local invocation:
