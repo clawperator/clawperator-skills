@@ -249,8 +249,10 @@ function classifyPowerState(
   const brightness = (red + green + blue) / 3;
   const blueDominance = blue - ((red + green) / 2);
   const greenLift = green - red;
+  const activeColorDominance = blueDominance > blueDominanceThreshold
+    || greenLift > 25;
   const isOn = brightness > brightnessThreshold
-    && blueDominance > blueDominanceThreshold
+    && activeColorDominance
     && greenLift > greenLiftThreshold;
   return {
     state: isOn ? "on" : "off",

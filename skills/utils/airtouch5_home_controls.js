@@ -250,6 +250,28 @@ function snapshot(deviceId, operatorPackage) {
   return runJsonCommand("snapshot", ["--device", deviceId, "--operator-package", operatorPackage, "--json"]);
 }
 
+async function snapshotWithRetry(deviceId, operatorPackage, options = {}) {
+  const attempts = options.attempts || 3;
+  const retryDelayMs = options.retryDelayMs || 900;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return {
+        result: snapshot(deviceId, operatorPackage),
+        attempts: attempt,
+      };
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        await getDependency("sleep")(retryDelayMs);
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 function clickText(deviceId, operatorPackage, text) {
   return runJsonCommand("click", ["--text", text, "--device", deviceId, "--operator-package", operatorPackage, "--json"]);
 }
@@ -484,7 +506,7 @@ async function waitForHomeState(deviceId, operatorPackage, { maxAttempts = 8 } =
   let lastState = null;
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const snapResult = snapshot(deviceId, operatorPackage);
+    const { result: snapResult } = await snapshotWithRetry(deviceId, operatorPackage);
     const foregroundPackage = extractForegroundPackage(snapResult);
     const xml = extractSnapshotXml(snapResult);
     const state = extractHomeScreenState(xml);
@@ -515,7 +537,7 @@ async function waitForHomeState(deviceId, operatorPackage, { maxAttempts = 8 } =
 
 async function waitForChoiceDialog(deviceId, operatorPackage, allowedValues, { maxAttempts = 6 } = {}) {
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const snapResult = snapshot(deviceId, operatorPackage);
+    const { result: snapResult } = await snapshotWithRetry(deviceId, operatorPackage);
     const foregroundPackage = extractForegroundPackage(snapResult);
     const xml = extractSnapshotXml(snapResult);
 
@@ -544,8 +566,8 @@ function appendAppOpenedCheckpoint(result) {
   appendCheckpoint(result, "app_opened", "ok", `Opened ${AIRTOUCH_PACKAGE} on ${describeSelectedDevice()}.`);
 }
 
-function shouldRetryPowerToggle(initialState, observedStates) {
-  return observedStates.length >= 4 && observedStates.slice(-4).every((state) => state === initialState);
+function shouldRetryPowerToggle() {
+  return false;
 }
 
 function scopedCheckpointId(scope, id) {
@@ -668,22 +690,7 @@ async function applyPowerStateFromHome({
     diagnostics.lastPowerMetrics = firstAttempt.lastMetrics;
     diagnostics.firstTapObservations = firstAttempt.observations;
 
-    if (currentState !== requestedState && shouldRetryPowerToggle(beforeState.state, firstAttempt.observations)) {
-      clickCoordinate(deviceId, operatorPackage, center.x, center.y);
-      tapsApplied += 1;
-      const secondAttempt = await observePowerTransition(
-        deviceId,
-        operatorPackage,
-        powerBounds,
-        runDir,
-          `${screenshotPrefix}power-after-2`,
-        requestedState,
-      );
-      finalHomeState = secondAttempt.homeState || finalHomeState;
-      currentState = secondAttempt.currentState;
-      diagnostics.lastPowerMetrics = secondAttempt.lastMetrics;
-      diagnostics.secondTapObservations = secondAttempt.observations;
-    }
+    diagnostics.powerRetryPolicy = "single_tap_only";
   }
 
   if (tapsApplied > 0) {

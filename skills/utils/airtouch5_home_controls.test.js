@@ -223,6 +223,14 @@ test("classifyPowerState distinguishes the observed AirTouch off and on button m
     }).state,
     "on",
   );
+
+  assert.strictEqual(
+    classifyPowerState({
+      avgRgba: [89.83, 121.61, 54.3, 255],
+      region: { left: 48, top: 462, right: 312, bottom: 726 },
+    }).state,
+    "on",
+  );
 });
 
 test("mergePowerStateEvidence keeps Home control values diagnostic only", () => {
@@ -270,9 +278,9 @@ test("mergePowerStateEvidence falls back to screenshot crop when Home controls h
   assert.strictEqual(state.metrics.resolvedBy, "screenshot_crop");
 });
 
-test("shouldRetryPowerToggle waits for a stable unchanged tail before retrying", () => {
+test("shouldRetryPowerToggle never retries toggle controls", () => {
   assert.strictEqual(shouldRetryPowerToggle("off", ["off", "off", "off"]), false);
-  assert.strictEqual(shouldRetryPowerToggle("off", ["off", "off", "off", "off"]), true);
+  assert.strictEqual(shouldRetryPowerToggle("off", ["off", "off", "off", "off"]), false);
   assert.strictEqual(shouldRetryPowerToggle("off", ["off", "off", "off", "on"]), false);
 });
 
@@ -437,7 +445,7 @@ test("runCyclingSettingSkill downgrades runtimeState when the Home controls neve
   }
 });
 
-test("runPowerStateSkill retries only after a stable unchanged observation window", async () => {
+test("runPowerStateSkill does not retry a power toggle after unchanged observations", async () => {
   const commandCalls = [];
   const snapshotResponses = [
     buildSnapshotResult(HOME_OFF_XML),
@@ -445,9 +453,8 @@ test("runPowerStateSkill retries only after a stable unchanged observation windo
     buildSnapshotResult(HOME_OFF_XML),
     buildSnapshotResult(HOME_OFF_XML),
     buildSnapshotResult(HOME_OFF_XML),
-    buildSnapshotResult(HOME_XML),
   ];
-  const classifiedStates = ["off", "off", "off", "off", "off", "on"];
+  const classifiedStates = ["off", "off", "off", "off", "off"];
   const logLines = [];
   const originalLog = console.log;
 
@@ -484,12 +491,62 @@ test("runPowerStateSkill retries only after a stable unchanged observation windo
     });
 
     const skillResult = captureSkillResult(logLines);
+    assert.strictEqual(exitCode, 1);
+    assert.strictEqual(skillResult.status, "failed");
+    assert.deepStrictEqual(skillResult.diagnostics.firstTapObservations, ["off", "off", "off", "off"]);
+    assert.strictEqual(skillResult.diagnostics.secondTapObservations, undefined);
+    assert.strictEqual(skillResult.diagnostics.powerRetryPolicy, "single_tap_only");
+    assert.strictEqual(commandCalls.filter((call) => call.command === "click").length, 1);
+  } finally {
+    console.log = originalLog;
+    setAirTouchHomeControlsDepsForTest(null);
+  }
+});
+
+test("runCyclingSettingSkill retries a transient snapshot failure after choosing an option", async () => {
+  const commandCalls = [];
+  const snapshotResponses = [
+    buildSnapshotResult(HOME_XML),
+    buildSnapshotResult(MODE_DIALOG_XML),
+    buildSnapshotResult(HOME_HEAT_XML),
+  ];
+  const logLines = [];
+  const originalLog = console.log;
+  let failedFinalSnapshot = false;
+
+  setAirTouchHomeControlsDepsForTest({
+    runClawperatorCommand: (command, args) => {
+      commandCalls.push({ command, args });
+      if (command === "snapshot") {
+        if (commandCalls.filter((call) => call.command === "click").length >= 2 && !failedFinalSnapshot) {
+          failedFinalSnapshot = true;
+          return { ok: false, error: "RESULT_ENVELOPE_TIMEOUT" };
+        }
+        return { ok: true, result: snapshotResponses.shift() };
+      }
+      return { ok: true, result: buildJsonResult() };
+    },
+    sleep: async () => {},
+  });
+  console.log = (...args) => {
+    logLines.push(args.join(" "));
+  };
+
+  try {
+    const exitCode = await runCyclingSettingSkill({
+      skillId: "au.com.polyaire.airtouch5.set-mode",
+      goalKind: "set_mode",
+      inputKey: "mode",
+      requestedValue: "heat",
+      allowedValues: ["cool", "heat", "fan", "dry", "auto"],
+      deviceId: "<device_serial>",
+    });
+
+    const skillResult = captureSkillResult(logLines);
     assert.strictEqual(exitCode, 0);
     assert.strictEqual(skillResult.status, "success");
-    assert.strictEqual(skillResult.diagnostics.finalState, "on");
-    assert.deepStrictEqual(skillResult.diagnostics.firstTapObservations, ["off", "off", "off", "off"]);
-    assert.deepStrictEqual(skillResult.diagnostics.secondTapObservations, ["on"]);
-    assert.strictEqual(commandCalls.filter((call) => call.command === "click").length, 2);
+    assert.strictEqual(skillResult.diagnostics.finalValue, "heat");
+    assert.strictEqual(failedFinalSnapshot, true);
   } finally {
     console.log = originalLog;
     setAirTouchHomeControlsDepsForTest(null);
