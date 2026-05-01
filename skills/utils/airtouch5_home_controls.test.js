@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 const {
   classifyPowerState,
+  detectPoweredOffHomeSkeleton,
   extractChoiceDialogState,
   extractHomeScreenState,
   mergePowerStateEvidence,
@@ -63,6 +64,56 @@ const NON_HOME_NAV_XML = [
   "    <node index=\"4\" text=\"Timer\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[432,2052][648,2220]\" />",
   "    <node index=\"5\" text=\"Programs\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[648,2052][864,2220]\" />",
   "    <node index=\"6\" text=\"Insights\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[864,2052][1080,2220]\" />",
+  "  </node>",
+  "</hierarchy>",
+].join("\n");
+
+const HOME_OFF_EMULATOR_XML = [
+  "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>",
+  "<hierarchy rotation=\"0\">",
+  "  <node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.FrameLayout\" package=\"au.com.polyaire.airtouch5\" bounds=\"[0,0][1080,2400]\">",
+  "    <node index=\"1\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"au.com.polyaire.airtouch5\" bounds=\"[0,0][1084,2402]\">",
+  "      <node index=\"2\" text=\"header_logo_e247be1b\" resource-id=\"\" class=\"android.widget.Image\" package=\"au.com.polyaire.airtouch5\" bounds=\"[393,160][687,280]\" />",
+  "      <node index=\"3\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"au.com.polyaire.airtouch5\" bounds=\"[42,412][1034,1047]\">",
+  "        <node index=\"0\" text=\" \" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" bounds=\"[84,456][97,488]\" />",
+  "        <node index=\"1\" text=\" \" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" bounds=\"[330,622][346,674]\" />",
+  "        <node index=\"2\" text=\" \" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" bounds=\"[273,868][378,934]\" />",
+  "      </node>",
+  "      <node index=\"4\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"au.com.polyaire.airtouch5\" bounds=\"[42,1078][1034,1714]\">",
+  "        <node index=\"0\" text=\" \" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" bounds=\"[84,1123][97,1155]\" />",
+  "        <node index=\"1\" text=\" \" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" bounds=\"[330,1288][346,1341]\" />",
+  "        <node index=\"2\" text=\" \" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" bounds=\"[273,1535][378,1601]\" />",
+  "      </node>",
+  "      <node index=\"5\" text=\"Home\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[-2,2149][217,2299]\" />",
+  "      <node index=\"6\" text=\"Zones\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[215,2149][433,2299]\" />",
+  "      <node index=\"7\" text=\"Timer\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[430,2149][651,2299]\" />",
+  "      <node index=\"8\" text=\"Programs\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[648,2149][866,2299]\" />",
+  "      <node index=\"9\" text=\"Insights\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[863,2149][1084,2299]\" />",
+  "    </node>",
+  "  </node>",
+  "</hierarchy>",
+].join("\n");
+
+const NON_HOME_STACKED_PANELS_XML = [
+  "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>",
+  "<hierarchy rotation=\"0\">",
+  "  <node index=\"0\" text=\"\" resource-id=\"\" class=\"android.widget.FrameLayout\" package=\"au.com.polyaire.airtouch5\" bounds=\"[0,0][1080,2400]\">",
+  "    <node index=\"1\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"au.com.polyaire.airtouch5\" bounds=\"[0,0][1084,2402]\">",
+  "      <node index=\"2\" text=\"header_logo_e247be1b\" resource-id=\"\" class=\"android.widget.Image\" package=\"au.com.polyaire.airtouch5\" bounds=\"[393,160][687,280]\" />",
+  "      <node index=\"3\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"au.com.polyaire.airtouch5\" bounds=\"[42,412][1034,1047]\">",
+  "        <node index=\"0\" text=\"Zone Summary\" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" bounds=\"[84,456][340,520]\" />",
+  "        <node index=\"1\" text=\"3 active\" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" bounds=\"[84,550][280,612]\" />",
+  "      </node>",
+  "      <node index=\"4\" text=\"\" resource-id=\"\" class=\"android.view.View\" package=\"au.com.polyaire.airtouch5\" bounds=\"[42,1078][1034,1714]\">",
+  "        <node index=\"0\" text=\"Schedules\" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" bounds=\"[84,1123][280,1187]\" />",
+  "        <node index=\"1\" text=\"No programs running\" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" bounds=\"[84,1217][480,1281]\" />",
+  "      </node>",
+  "      <node index=\"5\" text=\"Home\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[-2,2149][217,2299]\" />",
+  "      <node index=\"6\" text=\"Zones\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[215,2149][433,2299]\" />",
+  "      <node index=\"7\" text=\"Timer\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[430,2149][651,2299]\" />",
+  "      <node index=\"8\" text=\"Programs\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[648,2149][866,2299]\" />",
+  "      <node index=\"9\" text=\"Insights\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[863,2149][1084,2299]\" />",
+  "    </node>",
   "  </node>",
   "</hierarchy>",
 ].join("\n");
@@ -304,6 +355,32 @@ test("extractHomeScreenState marks the Home screen as powered off when live valu
 
 test("extractHomeScreenState does not treat a non-Home screen with bottom nav as Home", () => {
   const state = extractHomeScreenState(NON_HOME_NAV_XML);
+
+  assert.strictEqual(state.isHomeScreen, false);
+  assert.strictEqual(state.looksPoweredOn, false);
+  assert.strictEqual(state.modeValue, null);
+  assert.strictEqual(state.fanLevelValue, null);
+});
+
+test("detectPoweredOffHomeSkeleton matches the powered-off emulator Home shell only", () => {
+  const positive = extractHomeScreenState(HOME_OFF_EMULATOR_XML);
+  const negative = extractHomeScreenState(NON_HOME_STACKED_PANELS_XML);
+
+  assert.strictEqual(detectPoweredOffHomeSkeleton(positive.nodes, positive.viewport), true);
+  assert.strictEqual(detectPoweredOffHomeSkeleton(negative.nodes, negative.viewport), false);
+});
+
+test("extractHomeScreenState recognizes the powered-off emulator Home layout", () => {
+  const state = extractHomeScreenState(HOME_OFF_EMULATOR_XML);
+
+  assert.strictEqual(state.isHomeScreen, true);
+  assert.strictEqual(state.looksPoweredOn, false);
+  assert.strictEqual(state.modeValue, null);
+  assert.strictEqual(state.fanLevelValue, null);
+});
+
+test("extractHomeScreenState does not treat titled stacked panels as Home", () => {
+  const state = extractHomeScreenState(NON_HOME_STACKED_PANELS_XML);
 
   assert.strictEqual(state.isHomeScreen, false);
   assert.strictEqual(state.looksPoweredOn, false);
