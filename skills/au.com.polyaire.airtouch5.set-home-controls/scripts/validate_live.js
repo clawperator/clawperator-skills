@@ -8,7 +8,7 @@ const SKILL_ID = "au.com.polyaire.airtouch5.set-home-controls";
 function parseArgs(argv) {
   const parsed = {
     deviceId: "",
-    registry: resolve(__dirname, "../skills/skills-registry.json"),
+    registry: resolve(__dirname, "../../skills-registry.json"),
   };
 
   for (let index = 2; index < argv.length; index += 1) {
@@ -31,7 +31,7 @@ function parseArgs(argv) {
 
 function usage() {
   return [
-    "Usage: scripts/validate_airtouch_home_controls_live.js --device <device_serial> [--registry <path>]",
+    "Usage: skills/au.com.polyaire.airtouch5.set-home-controls/scripts/validate_live.js --device <device_serial> [--registry <path>]",
     "",
     "Runs the live AirTouch Home-controls transition proof on a connected device.",
   ].join("\n");
