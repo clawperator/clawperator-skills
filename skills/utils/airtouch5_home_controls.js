@@ -614,6 +614,8 @@ async function openChoiceDialogFromHome({ deviceId, operatorPackage, inputKey, a
     const nextHomeState = await observeHomeStateWithoutNavigation(deviceId, operatorPackage, { maxAttempts: 2 });
     if (nextHomeState && nextHomeState.looksPoweredOn) {
       observedHomeState = nextHomeState;
+    } else if (attempt < maxAttempts) {
+      throw lastError || new Error("Could not re-observe powered-on Home before retrying the selector-open click.");
     }
   }
 
@@ -674,6 +676,10 @@ function shouldRetryPowerToggle() {
 
 function scopedCheckpointId(scope, id) {
   return scope ? `${scope}_${id}` : id;
+}
+
+function appendMutationStartedCheckpoint(result, scope, note, evidence) {
+  appendCheckpoint(result, scopedCheckpointId(scope, "mutation_started"), "ok", note, evidence);
 }
 
 function mergePowerStateEvidence(homeState, visualState) {
@@ -777,6 +783,12 @@ async function applyPowerStateFromHome({
   };
 
   if (currentState !== requestedState) {
+    appendMutationStartedCheckpoint(
+      result,
+      checkpointPrefix,
+      `About to tap the power control at (${center.x},${center.y}).`,
+      { kind: "json", value: { target: requestedState, controlBounds: powerBounds } },
+    );
     clickCoordinate(deviceId, operatorPackage, center.x, center.y);
     tapsApplied += 1;
     const firstAttempt = await observePowerTransition(
@@ -848,6 +860,12 @@ async function applyCyclingSettingFromHome({
   };
 
   if (currentValue !== requestedValue) {
+    appendMutationStartedCheckpoint(
+      result,
+      checkpointPrefix,
+      `About to change ${inputKey.replace("_", " ")} from ${currentValue} to ${requestedValue}.`,
+      { kind: "json", value: { target: requestedValue, controlBounds } },
+    );
     const dialogOpen = await openChoiceDialogFromHome({
       deviceId,
       operatorPackage,

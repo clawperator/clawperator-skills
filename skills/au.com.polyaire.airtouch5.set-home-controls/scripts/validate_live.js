@@ -61,6 +61,9 @@ function isRetriableRuntimeFailure(skillResult) {
   const lastCheckpoint = checkpoints.at(-1);
   const mutatingActionStarted = checkpoints.some((checkpoint) => {
     const id = String(checkpoint.id || "");
+    if (id.endsWith("mutation_started")) {
+      return true;
+    }
     if (id === "mode_action_applied" || id === "fan_level_action_applied") {
       return true;
     }
@@ -109,7 +112,7 @@ function runSkillOnce({ deviceId, registry, request }) {
     return {
       ok: false,
       skillResult: payload.skillResult || null,
-      note: payload.skillResult?.checkpoints?.at(-1)?.note || payload.message || "skill failed",
+      note: sanitizePreview(payload.skillResult?.checkpoints?.at(-1)?.note || payload.message || "skill failed"),
     };
   }
 
@@ -137,7 +140,7 @@ function runSkill({ deviceId, registry, request }) {
     break;
   }
 
-  throw new Error(`Skill command failed: ${lastFailure?.note || "skill failed"}`);
+  throw new Error(`Skill command failed: ${sanitizePreview(lastFailure?.note || "skill failed")}`);
 }
 
 function assertTransitionResult(name, skillResult, expected, { requireNoPowerTap = true } = {}) {
@@ -209,7 +212,7 @@ async function main() {
     },
   ];
 
-  console.log(`Using registry: ${parsed.registry}`);
+  console.log(`Using registry: ${sanitizePreview(parsed.registry)}`);
   console.log(`Running ${transitions.length} live AirTouch transition checks on selected device.`);
 
   for (const transition of transitions) {

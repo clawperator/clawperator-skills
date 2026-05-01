@@ -334,7 +334,7 @@ test("runCyclingSettingSkill opens the selector and verifies the requested mode"
     assert.strictEqual(skillResult.diagnostics.finalValue, "heat");
     assert.deepStrictEqual(
       skillResult.checkpoints.map((checkpoint) => checkpoint.id),
-      ["app_opened", "home_screen_ready", "power_current_value_read", "current_value_read", "action_applied", "terminal_state_verified"],
+      ["app_opened", "home_screen_ready", "power_current_value_read", "current_value_read", "mutation_started", "action_applied", "terminal_state_verified"],
     );
     assert.strictEqual(commandCalls.filter((call) => call.command === "click").length, 2);
   } finally {
@@ -578,9 +578,11 @@ test("runHomeControlsSkill opens AirTouch once, turns power on first, and verifi
         "app_opened",
         "home_screen_ready",
         "power_current_value_read",
+        "power_mutation_started",
         "power_action_applied",
         "home_controls_visible",
         "fan_level_current_value_read",
+        "fan_level_mutation_started",
         "fan_level_action_applied",
         "terminal_state_verified",
       ],
