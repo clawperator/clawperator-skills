@@ -54,6 +54,7 @@ const HOME_OFF_XML = [
 
 const HOME_HEAT_XML = HOME_XML.replace('text="Cool"', 'text="Heat"');
 const HOME_HIGH_XML = HOME_XML.replace('text="Low"', 'text="High"');
+const HOME_HEAT_HIGH_XML = HOME_HEAT_XML.replace('text="Low"', 'text="High"');
 
 const HOME_WITH_PLACEHOLDER_XML = [
   "<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>",
@@ -342,6 +343,7 @@ test("runHomeControlsSkill opens AirTouch once, turns power on first, and verifi
     buildSnapshotResult(HOME_XML),
     buildSnapshotResult(FAN_DIALOG_XML),
     buildSnapshotResult(HOME_HIGH_XML),
+    buildSnapshotResult(HOME_HIGH_XML),
   ];
   const classifiedStates = ["off", "on"];
   const logLines = [];
@@ -401,6 +403,52 @@ test("runHomeControlsSkill opens AirTouch once, turns power on first, and verifi
     );
     assert.strictEqual(commandCalls.filter((call) => call.command === "open").length, 1);
     assert.strictEqual(commandCalls.filter((call) => call.command === "click").length, 3);
+  } finally {
+    console.log = originalLog;
+    setAirTouchHomeControlsDepsForTest(null);
+  }
+});
+
+test("runHomeControlsSkill verifies mode and fan from one final Home snapshot", async () => {
+  const snapshotResponses = [
+    buildSnapshotResult(HOME_XML),
+    buildSnapshotResult(MODE_DIALOG_XML),
+    buildSnapshotResult(HOME_HEAT_XML),
+    buildSnapshotResult(FAN_DIALOG_XML),
+    buildSnapshotResult(HOME_HEAT_HIGH_XML),
+    buildSnapshotResult(HOME_HIGH_XML),
+  ];
+  const logLines = [];
+  const originalLog = console.log;
+
+  setAirTouchHomeControlsDepsForTest({
+    runClawperatorCommand: (command) => {
+      if (command === "snapshot") {
+        return { ok: true, result: snapshotResponses.shift() };
+      }
+      return { ok: true, result: buildJsonResult() };
+    },
+    sleep: async () => {},
+  });
+  console.log = (...args) => {
+    logLines.push(args.join(" "));
+  };
+
+  try {
+    const exitCode = await runHomeControlsSkill({
+      skillId: "au.com.polyaire.airtouch5.set-home-controls",
+      request: { state: null, fanLevel: "high", mode: "heat" },
+      parseErrors: [],
+      deviceId: "<device_serial>",
+    });
+
+    const skillResult = captureSkillResult(logLines);
+    assert.strictEqual(exitCode, 1);
+    assert.strictEqual(skillResult.status, "failed");
+    assert.deepStrictEqual(skillResult.terminalVerification.expected.value, { mode: "heat", fan_level: "high" });
+    assert.deepStrictEqual(skillResult.terminalVerification.observed.value, { mode: "cool", fan_level: "high" });
+    assert.match(skillResult.terminalVerification.note, /mode expected heat but observed cool/);
+    assert.deepStrictEqual(skillResult.diagnostics.finalValues, { mode: "cool", fan_level: "high" });
   } finally {
     console.log = originalLog;
     setAirTouchHomeControlsDepsForTest(null);

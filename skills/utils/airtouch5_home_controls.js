@@ -1087,6 +1087,16 @@ async function runHomeControlsSkill({ skillId, request, parseErrors, deviceId })
       result.diagnostics.fanLevelControlBounds = appliedFan.diagnostics.controlBounds;
     }
 
+    if (request.mode || request.fanLevel) {
+      homeState = await waitForHomeState(deviceId, operatorPackage, { maxAttempts: 6 });
+      if (request.mode) {
+        finalValues.mode = homeState.modeValue || null;
+      }
+      if (request.fanLevel) {
+        finalValues.fan_level = homeState.fanLevelValue || null;
+      }
+    }
+
     const failures = Object.entries(requestedFinalValues)
       .filter(([key, expected]) => finalValues[key] !== expected)
       .map(([key, expected]) => `${key} expected ${expected} but observed ${finalValues[key] || "unknown"}`);
