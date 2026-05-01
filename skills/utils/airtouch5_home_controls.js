@@ -448,6 +448,92 @@ function detectControlSlots(nodes, homeRootBounds) {
   return uniqueCandidates.sort((left, right) => left.left - right.left);
 }
 
+function detectPoweredOffHomeSkeleton(nodes, viewport) {
+  const viewportWidth = Math.max(1, boundsWidth(viewport));
+  const viewportHeight = Math.max(1, boundsHeight(viewport));
+  const headerLogoPresent = nodes.some((node) => node.className === "android.widget.Image"
+    && normalizeChoiceValue(node.text).startsWith("header_logo_")
+    && node.bounds.top <= viewport.top + viewportHeight * 0.18);
+  if (!headerLogoPresent) {
+    return false;
+  }
+
+  const navLabels = ["home", "zones", "timer", "programs", "insights"];
+  const navCount = navLabels.filter((label) => nodes.some((node) => normalizeChoiceValue(node.text) === label)).length;
+  if (navCount < 4) {
+    return false;
+  }
+
+  const minWidth = viewportWidth * 0.85;
+  const minHeight = viewportHeight * 0.18;
+  const maxHeight = viewportHeight * 0.32;
+  const panelTopFloor = viewport.top + viewportHeight * 0.14;
+  const panelBottomCeiling = viewport.bottom - viewportHeight * 0.18;
+
+  const panels = nodes
+    .filter((node) => {
+      const width = boundsWidth(node.bounds);
+      const height = boundsHeight(node.bounds);
+      if (width < minWidth || height < minHeight || height > maxHeight) {
+        return false;
+      }
+      if (node.bounds.top < panelTopFloor || node.bounds.bottom > panelBottomCeiling) {
+        return false;
+      }
+      return true;
+    })
+    .sort((left, right) => left.bounds.top - right.bounds.top);
+
+  if (panels.length !== 2) {
+    return false;
+  }
+
+  const panelGap = panels[1].bounds.top - panels[0].bounds.bottom;
+  if (panelGap < viewportHeight * 0.01 || panelGap > viewportHeight * 0.08) {
+    return false;
+  }
+
+  return panels.every((panel) => {
+    const panelTextNodes = nodes
+      .filter((node) => node.bounds.left >= panel.bounds.left
+        && node.bounds.right <= panel.bounds.right
+        && node.bounds.top >= panel.bounds.top
+        && node.bounds.bottom <= panel.bounds.bottom
+        && node.className === "android.widget.TextView");
+    const nonBlankTexts = panelTextNodes
+      .map((node) => normalizeChoiceValue(node.text))
+      .filter((text) => text.length > 0);
+    const blankTextCount = panelTextNodes
+      .map((node) => normalizeChoiceValue(node.text))
+      .filter((text) => text === "").length;
+
+    return nonBlankTexts.length === 0 && blankTextCount >= 2;
+  });
+}
+
+function detectFocusedBottomNavLabel(xml) {
+  const navLabels = new Set(["home", "zones", "timer", "programs", "insights"]);
+  const nodeRegex = /<node\s+([^>]*)(?:\/>|>)/g;
+  let match;
+  while ((match = nodeRegex.exec(xml)) !== null) {
+    const attrs = {};
+    const attrRegex = /([A-Za-z0-9_:-]+)="([^"]*)"/g;
+    let attrMatch;
+    while ((attrMatch = attrRegex.exec(match[1])) !== null) {
+      attrs[attrMatch[1]] = attrMatch[2];
+    }
+    if (attrs.class !== "android.widget.Button" || attrs.focused !== "true") {
+      continue;
+    }
+    const label = normalizeChoiceValue(attrs.text || "");
+    if (navLabels.has(label)) {
+      return label;
+    }
+  }
+
+  return null;
+}
+
 function buildFallbackControlSlots(viewport) {
   const width = Math.max(1, boundsWidth(viewport));
   const height = Math.max(1, boundsHeight(viewport));
@@ -556,6 +642,7 @@ function extractChoiceDialogState(xml, allowedValues) {
 function extractHomeScreenState(xml) {
   const nodes = parseXmlNodes(xml);
   const viewport = computeViewport(nodes);
+  const activeNavLabel = detectFocusedBottomNavLabel(xml);
   const homeRoot = nodes.find((node) => node.resourceId === "comp-home-single-ac");
   const detectedSlots = homeRoot ? detectControlSlots(nodes, homeRoot.bounds) : [];
   const fallbackSlots = buildFallbackControlSlots(viewport);
@@ -567,11 +654,14 @@ function extractHomeScreenState(xml) {
   const setPointVisible = nodes.some((node) => normalizeChoiceValue(node.text) === "set point");
   const navLabels = ["home", "zones", "timer", "programs", "insights"];
   const navCount = navLabels.filter((label) => nodes.some((node) => normalizeChoiceValue(node.text) === label)).length;
+  const poweredOffHomeSkeleton = !homeRoot && !modeValue && !fanLevelValue && !setPointVisible
+    ? activeNavLabel === "home" && detectPoweredOffHomeSkeleton(nodes, viewport)
+    : false;
 
   return {
     nodes,
     viewport,
-    isHomeScreen: navCount >= 4 && (Boolean(homeRoot) || Boolean(modeValue) || Boolean(fanLevelValue) || setPointVisible),
+    isHomeScreen: navCount >= 4 && (Boolean(homeRoot) || Boolean(modeValue) || Boolean(fanLevelValue) || setPointVisible || poweredOffHomeSkeleton),
     homeRootBounds: homeRoot ? homeRoot.bounds : null,
     controlSlots: {
       power: powerBounds,
@@ -1437,9 +1527,11 @@ module.exports = {
   classifyPowerState,
   extractChoiceDialogState,
   extractHomeScreenState,
+  detectFocusedBottomNavLabel,
   parseChoiceArg,
   parseHomeControlsArgs,
   parseNamedChoiceArg,
+  detectPoweredOffHomeSkeleton,
   splitDeviceAndArgs,
   parseXmlNodes,
   mergePowerStateEvidence,
