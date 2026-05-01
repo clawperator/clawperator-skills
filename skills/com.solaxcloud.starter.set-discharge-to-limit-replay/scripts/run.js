@@ -288,7 +288,7 @@ function buildExecution(name, timeoutMs, actions) {
 function snapshotUi(name) {
   return runClawperatorExecution(
     buildExecution(name, 5000, [
-      { id: "snapshot", type: "snapshot_ui", params: {} },
+      { id: "snapshot", type: "snapshot", params: {} },
     ])
   );
 }

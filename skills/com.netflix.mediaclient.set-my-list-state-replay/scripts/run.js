@@ -84,10 +84,14 @@ function getStepResults(parsed) {
   return [];
 }
 
+function isSnapshotStep(step) {
+  return step?.actionType === "snapshot" || step?.actionType === "snapshot_ui";
+}
+
 function extractSnapshotText(snapshotOutput) {
   try {
     const parsed = JSON.parse(snapshotOutput);
-    const snapshotStep = getStepResults(parsed).find((step) => step?.actionType === "snapshot_ui" && typeof step?.data?.text === "string");
+    const snapshotStep = getStepResults(parsed).find((step) => isSnapshotStep(step) && typeof step?.data?.text === "string");
     if (snapshotStep?.data?.text) {
       return snapshotStep.data.text;
     }

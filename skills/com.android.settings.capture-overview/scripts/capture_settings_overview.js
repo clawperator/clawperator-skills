@@ -28,7 +28,7 @@ const execution = {
     { id: "wait_close", type: "sleep", params: { durationMs: 1500 } },
     { id: "open", type: "open_app", params: { applicationId: settingsAppId } },
     { id: "settle", type: "sleep", params: { durationMs: 3000 } },
-    { id: "snap", type: "snapshot_ui" }
+    { id: "snap", type: "snapshot" }
   ]
 };
 

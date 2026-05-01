@@ -289,7 +289,7 @@ function buildOpenControllerActions() {
       type: "read_text",
       params: { matcher: { resourceId: "com.google.android.apps.chromecast.app:id/low_value" } },
     },
-    { id: "snap_controller", type: "snapshot_ui" },
+    { id: "snap_controller", type: "snapshot" },
   ];
 }
 

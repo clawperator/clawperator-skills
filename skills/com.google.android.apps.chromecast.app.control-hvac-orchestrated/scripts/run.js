@@ -384,7 +384,7 @@ function buildPrompt(skillProgram) {
         timeoutMs: 20000,
       },
     },
-    { id: "snap_controller", type: "snapshot_ui", params: {} },
+    { id: "snap_controller", type: "snapshot", params: {} },
   ]);
   const readTemperatureCommand = buildExecCommand(`${skillId}-read-temperature`, 30000, [
     {
@@ -420,7 +420,7 @@ function buildPrompt(skillProgram) {
     },
   ]);
   const readFanCommand = buildExecCommand(`${skillId}-read-fan`, 30000, [
-    { id: "snap_controller", type: "snapshot_ui", params: {} },
+    { id: "snap_controller", type: "snapshot", params: {} },
   ]);
   const setFanCommand = buildExecCommand(`${skillId}-set-fan`, 30000, [
     {
@@ -454,7 +454,7 @@ function buildPrompt(skillProgram) {
       },
     },
     { id: "wait_return", type: "sleep", params: { durationMs: 2500 } },
-    { id: "snap_controller", type: "snapshot_ui", params: {} },
+    { id: "snap_controller", type: "snapshot", params: {} },
   ]);
   return [
     `You are the runtime agent for the Clawperator skill '${skillId}'.`,
@@ -514,7 +514,7 @@ function buildPrompt(skillProgram) {
     "- long_click",
     "- wait_for_node",
     "- read_text",
-    "- snapshot_ui",
+    "- snapshot",
     "",
     "Google Home selectors and labels:",
     "- app id: com.google.android.apps.chromecast.app",

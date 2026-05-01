@@ -8,7 +8,7 @@ Runs a minimal OEM-agnostic baseline on `com.android.settings`:
 1. `close_app`
 2. `open_app`
 3. settle delay (increased from 2s to 3s for reliability)
-4. `snapshot_ui`
+4. `snapshot`
 5. snapshot text written to file
 
 Usage:
@@ -32,7 +32,7 @@ Optional env:
 Output format:
 
 - `TEXT_BEGIN`
-- `<snapshot_ui text>`
+- `<snapshot text>`
 - `TEXT_END`
 - `SCREENSHOT|path=<absolute_file_path>`
 - `SNAPSHOT|path=<absolute_file_path>`

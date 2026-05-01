@@ -72,20 +72,20 @@ function buildProbeExecution(scrollCount, dismissOverlay) {
     { id: 'wait_close', type: 'sleep', params: { durationMs: 1500 } },
     { id: 'open', type: 'open_app', params: { applicationId: 'com.life360.android.safetymapd' } },
     { id: 'wait_open', type: 'sleep', params: { durationMs: 8000 } },
-    { id: 'snap_0', type: 'snapshot_ui' }
+    { id: 'snap_0', type: 'snapshot' }
   ];
 
   if (dismissOverlay) {
     actions.push(
       { id: 'dismiss_overlay', type: 'click', params: { matcher: { resourceId: 'com.life360.android.safetymapd:id/tooltipClose' } } },
       { id: 'wait_overlay', type: 'sleep', params: { durationMs: 1000 } },
-      { id: 'snap_overlay', type: 'snapshot_ui' }
+      { id: 'snap_overlay', type: 'snapshot' }
     );
   }
 
   for (let i = 0; i < scrollCount; i += 1) {
     actions.push({ id: `scroll_${i + 1}`, type: 'scroll', params: { direction: 'down', settleDelayMs: 1200 } });
-    actions.push({ id: `snap_${i + 1}`, type: 'snapshot_ui' });
+    actions.push({ id: `snap_${i + 1}`, type: 'snapshot' });
   }
 
   return {
@@ -120,7 +120,7 @@ function buildSelectExecution(scrollCount, exactName, dismissOverlay) {
   actions.push(
     { id: 'click-person', type: 'click', params: { matcher: { textEquals: exactName } } },
     { id: 'wait_detail', type: 'sleep', params: { durationMs: 3000 } },
-    { id: 'snap', type: 'snapshot_ui' }
+    { id: 'snap', type: 'snapshot' }
   );
 
   return {

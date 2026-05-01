@@ -274,7 +274,7 @@ function buildOpenSnapshotExecution() {
       type: "wait_for_node",
       params: { matcher: { resourceId: `${CLIMATE_APP_RESOURCE_PREFIX}/action_bar_root` }, timeoutMs: 15000 },
     },
-    { id: "snap", type: "snapshot_ui" },
+    { id: "snap", type: "snapshot" },
   ], 30000);
 }
 
@@ -328,7 +328,7 @@ function buildNavigateToControllerExecution() {
       type: "wait_for_node",
       params: { matcher: { resourceId: `${CLIMATE_APP_RESOURCE_PREFIX}/first_value_title` }, timeoutMs: 15000 },
     },
-    { id: "snap", type: "snapshot_ui" },
+    { id: "snap", type: "snapshot" },
   ]);
 }
 

@@ -4,7 +4,7 @@ const { mkdtemp, rm, writeFile } = require('node:fs/promises');
 const { join } = require('node:path');
 const { tmpdir } = require('node:os');
 
-const { normalizeTimeoutMs, resolveClawperatorBin, resolveOperatorPackage, runClawperatorCommand, setExecFileSyncForTest } = require('./common');
+const { isSnapshotStep, normalizeTimeoutMs, resolveClawperatorBin, resolveOperatorPackage, runClawperatorCommand, setExecFileSyncForTest } = require('./common');
 
 test('resolveOperatorPackage prefers an explicit package over env var', () => {
   const original = process.env.CLAWPERATOR_OPERATOR_PACKAGE;
@@ -144,6 +144,12 @@ test('normalizeTimeoutMs only accepts finite positive timeout values', () => {
   assert.strictEqual(normalizeTimeoutMs(Number.NaN), null);
   assert.strictEqual(normalizeTimeoutMs('30000'), null);
   assert.strictEqual(normalizeTimeoutMs(undefined), null);
+});
+
+test('isSnapshotStep accepts canonical and legacy snapshot action names', () => {
+  assert.strictEqual(isSnapshotStep({ actionType: 'snapshot' }), true);
+  assert.strictEqual(isSnapshotStep({ actionType: 'snapshot_ui' }), true);
+  assert.strictEqual(isSnapshotStep({ actionType: 'click' }), false);
 });
 
 test('runClawperatorCommand forwards normalized timeoutMs to execFileSync', () => {

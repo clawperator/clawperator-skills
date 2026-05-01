@@ -5,7 +5,7 @@ const { join } = require("node:path");
 const { tmpdir } = require("node:os");
 const zlib = require("node:zlib");
 
-const { readPngRgba } = require("./airtouch5_snapshot.js");
+const { extractSnapshotXml, readPngRgba } = require("./airtouch5_snapshot.js");
 
 function buildChunk(type, data) {
   const length = Buffer.alloc(4);
@@ -62,5 +62,22 @@ test("readPngRgba rejects truncated scanline data", async () => {
     );
   } finally {
     await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("extractSnapshotXml accepts canonical and legacy snapshot action names", () => {
+  for (const actionType of ["snapshot", "snapshot_ui"]) {
+    const rawResult = {
+      envelope: {
+        stepResults: [
+          {
+            actionType,
+            data: { text: "<hierarchy />" },
+          },
+        ],
+      },
+    };
+
+    assert.strictEqual(extractSnapshotXml(rawResult), "<hierarchy />");
   }
 });

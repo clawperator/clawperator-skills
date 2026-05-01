@@ -94,7 +94,7 @@ function buildSnapshotResult(xml, foregroundPackage = "au.com.polyaire.airtouch5
     envelope: {
       stepResults: [
         {
-          actionType: "snapshot_ui",
+          actionType: "snapshot",
           data: {
             foreground_package: foregroundPackage,
             text: xml,

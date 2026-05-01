@@ -11,6 +11,7 @@ const {
   boundsWidth,
   classifyPowerState,
   extractSnapshotXml,
+  isSnapshotStep,
   parseXmlNodes,
   readPngRgba,
 } = require("./airtouch5_snapshot.js");
@@ -158,7 +159,7 @@ function parseChoiceArg(args, { flag, allowedValues }) {
 }
 
 function extractForegroundPackage(rawResult) {
-  const foregroundPackage = rawResult?.envelope?.stepResults?.find((step) => step.actionType === "snapshot_ui")?.data?.foreground_package;
+  const foregroundPackage = rawResult?.envelope?.stepResults?.find((step) => isSnapshotStep(step))?.data?.foreground_package;
   return typeof foregroundPackage === "string" ? foregroundPackage : "";
 }
 

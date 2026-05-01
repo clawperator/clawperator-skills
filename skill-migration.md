@@ -68,12 +68,12 @@ Registry notes:
 
 ### `com.coles.search-products`
 - Status: fixed, then pass
-- Finding: the skill still sent `snapshot_ui` with `format: "ascii"`, which the executor rejects.
+- Finding: the skill still sent `snapshot` with `format: "ascii"`, which the executor rejects.
 - Fix: removed the unsupported `format` field from the snapshot action.
 
 ### `com.woolworths.search-products`
 - Status: fixed, then pass
-- Finding 1: the skill still sent `snapshot_ui` with `format: "ascii"`, which the executor rejects.
+- Finding 1: the skill still sent `snapshot` with `format: "ascii"`, which the executor rejects.
 - Finding 2: the Woolworths UI uses `Search products, search field` and `role: textfield`, not the old `search_view_blocker` / `search_src_text` selectors.
 - Fix: removed the unsupported `format` field and updated the search selectors to the current UI.
 
@@ -109,7 +109,7 @@ Registry notes:
 
 ## Summary of Repo Changes
 
-- Removed unsupported `snapshot_ui` `format: "ascii"` parameters from:
+- Removed unsupported `snapshot` `format: "ascii"` parameters from:
   - `skills/com.coles.search-products/scripts/search_coles_products.js`
   - `skills/com.woolworths.search-products/scripts/search_woolworths_products.js`
   - `skills/com.life360.android.safetymapd.get-location/scripts/get_life360_location.js`

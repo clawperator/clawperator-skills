@@ -21,7 +21,7 @@
     },
     {
       "id": "snap",
-      "type": "snapshot_ui",
+      "type": "snapshot",
       "params": {}
     },
     {

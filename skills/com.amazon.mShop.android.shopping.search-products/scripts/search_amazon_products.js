@@ -23,6 +23,14 @@ const MAX_SCROLLS = 3;
 const SCROLL_SETTLE_DELAY_MS = 1800;
 const skillId = 'com.amazon.mShop.android.shopping.search-products';
 
+function isSnapshotStep(step) {
+  return step && (step.actionType === 'snapshot' || step.actionType === 'snapshot_ui');
+}
+
+function isSnapshotActionType(actionType) {
+  return actionType === 'snapshot' || actionType === 'snapshot_ui';
+}
+
 const deviceId = process.argv[2] || process.env.DEVICE_ID;
 const rawQuery = process.argv[3] || process.env.QUERY || '';
 const query = rawQuery.trim();
@@ -50,7 +58,7 @@ function buildOpenProbeExecution(commandId) {
       { id: 'wait_close', type: 'sleep', params: { durationMs: 1500 } },
       { id: 'open', type: 'open_app', params: { applicationId: APPLICATION_ID } },
       { id: 'wait_open', type: 'sleep', params: { durationMs: 8000 } },
-      { id: 'snap', type: 'snapshot_ui' }
+      { id: 'snap', type: 'snapshot' }
     ]
   };
 }
@@ -95,7 +103,7 @@ function buildExecution({ surface, clickSuggestion, suggestionLabel, commandId }
     );
   }
 
-  actions.push({ id: 'snap', type: 'snapshot_ui' });
+  actions.push({ id: 'snap', type: 'snapshot' });
 
   return {
     commandId,
@@ -120,7 +128,7 @@ function buildScrollExecution(commandId) {
         type: 'scroll',
         params: { direction: 'down', settleDelayMs: SCROLL_SETTLE_DELAY_MS }
       },
-      { id: 'snap', type: 'snapshot_ui' }
+      { id: 'snap', type: 'snapshot' }
     ]
   };
 }
@@ -132,7 +140,7 @@ function buildSnapshotExecution(commandId, waitMs = 0) {
     actions.push({ id: 'wait', type: 'sleep', params: { durationMs: waitMs } });
   }
 
-  actions.push({ id: 'snap', type: 'snapshot_ui' });
+  actions.push({ id: 'snap', type: 'snapshot' });
 
   return {
     commandId,
@@ -153,7 +161,7 @@ function getSnapshotText(result) {
 function getSnapshotStepResults(result, prefix = null) {
   const steps = (result && result.envelope && result.envelope.stepResults) || [];
   return steps.filter((step) => {
-    if (step.actionType !== 'snapshot_ui' || !step.data) {
+    if (!isSnapshotStep(step) || !step.data) {
       return false;
     }
     if (prefix === null) {
@@ -250,7 +258,7 @@ function pressEnterKey() {
 
 function sanitizeStepData(actionType, data) {
   const sanitized = { ...data };
-  if (actionType === 'snapshot_ui' && typeof sanitized.text === 'string') {
+  if (isSnapshotActionType(actionType) && typeof sanitized.text === 'string') {
     sanitized.snapshot_text_omitted = 'true';
     sanitized.snapshot_text_length = String(sanitized.text.length);
     delete sanitized.text;

@@ -124,8 +124,12 @@ function resolveOperatorPackage(explicitPkg) {
   return 'com.clawperator.operator';
 }
 
+function isSnapshotStep(step) {
+  return step && (step.actionType === 'snapshot' || step.actionType === 'snapshot_ui');
+}
+
 /**
- * Check whether any snapshot_ui step in the result indicates extraction failure
+ * Check whether any snapshot step in the result indicates extraction failure
  * and emit a diagnostic warning to stderr if so.
  */
 function warnOnSnapshotExtractionFailure(result) {
@@ -133,13 +137,13 @@ function warnOnSnapshotExtractionFailure(result) {
   if (!envelope || !Array.isArray(envelope.stepResults)) return;
 
   for (const step of envelope.stepResults) {
-    if (step.actionType !== 'snapshot_ui') continue;
+    if (!isSnapshotStep(step)) continue;
 
     const isExtractionFailure = !step.success && step.data && step.data.error === 'SNAPSHOT_EXTRACTION_FAILED';
 
     if (isExtractionFailure) {
       process.stderr.write(
-        `[clawperator-skills] WARNING: snapshot_ui step "${step.id}" extraction failed` +
+        `[clawperator-skills] WARNING: snapshot step "${step.id}" extraction failed` +
         ' (SNAPSHOT_EXTRACTION_FAILED)' +
         '. This is a known issue when the clawperator binary is out\n' +
         'of date with the Android Operator APK.\n' +
@@ -293,6 +297,7 @@ module.exports = {
   findAttribute,
   resolveClawperatorBin,
   resolveOperatorPackage,
+  isSnapshotStep,
   parseCommandSpec,
   logSkillProgress,
   normalizeTimeoutMs,

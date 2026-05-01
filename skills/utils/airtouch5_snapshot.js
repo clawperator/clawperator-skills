@@ -72,8 +72,12 @@ function parseXmlNodes(xml) {
   return nodes;
 }
 
+function isSnapshotStep(step) {
+  return step?.actionType === "snapshot" || step?.actionType === "snapshot_ui";
+}
+
 function extractSnapshotXml(rawResult) {
-  const xml = rawResult?.envelope?.stepResults?.find((step) => step.actionType === "snapshot_ui")?.data?.text;
+  const xml = rawResult?.envelope?.stepResults?.find((step) => isSnapshotStep(step))?.data?.text;
   if (typeof xml !== "string" || xml.length === 0) {
     throw new Error("snapshot did not return hierarchy XML");
   }
@@ -269,6 +273,7 @@ module.exports = {
   classifyPowerState,
   decodeEntities,
   extractSnapshotXml,
+  isSnapshotStep,
   parseBounds,
   parseXmlNodes,
   readPngRgba,

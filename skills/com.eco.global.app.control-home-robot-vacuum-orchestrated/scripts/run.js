@@ -194,13 +194,13 @@ function buildOpenAppExecution() {
   return buildExecution(`${skillId}-open-app`, [
     { id: "close", type: "close_app", params: { applicationId } },
     { id: "open", type: "open_app", params: { applicationId } },
-    { id: "snapshot", type: "snapshot_ui" },
+    { id: "snapshot", type: "snapshot" },
   ]);
 }
 
 function buildSnapshotExecution(commandId) {
   return buildExecution(commandId, [
-    { id: "snapshot", type: "snapshot_ui" },
+    { id: "snapshot", type: "snapshot" },
   ]);
 }
 
@@ -212,7 +212,7 @@ function buildTapExecution(commandId, label) {
       params: { matcher: { textEquals: label } },
     },
     { id: "wait_settle", type: "wait_for_node", params: { matcher: { textContains: "Docking" }, timeoutMs: 15000 } },
-    { id: "snapshot", type: "snapshot_ui" },
+    { id: "snapshot", type: "snapshot" },
   ]);
 }
 

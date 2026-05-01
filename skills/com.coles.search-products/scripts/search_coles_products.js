@@ -54,7 +54,7 @@ function captureDirectSnapshot() {
   try {
     const parsed = JSON.parse(outcome.result);
     const steps = (parsed && parsed.envelope && parsed.envelope.stepResults) || [];
-    const snapStep = steps.find((step) => step && step.actionType === 'snapshot_ui')
+    const snapStep = steps.find((step) => step && step.actionType === 'snapshot')
       || steps.find((step) => step && step.data && typeof step.data.text === 'string');
     return {
       ok: true,
@@ -165,7 +165,7 @@ function buildSearchExecution(submit, useSuggestion) {
     );
   }
 
-  actions.push({ id: 'snap', type: 'snapshot_ui' });
+  actions.push({ id: 'snap', type: 'snapshot' });
 
   return {
     commandId,
