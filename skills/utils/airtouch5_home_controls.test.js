@@ -163,6 +163,10 @@ test("parseHomeControlsArgs rejects empty and contradictory Home control request
     parseHomeControlsArgs(["--state", "off", "--fan-level", "low"]).errors,
     ["Do not combine --state off with --fan-level or --mode; Home controls are not adjustable while power is off."],
   );
+  assert.deepStrictEqual(
+    parseHomeControlsArgs(["--mode", "dry", "--fan-level", "medium"]).errors,
+    ["Do not combine --mode dry with --fan-level; AirTouch does not expose a fan level to verify in Dry mode."],
+  );
 });
 
 test("extractHomeScreenState reads live mode and fan values from the Home screen", () => {

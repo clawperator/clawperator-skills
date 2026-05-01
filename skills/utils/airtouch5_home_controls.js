@@ -215,6 +215,9 @@ function parseHomeControlsArgs(args) {
   if (request.state === "off" && (request.fanLevel || request.mode)) {
     errors.push("Do not combine --state off with --fan-level or --mode; Home controls are not adjustable while power is off.");
   }
+  if (request.mode === "dry" && request.fanLevel) {
+    errors.push("Do not combine --mode dry with --fan-level; AirTouch does not expose a fan level to verify in Dry mode.");
+  }
 
   return {
     request,

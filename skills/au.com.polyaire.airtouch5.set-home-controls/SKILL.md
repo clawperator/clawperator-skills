@@ -17,6 +17,10 @@ Arguments:
 At least one argument is required. Use canonical values only; wrapper layers may
 map natural language such as "highest" to `--fan-level high`.
 
+Do not combine `--mode dry` with `--fan-level`. AirTouch does not expose a
+fan-level value on the Home screen in Dry mode, so the skill cannot prove the
+requested fan level after setting that mode.
+
 Declared contract inputs:
 
 - `state`
@@ -29,6 +33,7 @@ Current behavior:
 - waits for the `Home` surface to stabilize
 - when `--state on` is combined with `--fan-level` or `--mode`, turns power on first and then verifies live Home controls are visible
 - rejects `--state off` when combined with `--fan-level` or `--mode`, because those controls are not safely adjustable while power is off
+- rejects `--mode dry` when combined with `--fan-level`, because Dry mode does not expose a verifiable Home-screen fan level
 - derives Home control hitboxes from the live Home geometry
 - uses the same selector dialog flow as the single-purpose fan and mode skills
 - uses the same screenshot crop power classification as the single-purpose power skill
