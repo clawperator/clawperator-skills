@@ -509,6 +509,36 @@ function detectPoweredOffHomeSkeleton(nodes, viewport) {
   });
 }
 
+function detectFocusedBottomNavLabel(xml) {
+  const nodeRegex = /<node\s+([^>]*)(?:\/>|>)/g;
+  let match;
+  while ((match = nodeRegex.exec(xml)) !== null) {
+    const attrs = {};
+    const attrRegex = /([A-Za-z0-9_:-]+)="([^"]*)"/g;
+    let attrMatch;
+    while ((attrMatch = attrRegex.exec(match[1])) !== null) {
+      attrs[attrMatch[1]] = attrMatch[2];
+    }
+    if (attrs.class !== "android.widget.Button" || attrs.focused !== "true") {
+      continue;
+    }
+    const bounds = /^\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]$/.exec(String(attrs.bounds || ""));
+    if (!bounds) {
+      continue;
+    }
+    const top = Number.parseInt(bounds[2], 10);
+    if (!Number.isFinite(top) || top < 2000) {
+      continue;
+    }
+    const label = normalizeChoiceValue(attrs.text || "");
+    if (label) {
+      return label;
+    }
+  }
+
+  return null;
+}
+
 function buildFallbackControlSlots(viewport) {
   const width = Math.max(1, boundsWidth(viewport));
   const height = Math.max(1, boundsHeight(viewport));
@@ -617,6 +647,7 @@ function extractChoiceDialogState(xml, allowedValues) {
 function extractHomeScreenState(xml) {
   const nodes = parseXmlNodes(xml);
   const viewport = computeViewport(nodes);
+  const activeNavLabel = detectFocusedBottomNavLabel(xml);
   const homeRoot = nodes.find((node) => node.resourceId === "comp-home-single-ac");
   const detectedSlots = homeRoot ? detectControlSlots(nodes, homeRoot.bounds) : [];
   const fallbackSlots = buildFallbackControlSlots(viewport);
@@ -629,7 +660,7 @@ function extractHomeScreenState(xml) {
   const navLabels = ["home", "zones", "timer", "programs", "insights"];
   const navCount = navLabels.filter((label) => nodes.some((node) => normalizeChoiceValue(node.text) === label)).length;
   const poweredOffHomeSkeleton = !homeRoot && !modeValue && !fanLevelValue && !setPointVisible
-    ? detectPoweredOffHomeSkeleton(nodes, viewport)
+    ? activeNavLabel === "home" && detectPoweredOffHomeSkeleton(nodes, viewport)
     : false;
 
   return {
@@ -1501,6 +1532,7 @@ module.exports = {
   classifyPowerState,
   extractChoiceDialogState,
   extractHomeScreenState,
+  detectFocusedBottomNavLabel,
   parseChoiceArg,
   parseHomeControlsArgs,
   parseNamedChoiceArg,

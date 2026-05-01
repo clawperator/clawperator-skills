@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 const {
   classifyPowerState,
+  detectFocusedBottomNavLabel,
   detectPoweredOffHomeSkeleton,
   extractChoiceDialogState,
   extractHomeScreenState,
@@ -84,11 +85,11 @@ const HOME_OFF_EMULATOR_XML = [
   "        <node index=\"1\" text=\" \" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" bounds=\"[330,1288][346,1341]\" />",
   "        <node index=\"2\" text=\" \" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" bounds=\"[273,1535][378,1601]\" />",
   "      </node>",
-  "      <node index=\"5\" text=\"Home\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[-2,2149][217,2299]\" />",
-  "      <node index=\"6\" text=\"Zones\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[215,2149][433,2299]\" />",
-  "      <node index=\"7\" text=\"Timer\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[430,2149][651,2299]\" />",
-  "      <node index=\"8\" text=\"Programs\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[648,2149][866,2299]\" />",
-  "      <node index=\"9\" text=\"Insights\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[863,2149][1084,2299]\" />",
+  "      <node index=\"5\" text=\"Home\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" focusable=\"true\" focused=\"true\" bounds=\"[-2,2149][217,2299]\" />",
+  "      <node index=\"6\" text=\"Zones\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" focusable=\"true\" focused=\"false\" bounds=\"[215,2149][433,2299]\" />",
+  "      <node index=\"7\" text=\"Timer\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" focusable=\"true\" focused=\"false\" bounds=\"[430,2149][651,2299]\" />",
+  "      <node index=\"8\" text=\"Programs\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" focusable=\"true\" focused=\"false\" bounds=\"[648,2149][866,2299]\" />",
+  "      <node index=\"9\" text=\"Insights\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" focusable=\"true\" focused=\"false\" bounds=\"[863,2149][1084,2299]\" />",
   "    </node>",
   "  </node>",
   "</hierarchy>",
@@ -108,11 +109,11 @@ const NON_HOME_STACKED_PANELS_XML = [
   "        <node index=\"0\" text=\"Schedules\" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" bounds=\"[84,1123][280,1187]\" />",
   "        <node index=\"1\" text=\"No programs running\" resource-id=\"\" class=\"android.widget.TextView\" package=\"au.com.polyaire.airtouch5\" bounds=\"[84,1217][480,1281]\" />",
   "      </node>",
-  "      <node index=\"5\" text=\"Home\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[-2,2149][217,2299]\" />",
-  "      <node index=\"6\" text=\"Zones\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[215,2149][433,2299]\" />",
-  "      <node index=\"7\" text=\"Timer\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[430,2149][651,2299]\" />",
-  "      <node index=\"8\" text=\"Programs\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[648,2149][866,2299]\" />",
-  "      <node index=\"9\" text=\"Insights\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" bounds=\"[863,2149][1084,2299]\" />",
+  "      <node index=\"5\" text=\"Home\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" focusable=\"true\" focused=\"false\" bounds=\"[-2,2149][217,2299]\" />",
+  "      <node index=\"6\" text=\"Zones\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" focusable=\"true\" focused=\"true\" bounds=\"[215,2149][433,2299]\" />",
+  "      <node index=\"7\" text=\"Timer\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" focusable=\"true\" focused=\"false\" bounds=\"[430,2149][651,2299]\" />",
+  "      <node index=\"8\" text=\"Programs\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" focusable=\"true\" focused=\"false\" bounds=\"[648,2149][866,2299]\" />",
+  "      <node index=\"9\" text=\"Insights\" resource-id=\"\" class=\"android.widget.Button\" package=\"au.com.polyaire.airtouch5\" focusable=\"true\" focused=\"false\" bounds=\"[863,2149][1084,2299]\" />",
   "    </node>",
   "  </node>",
   "</hierarchy>",
@@ -368,6 +369,12 @@ test("detectPoweredOffHomeSkeleton matches the powered-off emulator Home shell o
 
   assert.strictEqual(detectPoweredOffHomeSkeleton(positive.nodes, positive.viewport), true);
   assert.strictEqual(detectPoweredOffHomeSkeleton(negative.nodes, negative.viewport), false);
+});
+
+test("detectFocusedBottomNavLabel reads the active AirTouch tab", () => {
+  assert.strictEqual(detectFocusedBottomNavLabel(HOME_OFF_EMULATOR_XML), "home");
+  assert.strictEqual(detectFocusedBottomNavLabel(NON_HOME_STACKED_PANELS_XML), "zones");
+  assert.strictEqual(detectFocusedBottomNavLabel(NON_HOME_NAV_XML), null);
 });
 
 test("extractHomeScreenState recognizes the powered-off emulator Home layout", () => {
