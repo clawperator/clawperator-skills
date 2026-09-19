@@ -16,6 +16,7 @@ function fixture() {
  save('command-0.json',snap);
  const envelopes=[snap.envelope];
  for(const v of Object.values(fields)){const envelope={commandId:`r${v.readIndex}`,taskId:`r${v.readIndex}`,status:'success',stepResults:[{id:'read',actionType:'read_key_value_pair',success:true,data:{label:v.label,value:v.value}}]};save(`command-${v.readIndex}.json`,{envelope});envelopes.push(envelope);}
+ const screenshotEnvelope={commandId:'png',taskId:'png',status:'success',stepResults:[{id:'png',actionType:'take_screenshot',success:true,data:{}}]};save('command-3.json',{envelope:screenshotEnvelope});envelopes.push(screenshotEnvelope);
  save('state.json',{fields});
  const events=['snapshot','read-value','read-value','screenshot'].map((arg,index)=>({index,args:[arg],exitCode:0,device:'test-device',runId:'test-run'}));save('events.json',events);
  const png=Buffer.alloc(24);Buffer.from('89504e470d0a1a0a','hex').copy(png);png.writeUInt32BE(1,16);png.writeUInt32BE(1,20);fs.writeFileSync(path.join(dir,'final.png'),png);
@@ -37,5 +38,19 @@ test('missing Jev key fails before creating any device evidence',()=>{
  fs.unlinkSync(path.join(f.dir,'events.json'));
  const child=spawnSync(process.execPath,['-e',`require(${JSON.stringify(path.join(__dirname,'settings_version_harness'))}).run(true)`],{env:{...process.env,JEV_API_KEY:'',CLAWPERATOR_BIN:'synthetic-cli'},encoding:'utf8'});
  assert.equal(child.status,1);assert.match(child.stdout,/JEV_API_KEY is missing/);assert.equal(fs.existsSync(path.join(f.dir,'events.json')),false);
+ }finally{f.cleanup();}
+});
+
+test('missing transport envelopes do not shift command evidence into invalid result references',()=>{
+ const f=fixture();try{
+  const state=JSON.parse(fs.readFileSync(path.join(f.dir,'state.json')));
+  const old=[0,1,2,3].map(i=>JSON.parse(fs.readFileSync(path.join(f.dir,`command-${i}.json`))));
+  f.save('command-1.json',{code:'RESULT_ENVELOPE_TIMEOUT',message:'No envelope during readiness probe'});
+  for(let i=1;i<4;i++)f.save(`command-${i+1}.json`,old[i]);
+  state.fields.androidVersion.readIndex=2;state.fields.buildNumber.readIndex=3;f.save('state.json',state);
+  const events=[f.events[0],{index:1,args:['read-value'],exitCode:1,device:'test-device',runId:'test-run'},...f.events.slice(1).map(e=>({...e,index:e.index+1}))];f.save('events.json',events);
+  assert.equal(verifyEvidence(f.frame),true);
+  const broken=structuredClone(f.frame);broken.execEnvelopes.splice(1,0,null);broken.result.value.evidence.androidVersion.execEnvelopeIndex=2;broken.result.value.evidence.buildNumber.execEnvelopeIndex=3;
+  assert.throws(()=>verifyEvidence(broken),/envelope sequence/);
  }finally{f.cleanup();}
 });

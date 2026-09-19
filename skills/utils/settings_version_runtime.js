@@ -86,6 +86,8 @@ function verifyEvidence(frame) {
   const lastSnapshot=events.findLast(e=>e.args[0]==='snapshot');
   if(!lastSnapshot) throw Error('Final snapshot missing');
   normalize(read(`command-${lastSnapshot.index}.json`),{allowedOverlayPackage:state.overlayApproval?.package});
+  const retained=events.map(event=>({commandIndex:event.index,envelope:read(`command-${event.index}.json`).envelope})).filter(entry=>entry.envelope);
+  if(!Array.isArray(frame.execEnvelopes) || frame.execEnvelopes.length!==retained.length || retained.some((entry,index)=>digest(entry.envelope)!==digest(frame.execEnvelopes[index]))) throw Error('Retained envelope sequence mismatch');
   if (frame.status!=='success' || frame.result?.kind!=='json' || frame.skillId!==process.env.CLAWPERATOR_SKILL_ID || frame.contractVersion!=='1.0.0' || frame.terminalVerification?.status!=='verified') throw Error('Missing valid success frame');
   for (const field of Object.keys(LABELS)) {
     const evidence=state.fields[field];
@@ -96,7 +98,7 @@ function verifyEvidence(frame) {
     const response=read(`command-${evidence.readIndex}.json`);
     const step=validateRead(response,field,observed);
     const ref=frame.result.value.evidence[field];
-    if (ref.execEnvelopeIndex!==evidence.readIndex || ref.stepResultId!==step.id || digest(frame.execEnvelopes[ref.execEnvelopeIndex])!==digest(response.envelope)) throw Error('Envelope reference mismatch');
+    if (ref.execEnvelopeIndex!==retained.findIndex(entry=>entry.commandIndex===evidence.readIndex) || ref.stepResultId!==step.id || digest(frame.execEnvelopes[ref.execEnvelopeIndex])!==digest(response.envelope)) throw Error('Envelope reference mismatch');
     for (const i of [evidence.readIndex,evidence.snapshotIndex]) if(events[i].device!==process.env.CLAWPERATOR_DEVICE_ID || events[i].runId!==process.env.CLAWPERATOR_SKILL_RUN_ID) throw Error('Evidence belongs to another run or device');
   }
   const screenshot=events.findLast(e=>e.args[0]==='screenshot');
@@ -112,10 +114,12 @@ function finish() {
   if (!Object.keys(LABELS).every(k=>state.fields[k])) throw Error('Both UI fields required');
   command(['screenshot','--path',file('final.png')]);
   const events=read('events.json');
-  const envelopes=events.map(e=>read(`command-${e.index}.json`).envelope);
-  const evidence=Object.fromEntries(Object.entries(state.fields).map(([k,v])=>[k,{execEnvelopeIndex:v.readIndex,stepResultId:v.stepResultId}]));
+  const retained=events.map(event=>({commandIndex:event.index,envelope:read(`command-${event.index}.json`).envelope})).filter(entry=>entry.envelope);
+  const envelopes=retained.map(entry=>entry.envelope);
+  const evidence=Object.fromEntries(Object.entries(state.fields).map(([key,value])=>[key,{execEnvelopeIndex:retained.findIndex(entry=>entry.commandIndex===value.readIndex),stepResultId:value.stepResultId}]));
+  const warnings=events.filter(event=>!retained.some(entry=>entry.commandIndex===event.index)).map(event=>`Command ${event.index} returned no result envelope; the original failure is retained in the command ledger.`);
   const value={...Object.fromEntries(Object.entries(state.fields).map(([k,v])=>[k,v.value])),evidence};
-  const result={result:{kind:'json',value},status:'success',contractVersion:'1.0.0',skillId:process.env.CLAWPERATOR_SKILL_ID,goal:{kind:'get_android_version_details'},inputs:{},checkpoints:[{id:'settings_opened',status:'ok',note:'Settings foreground observed in retained snapshots'},...Object.entries(state.fields).map(([k,v])=>({id:k+'_observed',status:'ok',evidence:{kind:'result_envelope_ref',...evidence[k]},note:`Exact ${v.label} label and sibling value matched live read-value`})),{id:'terminal_state_verified',status:'ok',note:'Both UI rows verified and final screenshot retained'}],terminalVerification:{status:'verified',observed:{kind:'json',value},note:'Exact snapshot row values independently matched successful read-value results'},execEnvelopes:envelopes,diagnostics:{runtimeState:'healthy',evidenceDirectory:directory()}};
+  const result={result:{kind:'json',value},status:'success',contractVersion:'1.0.0',skillId:process.env.CLAWPERATOR_SKILL_ID,goal:{kind:'get_android_version_details'},inputs:{},checkpoints:[{id:'settings_opened',status:'ok',note:'Settings foreground observed in retained snapshots'},...Object.entries(state.fields).map(([k,v])=>({id:k+'_observed',status:'ok',evidence:{kind:'result_envelope_ref',...evidence[k]},note:`Exact ${v.label} label and sibling value matched live read-value`})),{id:'terminal_state_verified',status:'ok',note:'Both UI rows verified and final screenshot retained'}],terminalVerification:{status:'verified',observed:{kind:'json',value},note:'Exact snapshot row values independently matched successful read-value results'},execEnvelopes:envelopes,diagnostics:{runtimeState:'healthy',evidenceDirectory:directory(),warnings}};
   verifyEvidence(result);
   save('verified-result.json',result);
   return result;

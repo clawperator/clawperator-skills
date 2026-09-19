@@ -4,6 +4,14 @@ const os=require('node:os');
 const {spawn,spawnSync}=require('node:child_process');
 const {resolveClawperatorBin}=require('./common');
 const {digest}=require('./settings_version_model');
+function parseFailureFrame(text, skillId) {
+  const prefix='[Clawperator-Skill-Result]';
+  const framed=text.startsWith(prefix);
+  const frame=JSON.parse(framed?text.slice(prefix.length).trim():text);
+  if(!framed && !['failed','indeterminate'].includes(frame.status)) return null;
+  if(!['failed','indeterminate'].includes(frame.status) || frame.contractVersion!=='1.0.0' || frame.skillId!==skillId || frame.result!==null || !Array.isArray(frame.checkpoints) || frame.source!==undefined) throw Error('Invalid runtime failure frame');
+  return frame;
+}
 function childEnvironment(jev) {
   const env={};
   for(const key of ['HOME','CODEX_HOME','PATH','LANG','SHELL','TMPDIR','ADB_PATH','CLAWPERATOR_BIN','CLAWPERATOR_DEVICE_ID','CLAWPERATOR_OPERATOR_PACKAGE','CLAWPERATOR_SKILLS_REGISTRY','CLAWPERATOR_SKILL_RUN_ID','CLAWPERATOR_SKILL_ID','CLAWPERATOR_LOG_DIR','VERSION_RUN_DIR']) if(process.env[key]!==undefined) env[key]=process.env[key];
@@ -50,15 +58,19 @@ async function run(jev) {
     fs.writeFileSync(path.join(dir,'child-exit.json'),JSON.stringify({code,timedOut,groupCleanup:'SIGKILL sent to remaining group'}));
     if(timedOut || code!==0) throw Error(timedOut?'Codex deadline exceeded':`Codex exited ${code}`);
     const text=fs.readFileSync(path.join(dir,'last-message.txt'),'utf8').trim();
-    const receipt=JSON.parse(text);
-    frame=JSON.parse(fs.readFileSync(path.join(dir,'verified-result.json'),'utf8'));
-    if(receipt.status!=='success' || receipt.verifiedResultHash!==digest(frame) || digest(receipt.result)!==digest(frame.result.value)) throw Error('Runtime receipt does not match captured result');
-    if(frame.status==='success') require('./settings_version_runtime').verifyEvidence(frame);
-    else throw Error('Runtime agent did not complete; retained child frame explains the failure');
+    frame=parseFailureFrame(text,process.env.CLAWPERATOR_SKILL_ID);
+    if(frame) {
+      process.exitCode=1;
+    } else {
+      const receipt=JSON.parse(text);
+      frame=JSON.parse(fs.readFileSync(path.join(dir,'verified-result.json'),'utf8'));
+      if(receipt.status!=='success' || receipt.verifiedResultHash!==digest(frame) || digest(receipt.result)!==digest(frame.result.value)) throw Error('Runtime receipt does not match captured result');
+      require('./settings_version_runtime').verifyEvidence(frame);
+    }
   } catch(error) {
     frame={result:null,status:'failed',contractVersion:'1.0.0',skillId:process.env.CLAWPERATOR_SKILL_ID ?? 'version-details',checkpoints:[],terminalVerification:{status:'failed'},diagnostics:{reason:error.message}};
     process.exitCode=1;
   }
   console.log('[Clawperator-Skill-Result]\n'+JSON.stringify(frame));
 }
-module.exports={run,childEnvironment};
+module.exports={run,childEnvironment,parseFailureFrame};
