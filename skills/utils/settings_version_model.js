@@ -2,11 +2,12 @@ const crypto = require('node:crypto');
 const LABELS = { androidVersion: 'Android version', buildNumber: 'Build number' };
 const NAVIGATION = /^(About (?:phone|tablet|device|emulated device)|Software (?:information|info)|Device information|System|Android version)$/i;
 const digest = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
-function normalize(snapshot) {
+function normalize(snapshot, options = {}) {
   const compact = snapshot.compact;
   const step = snapshot.envelope?.stepResults?.find(s => s.actionType === 'snapshot' && s.success);
   if (snapshot.envelope?.status !== 'success' || !step || !compact || compact.truncated || compact.nodes.some(n => n.textTruncated || n.contentDescriptionTruncated)) throw Error('Snapshot failed or truncated; reacquire before choosing actions');
-  if (step.data.foreground_package !== 'com.android.settings' || step.data.has_overlay !== 'false') throw Error('Unexpected foreground or overlay; return control to Codex');
+  if (step.data.foreground_package !== 'com.android.settings') throw Error('Unexpected foreground; return control to Codex');
+  if (step.data.has_overlay !== 'false' && !(step.data.has_overlay === 'true' && options.allowedOverlayPackage && step.data.overlay_package === options.allowedOverlayPackage)) throw Error('Unexpected overlay; Codex must inspect screenshot before continuing');
   const nodes = compact.nodes;
   const visible = nodes.filter(n => n.visibleToUser === true && n.enabled === true && n.accessibilityDataSensitive !== true);
   const byPath = new Map(nodes.map(n => [n.nodePath, n]));
@@ -19,8 +20,31 @@ function normalize(snapshot) {
     const labels = visible.filter(n => n.text === label);
     if (labels.length !== 1) continue;
     const node = labels[0];
-    const siblings = visible.filter(n => n.parentPath === node.parentPath && n.nodePath !== node.nodePath && n.text?.trim());
-    if (siblings.length === 1 && siblings[0].resourceId.endsWith('/summary')) fields[field] = {label, value: siblings[0].text, labelPath: node.nodePath, valuePath: siblings[0].nodePath, parentPath: node.parentPath};
+    // Samsung wraps the title in title_frame while the summary is its sibling.
+    // Ascend only one extra transparent level; never search the next row for a value.
+    let scopePath=node.parentPath;
+    for(let depth=0;depth<2;depth++) {
+      const inScope=n=>{
+        let parent=n.parentPath;
+        for(let hop=0;hop<nodes.length;hop++) {
+          if(parent===scopePath) return true;
+          const ancestor=byPath.get(parent);
+          if(!ancestor) return false;
+          parent=ancestor.parentPath;
+        }
+        return false;
+      };
+      const texts=visible.filter(n=>n.text?.trim() && inScope(n));
+      const values=texts.filter(n=>n.nodePath!==node.nodePath);
+      if(texts.length===2 && values.length===1 && values[0].resourceId.endsWith('/summary')) {
+        fields[field]={label,value:values[0].text,labelPath:node.nodePath,valuePath:values[0].nodePath,parentPath:scopePath};
+        break;
+      }
+      if(texts.length!==1) break;
+      const scope=byPath.get(scopePath);
+      if(!scope || (scope.resourceId && !scope.resourceId.endsWith('/title_frame'))) break;
+      scopePath=scope.parentPath;
+    }
   }
   const candidates = [];
   for (const n of visible) {

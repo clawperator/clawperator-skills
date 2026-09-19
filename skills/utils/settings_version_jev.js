@@ -41,6 +41,7 @@ async function loop() {
   let reason='controller_limit';
   try {
     for(let i=0;i<8 && performance.now()-start<30000;i++) {
+      if(state.status==='overlay_review_required') {reason='overlay_review_required';break;}
       if(state.complete) return {status:'complete',state};
       const key=digest([state.signature,Object.keys(state.collected)]);
       if(seen.has(key)) {reason='no_progress';break;}
@@ -51,6 +52,7 @@ async function loop() {
       state=runtime.act(choice,state.captureId);
     }
   } catch(error) {reason=error.message;}
+  if(state.complete) return {status:'complete',state};
   const fallbacks=fs.existsSync(runtime.file('fallbacks.json'))?runtime.read('fallbacks.json'):[];
   fallbacks.push({reason,elapsedMs:performance.now()-start});runtime.save('fallbacks.json',fallbacks);
   return {status:'escalate',reason,state};

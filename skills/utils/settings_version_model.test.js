@@ -38,3 +38,15 @@ test('required environment survives launcher without giving Codex-only arm the J
  try{for(const k of keys)process.env[k]='synthetic';const a=childEnvironment(false),b=childEnvironment(true);assert.equal(a.JEV_API_KEY,undefined);assert.equal(b.JEV_API_KEY,'synthetic');for(const k of keys.slice(1))assert.equal(a[k],'synthetic');}
  finally{for(const k of keys)if(old[k]===undefined)delete process.env[k];else process.env[k]=old[k];}
 });
+
+test('supports Samsung title wrapper without borrowing a neighboring row summary',()=>{
+ const n=[node('0',null,''),node('0.0','0','',{resourceId:'com.android.settings:id/title_frame'}),node('0.0.0','0.0','Build number'),node('0.1','0','synthetic.build',{resourceId:'android:id/summary'})];
+ assert.equal(normalize(snapshot(n)).fields.buildNumber.value,'synthetic.build');
+ n.push(node('0.2','0','Kernel version'));assert.deepEqual(normalize(snapshot(n)).fields,{});
+});
+test('overlay allowance is exact, explicit and cannot authorize another foreground',()=>{
+ const s=snapshot([]);s.envelope.stepResults[0].data.has_overlay='true';s.envelope.stepResults[0].data.overlay_package='test.launcher';
+ assert.throws(()=>normalize(s));assert.throws(()=>normalize(s,{allowedOverlayPackage:'other'}));
+ assert.doesNotThrow(()=>normalize(s,{allowedOverlayPackage:'test.launcher'}));
+ s.envelope.stepResults[0].data.foreground_package='other';assert.throws(()=>normalize(s,{allowedOverlayPackage:'test.launcher'}));
+});

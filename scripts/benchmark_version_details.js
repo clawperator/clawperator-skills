@@ -33,8 +33,9 @@ function setup(dir) {
 function attempt(arm,repetition,sequence) {
  const id=phase==='pilot'?(option('--id')??`pilot-${arm}-${Date.now()}`):`${alias}-${arm}${repetition}`;
  const dir=path.join(base,id);
- const freezePath=path.join(research,'frozen-config.json');
- const freeze=fs.existsSync(freezePath)?JSON.parse(fs.readFileSync(freezePath)):null;
+ const deviceFreeze=path.join(research,`frozen-config-${alias}.json`);
+ const freezePath=fs.existsSync(deviceFreeze)?deviceFreeze:path.join(research,'frozen-config.json');
+ const freeze=phase==='timed'&&fs.existsSync(freezePath)?JSON.parse(fs.readFileSync(freezePath)):null;
  if(phase==='timed') {
   if(!freeze) throw Error('Freeze configuration before timed runs');
   for(const [file,expected] of Object.entries(freeze.sourceHashes)) {

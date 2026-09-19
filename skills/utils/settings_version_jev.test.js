@@ -27,3 +27,13 @@ test('Jev does not retry authentication failures or invalid action responses',as
  global.fetch=async()=>({ok:true,status:200,json:async()=>({...answer,answers:{next_action:{...answer.answers.next_action,choice:'tap-build'}}})});
  await assert.rejects(()=>decide(state),/Invalid or uncertain/);
 }));
+test('completion on the eighth action is completion, not a controller-limit fallback',async()=>isolated(async dir=>{
+ const runtime=require('./settings_version_runtime');
+ const original={observe:runtime.observe,act:runtime.act};
+ let actions=0;
+ const next=()=>({...state,signature:String(actions),complete:actions===8});
+ runtime.observe=next;runtime.act=()=>{actions++;return next();};
+ global.fetch=async()=>({ok:true,status:200,json:async()=>answer});
+ try{const result=await require('./settings_version_jev').loop();assert.equal(result.status,'complete');assert.equal(actions,8);assert.equal(fs.existsSync(path.join(dir,'fallbacks.json')),false);}
+ finally{runtime.observe=original.observe;runtime.act=original.act;}
+}));

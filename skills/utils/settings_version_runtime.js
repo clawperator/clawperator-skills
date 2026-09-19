@@ -32,8 +32,16 @@ function command(args) {
 }
 function observe() {
   const {response,index}=command(['snapshot','--compact','--max-nodes','200','--max-text-chars','1024']);
-  const observation=normalize(response);
   const state=fs.existsSync(file('state.json')) ? read('state.json') : {fields:{},actions:0};
+  const metadata=response.envelope.stepResults.find(s=>s.actionType==='snapshot').data;
+  if(metadata.foreground_package==='com.android.settings' && metadata.has_overlay==='true' && metadata.overlay_package!==state.overlayApproval?.package) {
+    const screenshotPath=file(`overlay-${index}.png`);
+    command(['screenshot','--path',screenshotPath]);
+    state.pendingOverlay={captureId:response.envelope.commandId,package:metadata.overlay_package,screenshotPath,observedAt:Date.now()};
+    save('state.json',state);
+    return {status:'overlay_review_required',...state.pendingOverlay,note:'Use the image tool to inspect this screenshot. If this is an unobstructive overlay and Settings is usable, approve-overlay <captureId> for this run. Otherwise stop truthfully.'};
+  }
+  const observation=normalize(response,{allowedOverlayPackage:state.overlayApproval?.package});
   state.observation=observation;
   state.captureIndex=index;
   state.observedAt=Date.now();
@@ -49,8 +57,19 @@ function observe() {
 function publicState(state) {
   return { ...state.observation, collected:state.fields, actions:state.actions, complete:Object.keys(LABELS).every(k=>state.fields[k]), evidenceDirectory:directory() };
 }
+function approveOverlay(captureId) {
+  const state=read('state.json');
+  const pending=state.pendingOverlay;
+  if(!pending?.package || pending.captureId!==captureId || Date.now()-pending.observedAt>45000) throw Error('Overlay review is stale; observe again');
+  if(!fs.existsSync(pending.screenshotPath)) throw Error('Overlay screenshot missing');
+  state.overlayApproval={...pending,note:'Runtime Codex explicitly accepted the unobstructive overlay after image inspection; valid only for this run and overlay package.'};
+  delete state.pendingOverlay;
+  save('state.json',state);
+  return observe();
+}
 function act(id,captureId) {
   const state=read('state.json');
+  if (state.pendingOverlay) throw Error('Review pending overlay before acting');
   if (state.observation.captureId!==captureId || Date.now()-state.observedAt>45000) throw Error('Stale capture; observe again');
   if (state.actions>=18) throw Error('Run action limit reached');
   const candidate=state.observation.candidates.find(c=>c.id===id);
@@ -63,12 +82,16 @@ function act(id,captureId) {
 function verifyEvidence(frame) {
   const events=read('events.json');
   const state=read('state.json');
+  if(state.pendingOverlay) throw Error('Unreviewed overlay remains');
+  const lastSnapshot=events.findLast(e=>e.args[0]==='snapshot');
+  if(!lastSnapshot) throw Error('Final snapshot missing');
+  normalize(read(`command-${lastSnapshot.index}.json`),{allowedOverlayPackage:state.overlayApproval?.package});
   if (frame.status!=='success' || frame.result?.kind!=='json' || frame.skillId!==process.env.CLAWPERATOR_SKILL_ID || frame.contractVersion!=='1.0.0' || frame.terminalVerification?.status!=='verified') throw Error('Missing valid success frame');
   for (const field of Object.keys(LABELS)) {
     const evidence=state.fields[field];
     if (!evidence || frame.result.value[field]!==evidence.value) throw Error(`Missing or changed ${field}`);
     const snap=read(`command-${evidence.snapshotIndex}.json`);
-    const observed=normalize(snap).fields[field];
+    const observed=normalize(snap,{allowedOverlayPackage:state.overlayApproval?.package}).fields[field];
     if (!observed || observed.value!==evidence.value) throw Error('Snapshot row proof mismatch');
     const response=read(`command-${evidence.readIndex}.json`);
     const step=validateRead(response,field,observed);
@@ -85,6 +108,7 @@ function verifyEvidence(frame) {
 function finish() {
   observe();
   const state=read('state.json');
+  if(state.pendingOverlay) throw Error('Review overlay before finishing');
   if (!Object.keys(LABELS).every(k=>state.fields[k])) throw Error('Both UI fields required');
   command(['screenshot','--path',file('final.png')]);
   const events=read('events.json');
@@ -96,4 +120,4 @@ function finish() {
   save('verified-result.json',result);
   return result;
 }
-module.exports={command,observe,act,finish,verifyEvidence,file,read,save,publicState};
+module.exports={command,observe,approveOverlay,act,finish,verifyEvidence,file,read,save,publicState};

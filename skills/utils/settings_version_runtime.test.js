@@ -28,6 +28,7 @@ test('result verifier rejects altered values, broken references, cross-device ev
  const changed=structuredClone(f.frame);changed.result.value.buildNumber='generated';assert.throws(()=>verifyEvidence(changed));
  const reference=structuredClone(f.frame);reference.result.value.evidence.buildNumber.execEnvelopeIndex=1;assert.throws(()=>verifyEvidence(reference));
  f.events[1].device='other-device';f.save('events.json',f.events);assert.throws(()=>verifyEvidence(f.frame));f.events[1].device='test-device';f.save('events.json',f.events);
+ const stored=JSON.parse(fs.readFileSync(path.join(f.dir,'state.json')));f.save('state.json',{...stored,pendingOverlay:{package:'unreviewed'}});assert.throws(()=>verifyEvidence(f.frame),/Unreviewed/);f.save('state.json',stored);
  fs.unlinkSync(path.join(f.dir,'final.png'));assert.throws(()=>verifyEvidence(f.frame));
  }finally{f.cleanup();}
 });
