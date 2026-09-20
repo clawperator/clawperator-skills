@@ -109,3 +109,23 @@ test('launcher emits its primary failure frame even when summary and cleanup bot
   assert.equal(frame.diagnostics.warnings.length,2);
  }finally{fs.rmSync(directory,{recursive:true,force:true});}
 });
+
+test('dispatch failure consumes the old candidate before any retry',()=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'version-consume-'));const restore=environment(directory);
+ const previous={bin:process.env.CLAWPERATOR_BIN,device:process.env.CLAWPERATOR_DEVICE_ID};
+ try {
+  const cli=path.join(directory,'failed-cli.js');fs.writeFileSync(cli,"console.log(JSON.stringify({code:'RESULT_ENVELOPE_TIMEOUT'}));process.exitCode=1;");
+  process.env.CLAWPERATOR_BIN=cli;process.env.CLAWPERATOR_DEVICE_ID='test-device';
+  runtime.save('state.json',{observation:{captureId:'fresh',candidates:[{id:'about',command:['click','--text','About phone']}]},observedAt:Date.now(),actions:0});
+  assert.throws(()=>runtime.act('about','fresh'),/command 0 failed/);
+  assert.equal(runtime.read('state.json').observedAt,0);
+  assert.throws(()=>runtime.act('about','fresh'),/Stale/);
+  assert.equal(runtime.read('events.json').length,1);
+  const refreshed=runtime.read('state.json');refreshed.observedAt=Date.now();runtime.save('state.json',refreshed);
+  assert.throws(()=>runtime.observe(),/command 1 failed/);
+  assert.equal(runtime.read('state.json').observedAt,0);
+ }finally{
+  for(const [key,value] of [['CLAWPERATOR_BIN',previous.bin],['CLAWPERATOR_DEVICE_ID',previous.device]])if(value===undefined)delete process.env[key];else process.env[key]=value;
+  restore();fs.rmSync(directory,{recursive:true,force:true});
+ }
+});

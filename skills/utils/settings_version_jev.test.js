@@ -37,3 +37,17 @@ test('completion on the eighth action is completion, not a controller-limit fall
  try{const result=await require('./settings_version_jev').loop();assert.equal(result.status,'complete');assert.equal(actions,8);assert.equal(fs.existsSync(path.join(dir,'fallbacks.json')),false);}
  finally{runtime.observe=original.observe;runtime.act=original.act;}
 }));
+
+test('Jev evidence keeps ancestry, false and unknown states while explicitly omitting local disclosures',async()=>isolated(async()=>{
+ const richer={...state,evidence:{provenance:{captureId:'test-capture',sourceKind:'clawperator-compact-v1',receivedAt:'test-time',device:'private-device',rawReference:'private-path'},coverage:{source:{source:'complete'},projection:{truncated:false}},needsRicherEvidence:false,nodes:[{nodePath:'anonymous',parentPath:null,text:'private-value',resourceId:'private-id',checked:false,selected:null},{nodePath:'child',parentPath:'anonymous',enabled:true}],discoveryHints:[{id:'hidden',nodePath:'child',reasons:['outside_viewport']}]}};
+ global.fetch=async(url,options)=>{
+  for(const secret of ['private-device','private-path','private-value','private-id'])assert.ok(!options.body.includes(secret));
+  const evidence=JSON.parse(options.body).state.evidence;
+  assert.equal(evidence.nodes[0].checked,false);assert.equal(evidence.nodes[0].selected,null);
+  assert.equal(Object.hasOwn(evidence.nodes[1],'checked'),false);
+  assert.equal(evidence.nodes[1].parentPath,'anonymous');assert.ok(evidence.disclosureOmissions.length>0);
+  assert.deepEqual(evidence.discoveryHints[0].reasons,['outside_viewport']);
+  return {ok:true,status:200,json:async()=>answer};
+ };
+ assert.equal(await decide(richer),'scroll-down');
+}));

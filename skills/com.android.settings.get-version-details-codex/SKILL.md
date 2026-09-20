@@ -2,7 +2,7 @@
 name: com.android.settings.get-version-details-codex
 description: Read Android OS release version and build number from live Settings UI with Codex.
 clawperator-skill-type: orchestrated
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Android version details
@@ -53,3 +53,31 @@ When complete, review the exact collected values and their evidence, call `finis
 ## Codex decisions
 
 Choose every navigation action yourself from the current observation. Do not invoke the Jev operation. The read/evidence helper is shared with the Jev arm and contains no route selection loop.
+
+## Evidence context
+
+The shared `skills/utils/observation_context.js` adapter accepts compact-v1
+snapshots. It preserves explicit parent edges and boolean/null/omitted state,
+records source coverage separately from projection omissions, and maps offered
+candidates to observed nodes and unique supported selectors. The Settings helper
+selects relevant rows and navigation; provider request formatting stays separate.
+See [Context adapter](https://docs.clawperator.com/skills/context-adapter/).
+
+Successful observations retain original XML, compact response, projection and
+metrics. Failed attempts retain the returned command response and diagnostics.
+The helper also captures screenshot dimensions before the tree for viewport
+intersection checks. These are separate captures, not an atomic observation or
+proof against occlusion. No accessibility selector is derived from pixels.
+The projection keeps at most 64 nodes including ancestors and 24,000 UTF-8 JSON
+bytes; it refuses an oversized semantic group instead of clipping values or
+ancestry. Missing text is not evidence of absence. Inspect the local source or
+reacquire richer evidence if the helper reports incomplete or insufficient input.
+
+Candidates expire before dispatch and on every observation attempt, including
+failed refreshes. After unexpected UI changes, refresh before choosing again.
+Every dispatched candidate is followed by a fresh observation; check the resulting
+screen against your intended destination. A candidate ID or query path is not a
+persistent native action handle. Filtering for this task is not a general privacy
+guarantee. Jev receives an explicit narrower view: navigation descriptions,
+structural/state evidence, coverage and capture correlation, with local device
+identifiers, source paths, exact extracted values and unrelated text omitted.
