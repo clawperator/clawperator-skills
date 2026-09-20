@@ -61,3 +61,12 @@ test('Settings list policy uses explicit ancestry instead of path spelling',()=>
  const s=snapshot([node('many.dots.in.outer',null,'',{resourceId:'outer',scrollable:true}),node('x','many.dots.in.outer','',{resourceId:'inner',scrollable:true})]);
  assert.equal(normalize(s).candidates[0].command.at(-1),'inner');
 });
+
+
+test('System is context only, not a supported version-details navigation candidate',()=>{
+ const s=normalize(snapshot([node('0',null,'System',{clickable:true}),node('1',null,'About emulated device',{clickable:true})]));
+ assert.ok(s.headings.includes('System'));
+ assert.deepEqual(s.candidates.map(c=>c.command),[['click','--text','About emulated device']]);
+ const system=normalize(snapshot([node('0',null,'System',{clickable:true})]));
+ assert.deepEqual(system.candidates,[]);
+});

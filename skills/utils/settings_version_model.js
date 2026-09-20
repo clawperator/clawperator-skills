@@ -1,7 +1,7 @@
 const crypto = require('node:crypto');
 const {normalizeCompact, projectObservation, ancestors} = require('./observation_context');
 const LABELS = { androidVersion: 'Android version', buildNumber: 'Build number' };
-const NAVIGATION = /^(About (?:phone|tablet|device|emulated device)|Software (?:information|info)|Device information|System|Android version)$/i;
+const NAVIGATION = /^(About (?:phone|tablet|device|emulated device)|Software (?:information|info)|Device information|Android version)$/i;
 const digest = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 function normalize(snapshot, options = {}) {
   const observation = normalizeCompact(snapshot, options.context);
@@ -51,7 +51,7 @@ function normalize(snapshot, options = {}) {
   }
   const scrolls = nodes.filter(n => n.scrollable === true).sort((a,b) => ancestors(b,byPath).length - ancestors(a,byPath).length);
   for (const [index,n] of scrolls.entries()) specs.push({id:`list-${index}`,kind:'scroll',nodePath:n.nodePath});
-  const headingNodes = visible.filter(n => NAVIGATION.test(n.text) || NAVIGATION.test(n.contentDescription) || ['Settings','Search Settings'].includes(n.text));
+  const headingNodes = visible.filter(n => NAVIGATION.test(n.text) || NAVIGATION.test(n.contentDescription) || ['Settings','Search Settings','System'].includes(n.text));
   const fieldPaths = Object.values(fields).flatMap(f => [f.labelPath,f.valuePath]);
   const evidence = projectObservation(observation, {selectPaths:[...headingNodes.map(n=>n.nodePath),...fieldPaths],candidateSpecs:specs});
   if(evidence.needsRicherEvidence) throw Error('Settings projection insufficient; inspect retained source or narrow the selection');
@@ -63,7 +63,7 @@ function normalize(snapshot, options = {}) {
   // Goal policy prefers the deepest eligible list, measured through parent edges.
   const scroll=evidence.candidates.find(c=>c.kind==='scroll');
   if(scroll) for(const direction of ['down','up']) candidates.push({...scroll,id:`scroll-${direction}`,description:`Scroll visible list ${direction}`,command:['scroll',direction,'--container-id',scroll.selector.resourceId]});
-  const headings=headingNodes.map(n=>NAVIGATION.test(n.text) || ['Settings','Search Settings'].includes(n.text) ? n.text : n.contentDescription);
+  const headings=headingNodes.map(n=>NAVIGATION.test(n.text) || ['Settings','Search Settings','System'].includes(n.text) ? n.text : n.contentDescription);
   return { captureId: observation.provenance.captureId, headings:[...new Set(headings)], fields, candidates, evidence,
     signature: digest(visible.map(n => [n.nodePath,n.text,n.bounds])), totalNodes:compact.totalNodes, returnedNodes:compact.returnedNodes, truncated:compact.truncated };
 
