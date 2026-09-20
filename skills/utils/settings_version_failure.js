@@ -23,7 +23,12 @@ function failureFrom(response, child, index, operation) {
   const step = failed.find(step => token(step.data?.error) || token(step.error?.code) || token(step.errorCode)) ?? failed[0];
   const outer = token(response?.code) ?? token(response?.error?.code);
   const specific = token(step?.data?.error) ?? token(step?.error?.code) ?? token(step?.errorCode);
-  const code = (outer !== 'COMMAND_FAILED' ? outer : undefined) ?? specific ?? token(envelope?.errorCode) ?? (child.error?.code === 'ETIMEDOUT' ? 'COMMAND_TIMEOUT' : child.error ? 'COMMAND_SPAWN_FAILED' : child.signal ? 'COMMAND_SIGNALLED' : response === null ? 'UNPARSEABLE_OUTPUT' : 'COMMAND_FAILED');
+  let commandCode = 'COMMAND_FAILED';
+  if (child.error?.code === 'ETIMEDOUT') commandCode = 'COMMAND_TIMEOUT';
+  else if (child.error) commandCode = 'COMMAND_SPAWN_FAILED';
+  else if (child.signal) commandCode = 'COMMAND_SIGNALLED';
+  else if (response === null) commandCode = 'UNPARSEABLE_OUTPUT';
+  const code = (outer !== 'COMMAND_FAILED' ? outer : undefined) ?? specific ?? token(envelope?.errorCode) ?? commandCode;
   const evidence = response?.details ?? envelope?.failureEvidence ?? {};
   const detail = step?.data ?? {};
   const scope = code === 'SNAPSHOT_EXTRACTION_FAILED' ? 'observation_extraction' : 'command_execution';

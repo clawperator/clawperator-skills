@@ -92,21 +92,21 @@ async function run(jev) {
     process.exitCode=1;
   }
   try {
-  if(session && frame.status!=='success') {
-    const toolFailurePath=path.join(session.directory,'last-tool-failure.json');
-    if(fs.existsSync(toolFailurePath)) {
-      frame.diagnostics ??= {};
-      frame.diagnostics.lastToolFailure=JSON.parse(fs.readFileSync(toolFailurePath,'utf8'));
+    if(session && frame.status!=='success') {
+      const toolFailurePath=path.join(session.directory,'last-tool-failure.json');
+      if(fs.existsSync(toolFailurePath)) {
+        frame.diagnostics ??= {};
+        frame.diagnostics.lastToolFailure=JSON.parse(fs.readFileSync(toolFailurePath,'utf8'));
+      }
+      const eventsPath=path.join(session.directory,'events.json');
+      if(fs.existsSync(eventsPath)) {
+        const events=JSON.parse(fs.readFileSync(eventsPath,'utf8'));
+        frame.diagnostics ??= {};
+        const failures=events.filter(event=>event.failure);
+        frame.diagnostics.retainedFailureCount=failures.length;
+        frame.diagnostics.retainedFailures=failures.slice(-16).map(event=>event.failure);
+      }
     }
-    const eventsPath=path.join(session.directory,'events.json');
-    if(fs.existsSync(eventsPath)) {
-      const events=JSON.parse(fs.readFileSync(eventsPath,'utf8'));
-      frame.diagnostics ??= {};
-      const failures=events.filter(event=>event.failure);
-      frame.diagnostics.retainedFailureCount=failures.length;
-      frame.diagnostics.retainedFailures=failures.slice(-16).map(event=>event.failure);
-    }
-  }
   } catch {
     frame.diagnostics ??= {};
     frame.diagnostics.evidenceWarning='Retained failure summaries could not be read; inspect local command files.';
