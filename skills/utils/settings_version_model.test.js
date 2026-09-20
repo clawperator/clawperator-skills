@@ -1,13 +1,14 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {normalize,validateRead,validateChoice}=require('./settings_version_model');
+const {normalize:normalizeModel,validateRead,validateChoice}=require('./settings_version_model');
+const normalize=(snapshot,options={})=>normalizeModel(snapshot,{context:{viewport:{bounds:{left:0,top:0,right:100,bottom:100},reference:'viewport.png',observedAt:'test-time'}},...options});
 const {childEnvironment}=require('./settings_version_harness');
-const node=(nodePath,parentPath,text,extra={})=>({nodePath,parentPath,text,resourceId:'android:id/title',enabled:true,visibleToUser:true,clickable:false,scrollable:false,...extra});
-const snapshot=nodes=>({envelope:{commandId:'capture',status:'success',stepResults:[{actionType:'snapshot',success:true,data:{foreground_package:'com.android.settings',has_overlay:'false'}}]},compact:{nodes,truncated:false,totalNodes:nodes.length,returnedNodes:nodes.length}});
+const node=(nodePath,parentPath,text,extra={})=>({nodePath,parentPath,text,resourceId:'android:id/title',enabled:true,visibleToUser:true,clickable:false,scrollable:false,bounds:'[0,0][100,100]',...extra});
+const snapshot=nodes=>({envelope:{commandId:'capture',status:'success',stepResults:[{actionType:'snapshot',success:true,data:{foreground_package:'com.android.settings',has_overlay:'false'}}]},compact:{schemaVersion:1,commandId:'capture',nodes,truncated:false,totalNodes:nodes.length,returnedNodes:nodes.length,omittedNodes:0}});
 test('associates only exact visible sibling summary and preserves strings',()=>{
  const n=[node('0',null,'',{clickable:true}),node('0.0','0','Android version'),node('0.1','0','  release  ',{resourceId:'android:id/summary'})];
  assert.equal(normalize(snapshot(n)).fields.androidVersion.value,'  release  ');
- n[2].parentPath='other';assert.deepEqual(normalize(snapshot(n)).fields,{});
+ n[2].parentPath='other';assert.throws(()=>normalize(snapshot(n)),/incomplete/);
 });
 test('rejects duplicates, invisible labels, ambiguous values and truncated/overlay states',()=>{
  const n=[node('0',null,'Android version'),node('1',null,'Android version'),node('2',null,'fake',{resourceId:'android:id/summary'})];
@@ -54,4 +55,9 @@ test('overlay allowance is exact, explicit and cannot authorize another foregrou
 test('navigation heading projection does not send unrelated text paired with an allowed description',()=>{
  const s=snapshot([node('0',null,'private-device-label',{contentDescription:'About phone'})]);
  assert.deepEqual(normalize(s).headings,['About phone']);
+});
+
+test('Settings list policy uses explicit ancestry instead of path spelling',()=>{
+ const s=snapshot([node('many.dots.in.outer',null,'',{resourceId:'outer',scrollable:true}),node('x','many.dots.in.outer','',{resourceId:'inner',scrollable:true})]);
+ assert.equal(normalize(s).candidates[0].command.at(-1),'inner');
 });

@@ -11,8 +11,8 @@ function fixture() {
  const previous=Object.fromEntries(Object.keys(env).map(k=>[k,process.env[k]]));Object.assign(process.env,env);
  const save=(name,value)=>fs.writeFileSync(path.join(dir,name),JSON.stringify(value));
  const fields={androidVersion:{label:'Android version',value:'synthetic-release',snapshotIndex:0,readIndex:1,stepResultId:'read'},buildNumber:{label:'Build number',value:'synthetic.build',snapshotIndex:0,readIndex:2,stepResultId:'read'}};
- const nodes=Object.values(fields).flatMap((v,i)=>[{nodePath:`${i}.0`,parentPath:`${i}`,text:v.label,resourceId:'android:id/title',visibleToUser:true,enabled:true},{nodePath:`${i}.1`,parentPath:`${i}`,text:v.value,resourceId:'android:id/summary',visibleToUser:true,enabled:true}]);
- const snap={envelope:{commandId:'s',taskId:'s',status:'success',stepResults:[{id:'snapshot',actionType:'snapshot',success:true,data:{foreground_package:'com.android.settings',has_overlay:'false'}}]},compact:{nodes,truncated:false}};
+ const nodes=Object.values(fields).flatMap((v,i)=>[{nodePath:String(i),parentPath:null},{nodePath:`${i}.0`,parentPath:`${i}`,text:v.label,resourceId:'android:id/title',visibleToUser:true,enabled:true},{nodePath:`${i}.1`,parentPath:`${i}`,text:v.value,resourceId:'android:id/summary',visibleToUser:true,enabled:true}]);
+ const snap={envelope:{commandId:'s',taskId:'s',status:'success',stepResults:[{id:'snapshot',actionType:'snapshot',success:true,data:{foreground_package:'com.android.settings',has_overlay:'false'}}]},compact:{schemaVersion:1,commandId:'s',taskId:'s',nodes,truncated:false,totalNodes:nodes.length,returnedNodes:nodes.length,omittedNodes:0}};
  save('command-0.json',snap);
  const envelopes=[snap.envelope];
  for(const v of Object.values(fields)){const envelope={commandId:`r${v.readIndex}`,taskId:`r${v.readIndex}`,status:'success',stepResults:[{id:'read',actionType:'read_key_value_pair',success:true,data:{label:v.label,value:v.value}}]};save(`command-${v.readIndex}.json`,{envelope});envelopes.push(envelope);}

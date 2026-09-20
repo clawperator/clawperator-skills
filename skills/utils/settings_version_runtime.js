@@ -16,6 +16,7 @@ function command(args) {
   const bin=resolveClawperatorBin();
   const events=fs.existsSync(file('events.json')) ? read('events.json') : [];
   const index=events.length;
+  const startedAt=new Date().toISOString();
   const started=performance.now();
   const argv=[...bin.args,...args,'--device',process.env.CLAWPERATOR_DEVICE_ID,'--operator-package',resolveOperatorPackage(),'--no-daemon','--output','json'];
   const child=spawnSync(bin.cmd,argv,{encoding:'utf8',timeout:20000,maxBuffer:8*1024*1024,env:process.env});
@@ -26,13 +27,27 @@ function command(args) {
   try { response=JSON.parse(child.stdout); } catch { response={error:{code:'UNPARSEABLE_OUTPUT'}}; }
   save(`command-${index}.json`,response);
   const failureEvidence=response.details ?? response.envelope?.failureEvidence;
-  events.push({failureEvidence,index,args,device:process.env.CLAWPERATOR_DEVICE_ID,runId:process.env.CLAWPERATOR_SKILL_RUN_ID,elapsedMs,exitCode:child.status,signal:child.signal,commandId:response.envelope?.commandId,taskId:response.envelope?.taskId});
+  events.push({startedAt,completedAt:new Date().toISOString(),failureEvidence,index,args,device:process.env.CLAWPERATOR_DEVICE_ID,runId:process.env.CLAWPERATOR_SKILL_RUN_ID,elapsedMs,exitCode:child.status,signal:child.signal,commandId:response.envelope?.commandId,taskId:response.envelope?.taskId});
   save('events.json',events);
   if (child.status!==0 || response.envelope?.status!=='success' || response.envelope.stepResults.some(s=>!s.success)) throw Error(`Clawperator command ${index} failed: ${response.code ?? response.error?.code ?? response.envelope?.errorCode ?? 'COMMAND_FAILED'}; phase=${failureEvidence?.phase ?? 'unavailable'}, dispatchState=${failureEvidence?.dispatchState ?? 'unavailable'}; inspect command-${index}.json before recovery`);
   return {response,index};
 }
 function observe() {
-  const {response,index}=command(['snapshot','--compact','--max-nodes','200','--max-text-chars','1024']);
+  // Invalidate the previous candidate menu even if this refresh fails.
+  if(fs.existsSync(file('state.json'))) {
+    const previous=read('state.json');previous.observedAt=0;save('state.json',previous);
+  }
+  const sequence=fs.existsSync(file('events.json'))?read('events.json').length:0;
+  const viewportPath=file(`viewport-${sequence}.png`);
+  const viewportCapture=command(['screenshot','--path',viewportPath]);
+  const png=fs.readFileSync(viewportPath);
+  if(png.length<24 || png.subarray(0,8).toString('hex')!=='89504e470d0a1a0a' || !png.readUInt32BE(16) || !png.readUInt32BE(20)) throw Error('Invalid viewport screenshot');
+  const viewportEvent=read('events.json')[viewportCapture.index];
+  const {response,index}=command(['snapshot','--compact','--max-nodes','200','--max-text-chars','1024','--raw-path',file(`snapshot-${sequence}.xml`)]);
+  const context={receivedAt:read('events.json')[index].completedAt,device:process.env.CLAWPERATOR_DEVICE_ID,
+    operatorPackage:resolveOperatorPackage(),sourceReference:`command-${index}.json`,
+    viewport:{bounds:{left:0,top:0,right:png.readUInt32BE(16),bottom:png.readUInt32BE(20)},reference:`viewport-${sequence}.png`,observedAt:viewportEvent.completedAt,sourceKind:'image-dimensions',atomicWithTree:false}};
+  save(`context-${index}.json`,context);
   const state=fs.existsSync(file('state.json')) ? read('state.json') : {fields:{},actions:0};
   const metadata=response.envelope.stepResults.find(s=>s.actionType==='snapshot').data;
   if(metadata.foreground_package==='com.android.settings' && metadata.has_overlay==='true' && metadata.overlay_package!==state.overlayApproval?.package) {
@@ -42,7 +57,10 @@ function observe() {
     save('state.json',state);
     return {status:'overlay_review_required',...state.pendingOverlay,note:'Use the image tool to inspect this screenshot. If this is an unobstructive overlay and Settings is usable, approve-overlay <captureId> for this run. Otherwise stop truthfully.'};
   }
-  const observation=normalize(response,{allowedOverlayPackage:state.overlayApproval?.package});
+  const projectionStarted=performance.now();
+  const observation=normalize(response,{allowedOverlayPackage:state.overlayApproval?.package,context});
+  save(`projection-${index}.json`,observation);
+  save(`projection-metrics-${index}.json`,{projectionMs:performance.now()-projectionStarted,sourceBytes:Buffer.byteLength(JSON.stringify(response)),projectionBytes:Buffer.byteLength(JSON.stringify(observation)),captureMs:read('events.json')[index].elapsedMs,viewportMs:viewportEvent.elapsedMs});
   state.observation=observation;
   state.captureIndex=index;
   state.observedAt=Date.now();
@@ -76,6 +94,7 @@ function act(id,captureId) {
   const candidate=state.observation.candidates.find(c=>c.id===id);
   if (!candidate) throw Error('Choose an offered candidate');
   state.actions++;
+  state.observedAt=0;
   save('state.json',state);
   command(candidate.command);
   return observe();
