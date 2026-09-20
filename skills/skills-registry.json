@@ -1,7 +1,7 @@
 {
   "$schema": "./skills-registry.schema.json",
   "schemaVersion": "1.0",
-  "generatedAt": "2026-05-01T03:18:41Z",
+  "generatedAt": "2026-09-20T03:48:44Z",
   "skills": [
     {
       "id": "au.com.polyaire.airtouch5.set-fan-level",
@@ -140,6 +140,52 @@
         "skills/com.android.settings.capture-overview/scripts/capture_settings_overview.sh"
       ],
       "artifacts": []
+    },
+    {
+      "id": "com.android.settings.get-version-details-codex",
+      "applicationId": "com.android.settings",
+      "intent": "get-version-details",
+      "summary": "Read exact Android OS release version and Build number from live Settings UI using Codex.",
+      "path": "skills/com.android.settings.get-version-details-codex",
+      "skillFile": "skills/com.android.settings.get-version-details-codex/SKILL.md",
+      "scripts": [
+        "skills/com.android.settings.get-version-details-codex/scripts/run.js"
+      ],
+      "artifacts": [],
+      "contract": {
+        "inputs": {},
+        "goal": {
+          "kind": "get_android_version_details"
+        },
+        "verification": null
+      },
+      "agent": {
+        "cli": "codex",
+        "timeoutMs": 300000
+      }
+    },
+    {
+      "id": "com.android.settings.get-version-details-codex-with-jev",
+      "applicationId": "com.android.settings",
+      "intent": "get-version-details",
+      "summary": "Read exact Android OS release version and Build number from live Settings UI using Codex with bounded Jev delegation.",
+      "path": "skills/com.android.settings.get-version-details-codex-with-jev",
+      "skillFile": "skills/com.android.settings.get-version-details-codex-with-jev/SKILL.md",
+      "scripts": [
+        "skills/com.android.settings.get-version-details-codex-with-jev/scripts/run.js"
+      ],
+      "artifacts": [],
+      "contract": {
+        "inputs": {},
+        "goal": {
+          "kind": "get_android_version_details"
+        },
+        "verification": null
+      },
+      "agent": {
+        "cli": "codex",
+        "timeoutMs": 300000
+      }
     },
     {
       "id": "com.android.vending.install-app",
