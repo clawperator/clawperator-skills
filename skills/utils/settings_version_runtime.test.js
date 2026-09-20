@@ -54,3 +54,18 @@ test('missing transport envelopes do not shift command evidence into invalid res
   assert.throws(()=>verifyEvidence(broken),/envelope sequence/);
  }finally{f.cleanup();}
 });
+
+test('command failures retain requested and probe evidence without synthesizing envelopes',()=>{
+ const f=fixture();const old=process.env.CLAWPERATOR_BIN;
+ try {
+  fs.unlinkSync(path.join(f.dir,'events.json'));
+  const failure={code:'RESULT_ENVELOPE_TIMEOUT',details:{phase:'readiness',dispatchState:'not_dispatched',commandId:'requested',probeCommandId:'probe',probeDispatchState:'unknown',earlierEffects:[{actionId:'close',effect:'force_stop'}]}};
+  const cli=path.join(f.dir,'fake-cli.js');
+  fs.writeFileSync(cli,`console.log(${JSON.stringify(JSON.stringify(failure))});process.exitCode=1;`);
+  process.env.CLAWPERATOR_BIN=cli;
+  assert.throws(()=>require('./settings_version_runtime').command(['snapshot']),/phase=readiness, dispatchState=not_dispatched/);
+  const event=JSON.parse(fs.readFileSync(path.join(f.dir,'events.json')))[0];
+  assert.deepEqual(event.failureEvidence,failure.details);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(f.dir,'command-0.json'))).envelope,undefined);
+ } finally {if(old===undefined)delete process.env.CLAWPERATOR_BIN;else process.env.CLAWPERATOR_BIN=old;f.cleanup();}
+});

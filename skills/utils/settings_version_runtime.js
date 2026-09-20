@@ -25,9 +25,10 @@ function command(args) {
   let response;
   try { response=JSON.parse(child.stdout); } catch { response={error:{code:'UNPARSEABLE_OUTPUT'}}; }
   save(`command-${index}.json`,response);
-  events.push({index,args,device:process.env.CLAWPERATOR_DEVICE_ID,runId:process.env.CLAWPERATOR_SKILL_RUN_ID,elapsedMs,exitCode:child.status,signal:child.signal,commandId:response.envelope?.commandId,taskId:response.envelope?.taskId});
+  const failureEvidence=response.details ?? response.envelope?.failureEvidence;
+  events.push({failureEvidence,index,args,device:process.env.CLAWPERATOR_DEVICE_ID,runId:process.env.CLAWPERATOR_SKILL_RUN_ID,elapsedMs,exitCode:child.status,signal:child.signal,commandId:response.envelope?.commandId,taskId:response.envelope?.taskId});
   save('events.json',events);
-  if (child.status!==0 || response.envelope?.status!=='success' || response.envelope.stepResults.some(s=>!s.success)) throw Error(`Clawperator command ${index} failed; inspect retained evidence`);
+  if (child.status!==0 || response.envelope?.status!=='success' || response.envelope.stepResults.some(s=>!s.success)) throw Error(`Clawperator command ${index} failed: ${response.code ?? response.error?.code ?? response.envelope?.errorCode ?? 'COMMAND_FAILED'}; phase=${failureEvidence?.phase ?? 'unavailable'}, dispatchState=${failureEvidence?.dispatchState ?? 'unavailable'}; inspect command-${index}.json before recovery`);
   return {response,index};
 }
 function observe() {

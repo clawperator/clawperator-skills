@@ -55,7 +55,7 @@ function normalize(snapshot, options = {}) {
   // Prefer the deepest uniquely identified list; an outer collapsing ScrollView can coexist.
   const scrolls = visible.filter(n => n.scrollable && n.resourceId && visible.filter(other => other.resourceId === n.resourceId).length === 1).sort((a,b) => b.nodePath.split('.').length - a.nodePath.split('.').length);
   if (scrolls[0]) for (const direction of ['down','up']) candidates.push({id:`scroll-${direction}`, description:`Scroll visible list ${direction}`, command:['scroll',direction,'--container-id',scrolls[0].resourceId], nodePath:scrolls[0].nodePath});
-  const headings = visible.filter(n => NAVIGATION.test(n.text) || NAVIGATION.test(n.contentDescription) || ['Settings','Search Settings'].includes(n.text)).map(n => n.text || n.contentDescription);
+  const headings = visible.filter(n => NAVIGATION.test(n.text) || NAVIGATION.test(n.contentDescription) || ['Settings','Search Settings'].includes(n.text)).map(n => NAVIGATION.test(n.text) || ['Settings','Search Settings'].includes(n.text) ? n.text : n.contentDescription);
   return { captureId: snapshot.envelope.commandId, headings:[...new Set(headings)], fields, candidates, signature: digest(visible.map(n => [n.nodePath,n.text,n.bounds])), totalNodes:compact.totalNodes, returnedNodes:compact.returnedNodes, truncated:compact.truncated };
 }
 function validateRead(response, field, observed) {

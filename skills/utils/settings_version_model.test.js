@@ -50,3 +50,8 @@ test('overlay allowance is exact, explicit and cannot authorize another foregrou
  assert.doesNotThrow(()=>normalize(s,{allowedOverlayPackage:'test.launcher'}));
  s.envelope.stepResults[0].data.foreground_package='other';assert.throws(()=>normalize(s,{allowedOverlayPackage:'test.launcher'}));
 });
+
+test('navigation heading projection does not send unrelated text paired with an allowed description',()=>{
+ const s=snapshot([node('0',null,'private-device-label',{contentDescription:'About phone'})]);
+ assert.deepEqual(normalize(s).headings,['About phone']);
+});
