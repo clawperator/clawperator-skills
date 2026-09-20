@@ -15,6 +15,7 @@ function parseFailureFrame(text, skillId) {
 function childEnvironment(jev) {
   const env={};
   for(const key of ['HOME','CODEX_HOME','PATH','LANG','SHELL','TMPDIR','ADB_PATH','CLAWPERATOR_BIN','CLAWPERATOR_DEVICE_ID','CLAWPERATOR_OPERATOR_PACKAGE','CLAWPERATOR_SKILLS_REGISTRY','CLAWPERATOR_SKILL_RUN_ID','CLAWPERATOR_SKILL_ID','CLAWPERATOR_LOG_DIR','VERSION_RUN_DIR']) if(process.env[key]!==undefined) env[key]=process.env[key];
+  if(process.env.VERSION_RUN_DIR) env.CLAWPERATOR_LOG_DIR=path.join(process.env.VERSION_RUN_DIR,'logs');
   if(jev && process.env.JEV_API_KEY!==undefined) env.JEV_API_KEY=process.env.JEV_API_KEY;
   return env;
 }
@@ -43,6 +44,7 @@ async function run(jev) {
     session=prepareRun();
     const {directory:dir,model,effort}=session;
     process.env.VERSION_RUN_DIR=dir;
+    fs.writeFileSync(path.join(dir,'budget.json'),JSON.stringify({deadline:Date.now()+Math.max(1000,Math.min(275000,session.timeout-15000))}));
     const skillProgram=fs.readFileSync(process.env.CLAWPERATOR_SKILL_PROGRAM,'utf8');
     const tool=path.join(__dirname,'settings_version_tool.js');
     const prompt=`You are a runtime Codex agent executing this read-only Android skill. Perform actual commands now; do not edit code, inspect repositories, or spawn other agents. Use the supplied deterministic helper through the shell tool. It invokes only the pinned Clawperator CLI, serializes actions and retains all UI evidence. Its candidate menu is evidence, not a preselected route. You choose the next action and handle deviations.\nHelper: node ${JSON.stringify(tool)} <operation>\nRun directory: ${dir}\nPinned CLI: ${process.env.CLAWPERATOR_BIN}\nTarget: ${process.env.CLAWPERATOR_DEVICE_ID}\nOperator: ${resolveOperatorPackage()}\nModel: ${model}, effort: ${effort}\nProgram:\n${skillProgram}\nYour final answer must be exactly the compact JSON receipt returned by finish. The launcher validates its hash and emits the retained full SkillResult frame; do not repeat the raw envelopes. If blocked, emit a failed frame with result:null, contractVersion:1.0.0, skillId:${process.env.CLAWPERATOR_SKILL_ID}, checkpoints:[], and a truthful diagnostics reason. Inspect retained command errors before recovery. Requested and readiness-probe evidence are separate. After dispatch uncertainty, observe before repeating a mutation. Never invent evidence or values.`;
@@ -53,7 +55,7 @@ async function run(jev) {
     const args=['exec','--ephemeral','--skip-git-repo-check','--sandbox','workspace-write','-c','sandbox_workspace_write.network_access=true','-c','project_doc_max_bytes=0','-c','shell_environment_policy.inherit="all"','-c','shell_environment_policy.include_only=["PATH","HOME","CODEX_HOME","LANG","SHELL","TMPDIR","ADB_PATH","CLAWPERATOR_*","VERSION_*","JEV_API_KEY"]','-c','shell_environment_policy.ignore_default_excludes=true','-c',`model_reasoning_effort="${effort}"`,'-m',model,'--json','--color','never','-C',dir,'-o',path.join(dir,'last-message.txt'),'-'];
     const agentVersion=spawnSync(process.env.CLAWPERATOR_SKILL_AGENT_CLI_PATH,['--version'],{encoding:'utf8',timeout:10000});
     if(agentVersion.status!==0) throw Error('Selected Codex executable unavailable');
-    fs.writeFileSync(path.join(dir,'metadata.json'),JSON.stringify({device:process.env.CLAWPERATOR_DEVICE_ID,operatorPackage:resolveOperatorPackage(),agentExecutable:process.env.CLAWPERATOR_SKILL_AGENT_CLI_PATH,sourceHashes:sourceHashes([['skill',process.env.CLAWPERATOR_SKILL_PROGRAM],...['common.js','observation_context.js','orchestrated_run.js','settings_version_harness.js','settings_version_runtime.js','settings_version_tool.js','settings_version_model.js','settings_version_jev.js'].map(name=>[name,path.join(__dirname,name)])]),model,effort,cliVersion:version.stdout.trim(),clawperatorBin:process.env.CLAWPERATOR_BIN,runId:process.env.CLAWPERATOR_SKILL_RUN_ID,jev,promptHash:digest(prompt),sandbox:'workspace-write',transport:'direct --no-daemon',keyPresentInChild:!!childEnvironment(jev).JEV_API_KEY,codexVersion:agentVersion.stdout.trim(),args},null,2));
+    fs.writeFileSync(path.join(dir,'metadata.json'),JSON.stringify({device:process.env.CLAWPERATOR_DEVICE_ID,operatorPackage:resolveOperatorPackage(),agentExecutable:process.env.CLAWPERATOR_SKILL_AGENT_CLI_PATH,sourceHashes:sourceHashes([['skill',process.env.CLAWPERATOR_SKILL_PROGRAM],...['common.js','observation_context.js','orchestrated_run.js','settings_version_harness.js','settings_version_runtime.js','settings_version_tool.js','settings_version_model.js','settings_version_jev.js','settings_version_failure.js','settings_version_state.js','settings_version_logging.js','settings_version_recovery.js'].map(name=>[name,path.join(__dirname,name)])]),model,effort,cliVersion:version.stdout.trim(),clawperatorBin:process.env.CLAWPERATOR_BIN,runId:process.env.CLAWPERATOR_SKILL_RUN_ID,jev,promptHash:digest(prompt),childLogging:{destination:path.join(dir,'logs'),status:'pending_child_check',statusReference:'logging.json'},sandbox:'workspace-write',transport:'direct --no-daemon',keyPresentInChild:!!childEnvironment(jev).JEV_API_KEY,codexVersion:agentVersion.stdout.trim(),args},null,2));
     const stdout=fs.openSync(path.join(dir,'codex.jsonl'),'w');
     const stderr=fs.openSync(path.join(dir,'codex.stderr'),'w');
     const child=spawn(process.env.CLAWPERATOR_SKILL_AGENT_CLI_PATH,args,{env:childEnvironment(jev),stdio:['pipe',stdout,stderr],detached:true});
@@ -86,8 +88,28 @@ async function run(jev) {
       require('./settings_version_runtime').verifyEvidence(frame);
     }
   } catch(error) {
-    frame={result:null,status:'failed',contractVersion:'1.0.0',skillId:process.env.CLAWPERATOR_SKILL_ID ?? 'version-details',checkpoints:[],terminalVerification:{status:'failed'},diagnostics:{reason:error.message}};
+    frame={result:null,status:'failed',contractVersion:'1.0.0',skillId:process.env.CLAWPERATOR_SKILL_ID ?? 'version-details',checkpoints:[],terminalVerification:{status:'failed'},diagnostics:{reason:error.message,failure:error.failure}};
     process.exitCode=1;
+  }
+  try {
+  if(session && frame.status!=='success') {
+    const toolFailurePath=path.join(session.directory,'last-tool-failure.json');
+    if(fs.existsSync(toolFailurePath)) {
+      frame.diagnostics ??= {};
+      frame.diagnostics.lastToolFailure=JSON.parse(fs.readFileSync(toolFailurePath,'utf8'));
+    }
+    const eventsPath=path.join(session.directory,'events.json');
+    if(fs.existsSync(eventsPath)) {
+      const events=JSON.parse(fs.readFileSync(eventsPath,'utf8'));
+      frame.diagnostics ??= {};
+      const failures=events.filter(event=>event.failure);
+      frame.diagnostics.retainedFailureCount=failures.length;
+      frame.diagnostics.retainedFailures=failures.slice(-16).map(event=>event.failure);
+    }
+  }
+  } catch {
+    frame.diagnostics ??= {};
+    frame.diagnostics.evidenceWarning='Retained failure summaries could not be read; inspect local command files.';
   }
   if(session) finalizeRun(session,frame,performance.now()-started);
   console.log('[Clawperator-Skill-Result]\n'+JSON.stringify(frame));

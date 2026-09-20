@@ -2,7 +2,7 @@
 name: com.android.settings.get-version-details-codex-with-jev
 description: Read Android OS release version and build number from live Settings UI with Codex and bounded Jev decisions.
 clawperator-skill-type: orchestrated
-version: 1.2.0
+version: 1.3.0
 ---
 
 # Android version details
@@ -56,7 +56,7 @@ When complete, review the exact collected values and their evidence, call `finis
 
 ## Bounded Jev delegation
 
-After `open`, invoke `jev` to delegate the subgoal of revealing missing version/build rows. Codex remains responsible for reviewing the returned state, recovering from escalation, and terminal verification. This loop asks Jev to choose only among current candidates, executes one choice and observes again. It returns after completion, uncertainty, no progress, 8 actions or a 30-second decision budget (an in-flight bounded operation may finish beyond that budget). On escalation, inspect the reason and current state; continue using the same `act` and `observe` operations yourself if justified. Do not repeatedly call Jev for the same blocked state. Missing API credentials fail before device navigation.
+After `open`, invoke `jev` to delegate the subgoal of revealing missing version/build rows. Codex remains responsible for reviewing the returned state, recovering from escalation, and terminal verification. This loop asks Jev to choose only among current candidates, executes one choice and observes again. It returns after completion, uncertainty, no progress, 8 actions or a 30-second delegation deadline shared across invocations; child commands and provider requests are capped to its remaining time. On escalation, inspect the reason and current state; continue using the same `act` and `observe` operations yourself if justified. Do not repeatedly call Jev for the same blocked state. Missing API credentials fail before device navigation.
 
 Jev is pinned to `jev-1.13.0`; confidence gate 0.6, per-request attempt 5 seconds, total 10 seconds, at most one retry for HTTP 429/529. Confidence is a routing gate, not a correctness guarantee. Only allowlisted navigation descriptions and field-completion booleans are sent to Jev. Values are copied locally from live UI evidence.
 
@@ -87,3 +87,43 @@ persistent native action handle. Filtering for this task is not a general privac
 guarantee. Jev receives an explicit narrower view: navigation descriptions,
 structural/state evidence, coverage and capture correlation, with local device
 identifiers, source paths, exact extracted values and unrelated text omitted.
+
+## Observation failures and recovery
+
+Inspect `failure.code`, `scope`, `failedStep`, `extractionReason`, `phase` and
+`dispatchState` before choosing a response. Command and readiness-probe correlation
+remain separate. `references` points to retained local command JSON/stdout/stderr;
+original envelopes, including failed attempts, are never replaced. Optional
+numeric parser/extraction facts are allowlisted; unknown facts remain unavailable.
+A malformed source does not establish its underlying cause.
+
+`freshness.status` is `current` only for an unexpired successful observation.
+Actions invalidate candidates before dispatch; failed refreshes leave them stale.
+Both the top-level and nested evidence candidate menus are empty while stale.
+Capture IDs, headings and collected verified values then describe history, not
+current actionable UI. A provider rejection alone does not invalidate a still
+current capture. Refresh after any external UI transition.
+
+For a retained `SNAPSHOT_EXTRACTION_FAILED` with `malformed_xml`,
+`post_processing` and known `dispatched` state on a standalone snapshot,
+Codex may explicitly call `recover-observation`. The Jev controller invokes the
+same orchestrator policy on eligible failures. It allows one fresh observation
+per run, at most 10 seconds and within the remaining run/delegation deadline,
+with at least one second remaining before starting. `recoveries.json` retains
+the original failure, attempt and resulting capture or failure. Never repeat the
+preceding action or a mixed payload as recovery. Repeated failure, unknown
+dispatch, incompatible versions, forbidden source, source limits, logging/setup
+failure or exhausted budget requires diagnosis or a truthful stop. Do not restart
+delegation to reset limits. Runtime commands themselves never retry.
+
+Successful recovery restores observation validity only. Check the destination,
+review overlays and collect missing fields before calling `finish`; recovery is
+not terminal verification. Existing exact row/read-value proof still applies.
+
+Child commands use `<run-directory>/logs`, overriding inherited shared paths.
+The helper checks create/write access inside the child sandbox before device
+operations and records `logging.json`; launcher metadata begins as pending.
+`LOGGING_SETUP_FAILED` stops before dispatch. Later logging write failures are
+recorded alongside the primary command result without changing that result.
+Only existing files from a logger that has not disabled itself are advertised as
+available diagnostic artifacts. Keep all raw UI and provider logs local.

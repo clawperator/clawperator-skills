@@ -45,7 +45,7 @@ test('missing transport envelopes do not shift command evidence into invalid res
  const f=fixture();try{
   const state=JSON.parse(fs.readFileSync(path.join(f.dir,'state.json')));
   const old=[0,1,2,3].map(i=>JSON.parse(fs.readFileSync(path.join(f.dir,`command-${i}.json`))));
-  f.save('command-1.json',{code:'RESULT_ENVELOPE_TIMEOUT',message:'No envelope during readiness probe'});
+  f.save('command-1.json',null);
   for(let i=1;i<4;i++)f.save(`command-${i+1}.json`,old[i]);
   state.fields.androidVersion.readIndex=2;state.fields.buildNumber.readIndex=3;f.save('state.json',state);
   const events=[f.events[0],{index:1,args:['read-value'],exitCode:1,device:'test-device',runId:'test-run'},...f.events.slice(1).map(e=>({...e,index:e.index+1}))];f.save('events.json',events);
@@ -68,4 +68,12 @@ test('command failures retain requested and probe evidence without synthesizing 
   assert.deepEqual(event.failureEvidence,failure.details);
   assert.equal(JSON.parse(fs.readFileSync(path.join(f.dir,'command-0.json'))).envelope,undefined);
  } finally {if(old===undefined)delete process.env.CLAWPERATOR_BIN;else process.env.CLAWPERATOR_BIN=old;f.cleanup();}
+});
+
+test('a later failed snapshot cannot satisfy final verification with earlier collected values',()=>{
+ const f=fixture();try {
+  const failure={envelope:{commandId:'failed',status:'failed',stepResults:[{id:'snap',actionType:'snapshot',success:false,data:{error:'SNAPSHOT_EXTRACTION_FAILED',extractionReason:'malformed_xml'}}]}};
+  f.save('command-4.json',failure);f.save('events.json',[...f.events,{index:4,args:['snapshot'],exitCode:1}]);
+  assert.throws(()=>verifyEvidence(f.frame),error=>error.failure.scope==='terminal_verification');
+ }finally{f.cleanup();}
 });
