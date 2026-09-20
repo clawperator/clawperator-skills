@@ -143,3 +143,20 @@ test('logging metadata failure stops setup without exposing filesystem exception
   assert.throws(()=>prepareLogging(f.dir),error=>error.failure.code==='LOGGING_SETUP_FAILED' && !error.message.includes(f.dir));
  }finally{f.close();}
 });
+
+test('Jev overlay escalation preserves current review evidence and clears historical candidates',async()=>{
+ const f=fixture();const observe=runtime.observe;try {
+  const pendingOverlay={captureId:'overlay-current',package:'fixture.overlay',screenshotPath:path.join(f.dir,'overlay.png'),observedAt:Date.now()};
+  runtime.save('state.json',{observation:{captureId:'historical',candidates:[{id:'old'}],evidence:{candidates:[{id:'old'}]}},fields:{androidVersion:{value:'verified'}},actions:1,observedAt:0,pendingOverlay});
+  runtime.observe=()=>({status:'overlay_review_required',...pendingOverlay});
+  const result=await require('./settings_version_jev').loop();
+  assert.equal(result.reason,'overlay_review_required');
+  for(const state of [result.state,runtime.read('fallbacks.json')[0].state]) {
+    assert.equal(state.status,'overlay_review_required');assert.equal(state.captureId,pendingOverlay.captureId);
+    assert.equal(state.screenshotPath,pendingOverlay.screenshotPath);assert.equal(state.package,pendingOverlay.package);
+    assert.match(state.note,/inspect this screenshot/);assert.equal(state.freshness.status,'stale');
+    assert.deepEqual(state.candidates,[]);assert.deepEqual(state.evidence.candidates,[]);
+    assert.equal(state.collected.androidVersion.value,'verified');assert.equal(state.complete,false);
+  }
+ }finally{runtime.observe=observe;f.close();}
+});

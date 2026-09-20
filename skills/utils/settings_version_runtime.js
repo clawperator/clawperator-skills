@@ -81,7 +81,7 @@ function acquireObservation() {
     command(['screenshot','--path',screenshotPath]);
     state.pendingOverlay={captureId:response.envelope.commandId,package:metadata.overlay_package,screenshotPath,observedAt:Date.now()};
     save('state.json',state);
-    return {status:'overlay_review_required',...state.pendingOverlay,note:'Use the image tool to inspect this screenshot. If this is an unobstructive overlay and Settings is usable, approve-overlay <captureId> for this run. Otherwise stop truthfully.'};
+    return publicState(state);
   }
   const projectionStarted=performance.now();
   const observation=normalize(response,{allowedOverlayPackage:state.overlayApproval?.package,context});
@@ -105,7 +105,11 @@ function acquireObservation() {
 }
 function publicState(state) {
   const observation=publicObservation(state);
-  return { ...observation, collected:state.fields, actions:state.actions, complete:observation.freshness.status==='current' && Object.keys(LABELS).every(k=>state.fields[k]), evidenceDirectory:directory() };
+  const result={ ...observation, collected:state.fields, actions:state.actions, complete:observation.freshness.status==='current' && Object.keys(LABELS).every(k=>state.fields[k]), evidenceDirectory:directory() };
+  if(state.pendingOverlay) {
+    return {...result,status:'overlay_review_required',...state.pendingOverlay,note:'Use the image tool to inspect this screenshot. If this is an unobstructive overlay and Settings is usable, approve-overlay <captureId> for this run. Otherwise stop truthfully.'};
+  }
+  return result;
 }
 function approveOverlay(captureId) {
   const state=read('state.json');

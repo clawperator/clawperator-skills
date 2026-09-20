@@ -27,7 +27,8 @@ run uses the final source hashes. Raw artifacts remain ignored under
 ## Local checks
 
 - Baseline: 120 tests passed.
-- Final `./scripts/test_all.sh`: 133 tests passed.
+- Implementation validation: 133 tests passed. Review follow-up validation:
+  `./scripts/test_all.sh` passed 134 tests.
 - Both affected skill dry-run validators passed using the local core build and
   this checkout's registry.
 - Generated indexes refreshed through `./scripts/generate_skill_indexes.sh`.
@@ -97,3 +98,23 @@ is explicitly a different starting condition and does not prove the root route.
 No genuine malformed XML failure occurred in this cohort. Optional PR2 diagnostics
 are accepted through a bounded allowlist, but the absent PR2 implementation is not
 claimed as validated. Cross-repository closeout remains PR2 follow-up work.
+
+## Completion-review follow-up
+
+Task cleanup found no retireable pack in this repository. The separate two-PR
+handoff remains intact; PR2 and the emulator navigation follow-up remain open.
+Simplification made subprocess error precedence explicit without changing its
+order and clarified the harness failure-reporting block.
+
+The first fresh full-branch review found that Jev escalation discarded pending
+overlay review metadata when rebuilding stale state. The fix uses the same public
+state shape for observation and fallback, retaining the current overlay capture,
+screenshot, package and review instruction while leaving both candidate menus
+empty. A regression covers both returned state and the persisted fallback.
+
+Fresh physical-device proof confirmed `overlay_review_required` includes a usable
+current capture and screenshot. After visual inspection, that exact capture was
+approved, both fields were read and terminal verification passed. Logging remained
+available. This follow-up is genuine live evidence, with no injected failure.
+Earlier injected-run source hashes describe the implementation before this review
+fix and behavior-preserving simplification; their historical records are unchanged.
