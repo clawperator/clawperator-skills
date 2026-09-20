@@ -18,6 +18,22 @@ function childEnvironment(jev) {
   if(jev && process.env.JEV_API_KEY!==undefined) env.JEV_API_KEY=process.env.JEV_API_KEY;
   return env;
 }
+function finalizeRun(session, frame, elapsedMs) {
+  const warn = message => {
+    frame.diagnostics ??= {};
+    const warnings = Array.isArray(frame.diagnostics.warnings) ? frame.diagnostics.warnings : [];
+    frame.diagnostics.warnings = [...warnings, message];
+  };
+  try {
+    fs.writeFileSync(path.join(session.directory,'run-summary.json'),JSON.stringify({status:frame.status,elapsedMs,reason:frame.diagnostics?.reason ?? null}));
+  } catch {
+    warn('Could not write run-summary.json; retained evidence and the primary result remain authoritative.');
+  }
+  try { session.release(); }
+  catch {
+    warn('Could not release the device reservation; inspect its owner and lock before retrying.');
+  }
+}
 async function run(jev) {
   let frame, session;
   const started=performance.now();
@@ -73,10 +89,7 @@ async function run(jev) {
     frame={result:null,status:'failed',contractVersion:'1.0.0',skillId:process.env.CLAWPERATOR_SKILL_ID ?? 'version-details',checkpoints:[],terminalVerification:{status:'failed'},diagnostics:{reason:error.message}};
     process.exitCode=1;
   }
-  if(session) {
-    try { fs.writeFileSync(path.join(session.directory,'run-summary.json'),JSON.stringify({status:frame.status,elapsedMs:performance.now()-started,reason:frame.diagnostics?.reason ?? null})); }
-    finally { session.release(); }
-  }
+  if(session) finalizeRun(session,frame,performance.now()-started);
   console.log('[Clawperator-Skill-Result]\n'+JSON.stringify(frame));
 }
-module.exports={run,childEnvironment,parseFailureFrame};
+module.exports={run,childEnvironment,parseFailureFrame,finalizeRun};

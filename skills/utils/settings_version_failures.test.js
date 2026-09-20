@@ -74,3 +74,38 @@ test('initial observation failure returns to Codex and records fallback before a
   assert.equal(fs.existsSync(path.join(directory,'jev.json')),false);
  }finally{runtime.observe=observe;restore();fs.rmSync(directory,{recursive:true,force:true});}
 });
+
+test('summary and reservation failures preserve success and failure outcomes',()=>{
+ const {finalizeRun}=require('./settings_version_harness');
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'version-finalize-'));
+ try {
+  fs.mkdirSync(path.join(directory,'run-summary.json'));
+  for(const status of ['success','failed']) {
+   const frame={status,result:status==='success'?{kind:'json',value:{verified:true}}:null,diagnostics:{reason:'Primary outcome',warnings:['Existing warning']}};
+   const original=structuredClone(frame);let released=false;
+   finalizeRun({directory,release(){released=true;throw Error('Private filesystem details');}},frame,10);
+   assert.equal(released,true);
+   assert.equal(frame.status,original.status);
+   assert.deepEqual(frame.result,original.result);
+   assert.equal(frame.diagnostics.reason,original.diagnostics.reason);
+   assert.equal(frame.diagnostics.warnings.length,3);
+   assert.equal(frame.diagnostics.warnings[0],'Existing warning');
+   assert.ok(!JSON.stringify(frame).includes('Private filesystem details'));
+  }
+ }finally{fs.rmSync(directory,{recursive:true,force:true});}
+});
+
+test('launcher emits its primary failure frame even when summary and cleanup both fail',()=>{
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'version-finalize-launcher-'));
+ try {
+  fs.mkdirSync(path.join(directory,'run-summary.json'));
+  const program=path.join(directory,'SKILL.md');fs.writeFileSync(program,'Synthetic fixture; no device operations.');
+  const script=`require(${JSON.stringify(path.join(__dirname,'orchestrated_run'))}).prepareRun=()=>({directory:process.env.VERSION_RUN_DIR,model:'fixture',effort:'high',release(){throw Error('cleanup failed');}});require(${JSON.stringify(path.join(__dirname,'settings_version_harness'))}).run(false);`;
+  const child=spawnSync(process.execPath,['-e',script],{encoding:'utf8',env:{...process.env,VERSION_RUN_DIR:directory,CLAWPERATOR_BIN:path.join(directory,'missing-cli'),CLAWPERATOR_DEVICE_ID:'synthetic-device',CLAWPERATOR_SKILL_ID:'synthetic-skill',CLAWPERATOR_SKILL_PROGRAM:program}});
+  assert.equal(child.status,1);
+  const frame=JSON.parse(child.stdout.replace('[Clawperator-Skill-Result]','').trim());
+  assert.equal(frame.status,'failed');assert.equal(frame.result,null);
+  assert.equal(frame.diagnostics.reason,'Pinned CLI unavailable');
+  assert.equal(frame.diagnostics.warnings.length,2);
+ }finally{fs.rmSync(directory,{recursive:true,force:true});}
+});
