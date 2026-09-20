@@ -7,9 +7,8 @@ version: 1.1.0
 
 # Android version details
 
-Use the [Settings orchestration example](https://docs.clawperator.com/skills/settings-version-details/)
-for setup, invocations, result examples, and evidence interpretation. Select an
-explicit compatible CLI/device/Operator pair before running this skill. Set
+Follow [Host Agent Orientation](https://docs.clawperator.com/host-agents/) to select
+a compatible CLI/device/Operator pair before running this skill. Set
 `CLAWPERATOR_BIN` and `CLAWPERATOR_SKILLS_REGISTRY` to the intended CLI and local
 registry. Configure `VERSION_CODEX_MODEL` explicitly for the selected, authenticated
 Codex executable; `VERSION_CODEX_EFFORT` defaults to `high`. No separate OpenAI API
@@ -19,6 +18,25 @@ key is required when using Codex account authentication.
 reserve their device against other copies of these examples; also ensure no other
 controller is using it. Raw evidence can contain private device data and stays
 local. Use a new directory for every attempt, including after failure.
+
+Invoke through the selected CLI (use `node <absolute_index.js>` for a branch-local
+JavaScript entry point):
+
+```bash
+clawperator skills run com.android.settings.get-version-details-codex-with-jev --device <device_serial> --operator-package <operator_package> --timeout 300000 --output json
+```
+
+The wrapper resolves `codex` from `PATH`; select a compatible, authenticated
+executable there before running. Check its version/help and model availability
+separately from Android readiness. Inspect the outer CLI outcome and nested
+`skillResult`: success requires both verified UI fields, while a failed result
+retains its reason and may have no success receipt. Keep the run directory's
+raw command responses, `events.json`, `metadata.json`, and agent transcript for
+diagnosis. `run-summary.json` measures harness time, not outer CLI startup.
+
+Provide `JEV_API_KEY` in the environment without printing it. See
+[Jev integration](https://docs.clawperator.com/skills/jev/) for the reusable
+agent/provider boundary; the concrete limits below belong to this skill.
 
 ## Task and evidence
 
