@@ -59,8 +59,9 @@ function observe() {
   }
   const projectionStarted=performance.now();
   const observation=normalize(response,{allowedOverlayPackage:state.overlayApproval?.package,context});
+  const projectionMs=performance.now()-projectionStarted;
   save(`projection-${index}.json`,observation);
-  save(`projection-metrics-${index}.json`,{projectionMs:performance.now()-projectionStarted,sourceBytes:Buffer.byteLength(JSON.stringify(response)),projectionBytes:Buffer.byteLength(JSON.stringify(observation)),captureMs:read('events.json')[index].elapsedMs,viewportMs:viewportEvent.elapsedMs});
+  save(`projection-metrics-${index}.json`,{projectionMs,sourceBytes:Buffer.byteLength(JSON.stringify(response)),projectionBytes:Buffer.byteLength(JSON.stringify(observation)),captureMs:read('events.json')[index].elapsedMs,viewportMs:viewportEvent.elapsedMs});
   state.observation=observation;
   state.captureIndex=index;
   state.observedAt=Date.now();

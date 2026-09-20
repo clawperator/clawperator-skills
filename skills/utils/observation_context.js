@@ -3,6 +3,8 @@ const STATE_KEYS = ['enabled', 'checked', 'checkable', 'selected', 'visibleToUse
   'clickable', 'scrollable', 'accessibilityDataSensitive'];
 const STRING_KEYS = ['resourceId', 'className', 'text', 'contentDescription', 'bounds'];
 const bytes = value => Buffer.byteLength(JSON.stringify(value));
+// Native NodeMatcher compares UiNode.label: nonblank text, then description.
+const selectorLabel = node => node.text?.trim() ? node.text : node.contentDescription?.trim() ? node.contentDescription : '';
 
 function bounds(value) {
   const match = typeof value === 'string' && /^\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]$/.exec(value);
@@ -112,7 +114,7 @@ function targetEvidence(observation, node, kind) {
     actionNode = chain.find(n => n.clickable === true && n.enabled === true && n.visibleToUser === true);
     if (!actionNode) reasons.push('no_clickable_context');
     else if (!bounds(actionNode.bounds) || (viewport && !intersects(bounds(actionNode.bounds), viewport))) reasons.push('invalid_clickable_geometry');
-    if (typeof node.text === 'string' && node.text.trim() && observation.nodes.filter(n => n.text === node.text).length === 1) selector = { textEquals: node.text };
+    if (typeof node.text === 'string' && node.text.trim() && observation.nodes.filter(n => selectorLabel(n) === node.text).length === 1) selector = { textEquals: node.text };
   } else if (kind === 'scroll') {
     actionNode = node;
     if (node.scrollable !== true) reasons.push('not_scrollable');

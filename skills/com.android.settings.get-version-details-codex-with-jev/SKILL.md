@@ -69,7 +69,8 @@ candidates to observed nodes and unique supported selectors. The Settings helper
 selects relevant rows and navigation; provider request formatting stays separate.
 See [Context adapter](https://docs.clawperator.com/skills/context-adapter/).
 
-Each observation retains original XML, compact response, projection and metrics.
+Successful observations retain original XML, compact response, projection and
+metrics. Failed attempts retain the returned command response and diagnostics.
 The helper also captures screenshot dimensions before the tree for viewport
 intersection checks. These are separate captures, not an atomic observation or
 proof against occlusion. No accessibility selector is derived from pixels.

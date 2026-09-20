@@ -73,3 +73,10 @@ test('false or unknown eligibility and invalid geometry never become actionable'
  const s=snapshot([node('parent',null,{clickable:true,visibleToUser:false}),node('child','parent',{text:'About phone',clickable:true})]);
  assert.equal(select(s,[],[{id:'tap',kind:'click',nodePath:'child'}]).candidates.length,0);
 });
+
+
+test('native label fallback participates in text-selector uniqueness',()=>{
+ const s=snapshot([node('text',null,{text:'About phone',clickable:true}),node('description',null,{text:'  ',contentDescription:'About phone'})]);
+ const p=select(s,[],[{id:'about',kind:'click',nodePath:'text'}]);
+ assert.equal(p.candidates.length,0);assert.ok(p.discoveryHints[0].reasons.includes('selector_not_unique_or_supported'));
+});
