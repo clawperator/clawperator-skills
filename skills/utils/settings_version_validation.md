@@ -35,7 +35,9 @@ run uses the final source hashes. Raw artifacts remain ignored under
   are missing skill-type frontmatter in `com.android.settings.capture-overview`
   and `utils.show-android-device`. These unrelated skills were not changed.
 - No shell files changed, so shell syntax validation is not applicable.
-- Whitespace and repository privacy checks passed.
+- Whitespace and the standalone blocked-terms scan passed. The installed
+  pre-commit entrypoint skipped its check because the shared hook executable was
+  absent; the explicit post-commit scan checked the committed tree instead.
 
 Regression coverage includes the exact nested failed-step error shape, explicit
 outer-error precedence, safe optional diagnostics, absent/unparseable envelopes,
