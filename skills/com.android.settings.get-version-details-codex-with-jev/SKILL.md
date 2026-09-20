@@ -2,7 +2,7 @@
 name: com.android.settings.get-version-details-codex-with-jev
 description: Read Android OS release version and build number from live Settings UI with Codex and bounded Jev decisions.
 clawperator-skill-type: orchestrated
-version: 1.3.0
+version: 1.3.1
 ---
 
 # Android version details
@@ -43,6 +43,17 @@ agent/provider boundary; the concrete limits below belong to this skill.
 Read the Android OS release version and Build number from live Settings UI. Preserve both exact strings. API level, security patch, kernel and manufacturer skin are different fields. Never use shell properties, historical answers, or direct About-screen intents. Do not change settings or tap Build number.
 
 The helper offers fresh, visible, executable candidates with capture IDs. It preserves full compact hierarchy locally and verifies exact sibling label/value association against live `read-value` envelopes. It never chooses a route for Codex. Unknown structure, duplicate labels, truncation or read disagreement must return control to Codex or fail truthfully.
+
+## Supported route boundary
+
+The supported root-start route finds About phone/tablet/emulated device in the
+Settings list, then Software information where present. System is retained as
+screen context but is not offered as a version-details navigation candidate:
+its submenu has no supported return candidate in this example. A run resumed
+inside System must stop honestly if no supported path is available; this example
+does not claim general back-navigation recovery. Do not reset a failed run or
+start on About and describe that as root-start proof. Provider choice remains
+optional in the host control-loop guidance.
 
 ## Observed path and adaptation
 
